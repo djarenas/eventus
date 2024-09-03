@@ -82,7 +82,8 @@ class EventsComparer():
         return x_events_dataframe
 
     @track_time
-    def check_overlap(self, x_events_dataframe, y_events_dataframe, outcome_column= 'intervals_overlap'):
+    def check_overlap(self, x_events_dataframe, y_events_dataframe, outcome_column= 'intervals_overlap',
+                      additional_distinguishers = None):
         """
         """
         # Check inputs
@@ -96,7 +97,7 @@ class EventsComparer():
 
         # Apply interval function
         df_x = interval.check_if_intervals_overlap(df_x, df_y, \
-                                                 x_events_dataframe.columns_dict, outcome_column)
+                                                 x_events_dataframe.columns_dict, outcome_column, additional_distinguishers)
         
         x_events_dataframe.df = df_x
 

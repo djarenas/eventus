@@ -72,7 +72,7 @@ class InpatientAndEDHandler():
 
         # Standardize Inpatient Events
         self._log("Standardizing as Inpatient Events...")
-        inpatient_events = InpatientEventsDataframe(hie_inp_events)
+        inpatient_events = InpatientEventsDataframe(hie_inp_events, distinguishers = ['datasource'])
         if self.verbose:
             inpatient_events.print_breakdown()
 
@@ -101,18 +101,17 @@ class InpatientAndEDHandler():
             print("All Inpatient")
             self.inpatient_events.print_breakdown()
 
-        # Get ED_only
-        self._log("Getting ED Only: ")
+        #-------------------------------
+        # Part 1: Steps to flag overlaps
+        
+        self._log("Steps to flag the ED only: ")
         # Initialize the class for comparison of overlapping events
         comparer = EventsComparer()
-        
-        # Remember that two ED visits may overlap with one inpatient
-        # This is normal since ED visits are built such that 11/01-11/02 and 11/03-11/04 are counted
-        # as two normal events
-        
-        # Separate ED-only
+        # Flag ED-only by finding which ed events did not have any overlap with inpatient events
         self.ed_events = comparer.check_overlap(self.ed_events, self.inpatient_events, \
-                                                                outcome_column = 'overlaps_with_inpatient')
+                                                outcome_column = 'overlaps_with_inpatient',
+                                                additional_distinguishers = ['datasource'])
+
         # Categorize into ED-only and those that overlap
         ed_only_events = comparer.filter_by_boolean(self.ed_events, \
                                                     'overlaps_with_inpatient', choose = False)
@@ -123,9 +122,10 @@ class InpatientAndEDHandler():
 
         # Compare inpatient to those ED you already know overlap
         self.inpatient_events = comparer.check_overlap(self.inpatient_events, ed_overlapping, \
-                                                                outcome_column = 'overlaps_with_ed')
-
-        # Get ED-Inpatient
+                                                                outcome_column = 'overlaps_with_ed',
+                                                                additional_distinguishers = ['datasource'])
+        #-----------------------------
+        # Step 2: Get the ED Inpatient
 
         # Print out contingency tables with more information on how the inpatient were flagged
         if self.verbose:
@@ -135,19 +135,22 @@ class InpatientAndEDHandler():
             print("Contingency table pointing out how many were NULL")
             cont = pd.crosstab(self.inpatient_events.df['overlaps_with_ed'], self.inpatient_events.df['admitcolumns_null'])
             print(cont)
- 
-        # For inpatients that overlap with ED,
-        # add the eventid, admitsource and datasource from ED event to the inpatient's event
-        self.inpatient_events = comparer.merge_unique_values(
-                                self.inpatient_events, ed_overlapping, \
-                                columns=[self.columns_dict['eventid'],'datasource', 'admitsource', 'admitsourcecode', 'primarycaresetting'],
-                                        flag_column = 'overlaps_with_ED')
 
-        # #E-Inpatient if either by overlap, or by admitsource(admitsourcecode)
+        # Use two criteria to decide whether ED inpatient
+        # 1) Either it overlaps with ED in time
+        # 2) There are signs that it is emergency from the admitsource columns (this logic is worked in the
+        # constructor of the inpatient_events_dataframe class)
         self.inpatient_events.df['ED-Inpatient'] = self.inpatient_events.df['emergency_by_admit'] | self.inpatient_events.df['overlaps_with_ed']
-
+        # Filter by thae ED-Inpatient column
         ed_inpatient_events = comparer.filter_by_boolean(self.inpatient_events, \
                                                     'ED-Inpatient', choose = True)
+        
+        # For inpatients that overlap with ED,
+        # add the eventid, admitsource and datasource from ED event to the inpatient's event
+        ed_inpatient_events = comparer.merge_unique_values(
+                                ed_inpatient_events, ed_overlapping, \
+                                columns=[self.columns_dict['eventid'],'datasource', 'admitsource', 'admitsourcecode', 'primarycaresetting'],
+                                        flag_column = 'overlaps_with_ED')
 
         # Inpatient Only
         inpatient_only_events = comparer.filter_by_boolean(self.inpatient_events, \
@@ -161,7 +164,6 @@ class InpatientAndEDHandler():
         # Break down days off for the ED only and inpatient only for the nearest counterparts
         if self.verbose:
             self._plot_days_off()
-
 
     def strip_to_necessary_cols(self, additional_columns_keep = None):
         """
@@ -218,8 +220,8 @@ class InpatientAndEDHandler():
                                  filename = "inpedhandler_ed_only_days_off_from_inpatient.jpg")
 
         n = sum(self.inpatient_only_events.df['overlaps_with_ed_days_ahead'].isna())
-        print("Inpatient visits with no EDassociated for the patient: ", n)
+        self._log(f"Inpatient visits with no EDassociated for the patient: {n}")
         n_eds_with_no_inpatient_ever = sum(self.ed_only_events.df['overlaps_with_inpatient_days_ahead'].isna())
-        print("ED visits with no inpatient associated for the patient: ", n_eds_with_no_inpatient_ever)
+        self._log(f"ED visits with no inpatient associated for the patient: {n_eds_with_no_inpatient_ever}")
 
 

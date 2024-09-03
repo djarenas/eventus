@@ -42,7 +42,7 @@ class InpatientEventsDataframe(EventsDataframe):
 
         # For inpatient hospitalizations, we should merge/chain overlapping encounters/claims
         event_merger = EventsMerger(self.columns_dict) # Instantiate the class for special merging methods
-        self.df = event_merger.merge_overlapping_events(self.df, ['datasource'])
+        self.df = event_merger.merge_overlapping_events(self.df, distinguishers)
 
         # Update attribute with in
         self.calc_duration_hours('inpatient_duration')
