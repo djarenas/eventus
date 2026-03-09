@@ -33,14 +33,16 @@ class PoissonMixtureFitter(CountDistributionFitter):
         >>> dist = fitter.fit()
     """
 
+    _ERROR_PREFIX = "[PoissonMixtureFitter]"
+
     # Attribute Declarations
     k: int | None
 
-    def __init__(self, counts, k: int | None = None):
+    def __init__(self, counts: np.ndarray, k: int | None = None):
         """Internal constructor.
 
         Args:
-            counts: Series of counts.
+            counts: Numpy array of counts.
             k: Number of components, or None for auto-selection.
         """
         super().__init__(counts)
@@ -60,11 +62,17 @@ class PoissonMixtureFitter(CountDistributionFitter):
         from .events import Events
 
         if not isinstance(events, Events):
-            raise TypeError(f"Expected Events, got {type(events).__name__}")
+            raise TypeError(
+                f"{cls._ERROR_PREFIX} from_events: "
+                f"Expected Events, got {type(events).__name__}"
+            )
         if len(events) == 0:
-            raise ValueError("Events object contains no data")
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} from_events: "
+                f"Events object contains no data"
+            )
 
-        counts = events.count_per_person()
+        counts = events.count_per_person().values
         return cls(counts, k=k)
 
     @classmethod
@@ -94,7 +102,7 @@ class PoissonMixtureFitter(CountDistributionFitter):
         Returns:
             PoissonMixtureDistribution with fitted parameters.
         """
-        counts = self.counts.values.astype(float)
+        counts = self.counts.astype(float)
 
         if self.k is None:
             best_k, weights, lambdas = self._auto_select_k(
@@ -172,6 +180,7 @@ class PoissonMixtureFitter(CountDistributionFitter):
         log_lik_prev = -np.inf
         resp = np.zeros((n, k))
         converged = False
+        log_lik = log_lik_prev
 
         for iteration in range(max_iter):
 

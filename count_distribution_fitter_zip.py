@@ -37,7 +37,7 @@ class ZIPFitter(CountDistributionFitter):
         Returns:
             ZIPDistribution with fitted pi and lambda.
         """
-        counts = self.counts.values
+        counts = self.counts
         n = len(counts)
         n_zeros = (counts == 0).sum()
         mean = counts.mean()
@@ -101,7 +101,7 @@ class ZIPGFitter(CountDistributionFitter):
         Returns:
             ZIPGDistribution with fitted pi, alpha, and beta.
         """
-        counts = self.counts.values
+        counts = self.counts
         n = len(counts)
         n_zeros = (counts == 0).sum()
 

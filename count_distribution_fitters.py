@@ -5,6 +5,10 @@ distribution. It returns a distribution object with fitted
 parameters. That is all it does — no metrics, no plots, no
 comparison. Those are the jobs of other objects.
 
+Internally all fitters store counts as np.ndarray for speed.
+Scipy and numpy operations run directly on arrays without
+the overhead of pd.Series conversion.
+
 This file contains the abstract base class and the fitters
 with simple closed-form or method-of-moments solutions:
 Poisson, Poisson-Gamma, and Geometric.
@@ -28,8 +32,11 @@ class CountDistributionFitter(ABC):
     A fitter holds count data and estimates distribution parameters
     from it. The result of fitting is a CountDistribution object.
 
+    Counts are stored internally as np.ndarray for performance.
+    Conversion from pd.Series or list happens once at construction.
+
     Attributes:
-        counts (pd.Series): The count data to fit against.
+        counts (np.ndarray): The count data to fit against.
 
     Example:
         >>> fitter = PoissonFitter.from_counts(counts)
@@ -38,14 +45,16 @@ class CountDistributionFitter(ABC):
         PoissonDistribution(lambda=4.2000)
     """
 
-    # Attribute Declarations
-    counts: pd.Series
+    _ERROR_PREFIX = "[CountDistributionFitter]"
 
-    def __init__(self, counts: pd.Series):
+    # Attribute Declarations
+    counts: np.ndarray
+
+    def __init__(self, counts: np.ndarray):
         """Internal constructor. Use from_events() or from_counts().
 
         Args:
-            counts: Series of non-negative integer counts.
+            counts: Numpy array of non-negative integer counts.
         """
         self.counts = counts
 
@@ -54,7 +63,7 @@ class CountDistributionFitter(ABC):
         """Create a fitter from an Events object.
 
         Extracts counts per person from the Events object using
-        its semantics.
+        its semantics, converts to np.ndarray.
 
         Args:
             events: A validated Events object.
@@ -69,61 +78,88 @@ class CountDistributionFitter(ABC):
         from .events import Events
 
         if not isinstance(events, Events):
-            raise TypeError(f"Expected Events, got {type(events).__name__}")
+            raise TypeError(
+                f"{cls._ERROR_PREFIX} from_events: "
+                f"Expected Events, got {type(events).__name__}"
+            )
         if len(events) == 0:
-            raise ValueError("Events object contains no data")
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} from_events: "
+                f"Events object contains no data"
+            )
 
-        counts = events.count_per_person()
+        counts = events.count_per_person().values
         return cls(counts)
 
     @classmethod
     def from_counts(cls, counts) -> "CountDistributionFitter":
         """Create a fitter from raw count data.
 
+        Accepts np.ndarray, pd.Series, or list. Converts to
+        np.ndarray once and validates.
+
         Args:
-            counts: Array-like of non-negative integer counts
-                (np.ndarray, list, or pd.Series).
+            counts: Array-like of non-negative integer counts.
 
         Returns:
             A fitter ready to fit.
 
         Raises:
-            TypeError: If counts is not array-like or not integer-valued.
-            ValueError: If counts is empty or contains nulls/negatives.
+            TypeError: If counts is not array-like.
+            ValueError: If counts is empty, has nulls, or has negatives.
         """
         counts = cls._validate_and_convert_counts(counts)
         return cls(counts)
 
-    @staticmethod
-    def _validate_and_convert_counts(counts) -> pd.Series:
-        """Validate and convert count data to pd.Series.
+    @classmethod
+    def _validate_and_convert_counts(cls, counts) -> np.ndarray:
+        """Validate and convert count data to np.ndarray.
 
         Args:
             counts: Array-like of counts.
 
         Returns:
-            Validated pd.Series.
+            Validated np.ndarray.
 
         Raises:
-            TypeError: If not array-like or not integer-valued.
+            TypeError: If not array-like.
             ValueError: If empty, has nulls, or has negatives.
         """
-        if not isinstance(counts, (np.ndarray, pd.Series, list)):
-            raise TypeError(f"Expected array-like, got {type(counts).__name__}")
-
         if isinstance(counts, pd.Series):
-            series = counts.copy()
+            if counts.isna().any():
+                raise ValueError(
+                    f"{cls._ERROR_PREFIX} _validate_and_convert_counts: "
+                    f"Counts contain {counts.isna().sum()} null values"
+                )
+            arr = counts.values.astype(float)
+        elif isinstance(counts, np.ndarray):
+            arr = counts.astype(float)
+        elif isinstance(counts, list):
+            arr = np.array(counts, dtype=float)
         else:
-            series = pd.Series(counts, name="event_count")
+            raise TypeError(
+                f"{cls._ERROR_PREFIX} _validate_and_convert_counts: "
+                f"Expected np.ndarray, pd.Series, or list, "
+                f"got {type(counts).__name__}"
+            )
 
-        if len(series) == 0:
-            raise ValueError("Counts array is empty")
-        if series.isna().any():
-            raise ValueError(f"Counts contain {series.isna().sum()} null values")
-        if (series < 0).any():
-            raise ValueError("Counts cannot contain negative values")
+        if len(arr) == 0:
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} _validate_and_convert_counts: "
+                f"Counts array is empty"
+            )
+        if np.isnan(arr).any():
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} _validate_and_convert_counts: "
+                f"Counts contain {np.isnan(arr).sum()} null values"
+            )
+        if (arr < 0).any():
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} _validate_and_convert_counts: "
+                f"Counts cannot contain negative values"
+            )
 
-        return series
+        return arr
 
     @abstractmethod
     def fit(self) -> CountDistribution:
@@ -205,11 +241,13 @@ class PoissonGammaFitter(CountDistributionFitter):
         from scipy.optimize import minimize
         from scipy.stats import nbinom
 
+        counts = self.counts
+
         def neg_log_lik(params):
             alpha, beta = params
             r = alpha
             p = beta / (1 + beta)
-            pmf_vals = nbinom.pmf(self.counts.values, n=r, p=p)
+            pmf_vals = nbinom.pmf(counts, n=r, p=p)
             return -np.sum(np.log(pmf_vals + 1e-10))
 
         result = minimize(

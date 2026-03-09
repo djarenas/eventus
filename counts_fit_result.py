@@ -1,12 +1,12 @@
 """Counts fit result.
 
-A CountsFitResult holds count data and one or more fitted
+A CountsFitResult holds count data and a collection of fitted
 distributions. It can compute fit metrics, rank distributions,
 produce summaries, and generate comparison plots.
 
 It does not fit anything — that is the fitter's job. It receives
-already-fitted distributions and evaluates how well they match
-the data.
+a CountDistributionCollection and evaluates how well each
+distribution matches the data.
 """
 
 import numpy as np
@@ -14,44 +14,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import chisquare
 
-from .count_distributions import (
-    CountDistribution,
-    PoissonDistribution,
-    PoissonGammaDistribution,
-    GeometricDistribution,
-    ZIPDistribution,
-    ZIPGDistribution,
-    GeneralizedPoissonDistribution,
-    PoissonMixtureDistribution,
-    HurdlePoissonDistribution,
-    HurdlePoissonGammaDistribution,
-)
-from .count_distribution_computers import (
-    CountDistributionComputer,
-    PoissonComputer,
-    PoissonGammaComputer,
-    GeometricComputer,
-    ZIPComputer,
-    ZIPGComputer,
-    GeneralizedPoissonComputer,
-    PoissonMixtureComputer,
-    HurdlePoissonComputer,
-    HurdlePoissonGammaComputer,
-)
-
-
-# Maps each distribution type to its computer type
-COMPUTER_MAP = {
-    PoissonDistribution: PoissonComputer,
-    PoissonGammaDistribution: PoissonGammaComputer,
-    GeometricDistribution: GeometricComputer,
-    ZIPDistribution: ZIPComputer,
-    ZIPGDistribution: ZIPGComputer,
-    GeneralizedPoissonDistribution: GeneralizedPoissonComputer,
-    PoissonMixtureDistribution: PoissonMixtureComputer,
-    HurdlePoissonDistribution: HurdlePoissonComputer,
-    HurdlePoissonGammaDistribution: HurdlePoissonGammaComputer,
-}
+from .count_distributions import CountDistribution, PoissonMixtureDistribution
+from .count_distribution_collection import CountDistributionCollection
+from .model_registry import MODEL_REGISTRY, DISTRIBUTION_TO_MODEL
 
 
 class CountsFitResult:
@@ -63,85 +28,106 @@ class CountsFitResult:
 
     Attributes:
         counts (pd.Series): The count data that was fitted.
-        distributions (dict): Maps distribution name to fitted
-            CountDistribution instance.
+        collection (CountDistributionCollection): The fitted
+            distributions to compare.
 
     Example:
-        >>> result = CountsFitResult(
-        ...     counts=counts,
-        ...     distributions={
-        ...         "Poisson": poisson_dist,
-        ...         "PoissonGamma": pg_dist,
-        ...         "ZIP": zip_dist,
-        ...     }
-        ... )
+        >>> collection = CountDistributionCollection(fitted)
+        >>> result = CountsFitResult(counts, collection)
         >>> print(result.summarize())
         >>> result.plot_all_fits()
         >>> print(result.best_distribution())
     """
 
+    _ERROR_PREFIX = "[CountsFitResult]"
+
     # Attribute Declarations
     counts: pd.Series
-    distributions: dict
+    collection: CountDistributionCollection
 
-    def __init__(self, counts: pd.Series, distributions: dict):
-        """Create a fit result from counts and fitted distributions.
-
-        Validates that counts are valid and all distributions are
-        CountDistribution instances.
+    def __init__(self, counts: pd.Series, collection: CountDistributionCollection):
+        """Create a fit result from counts and a collection of distributions.
 
         Args:
-            counts: Series of non-negative integer counts.
-            distributions: Dict mapping names to CountDistribution
-                instances. e.g. {"Poisson": PoissonDistribution(...)}
+            counts: Count data as pd.Series, np.ndarray, or list.
+                Converted to pd.Series internally.
+            collection: A validated CountDistributionCollection.
 
         Raises:
-            TypeError: If counts or distributions are wrong types.
-            ValueError: If counts is empty or distributions is empty.
+            TypeError: If counts or collection are wrong types.
+            ValueError: If counts is empty, has nulls, or negatives.
         """
-        self._validate_counts(counts)
-        self._validate_distributions(distributions)
+        counts = self._validate_and_convert_counts(counts)
+        self._validate_collection(collection)
         self.counts = counts
-        self.distributions = distributions
+        self.collection = collection
 
-    @staticmethod
-    def _validate_counts(counts) -> None:
-        """Validate the count data.
+    @classmethod
+    def _validate_and_convert_counts(cls, counts) -> pd.Series:
+        """Validate and convert count data to pd.Series.
 
-        Raises:
-            TypeError: If not a pd.Series.
-            ValueError: If empty or contains nulls/negatives.
-        """
-        if not isinstance(counts, pd.Series):
-            raise TypeError(f"Expected pd.Series, got {type(counts).__name__}")
-        if len(counts) == 0:
-            raise ValueError("Counts series is empty")
-        if counts.isna().any():
-            raise ValueError(f"Counts contain {counts.isna().sum()} null values")
-        if (counts < 0).any():
-            raise ValueError("Counts cannot contain negative values")
+        Accepts pd.Series, np.ndarray, or list. Converts to
+        pd.Series for consistent downstream use in plotting
+        and metrics.
 
-    @staticmethod
-    def _validate_distributions(distributions) -> None:
-        """Validate the distributions dict.
+        Args:
+            counts: Array-like of counts.
+
+        Returns:
+            Validated pd.Series.
 
         Raises:
-            TypeError: If not a dict or values are not CountDistribution.
-            ValueError: If empty.
+            TypeError: If not a supported type.
+            ValueError: If empty, has nulls, or has negatives.
         """
-        if not isinstance(distributions, dict):
-            raise TypeError(f"Expected dict, got {type(distributions).__name__}")
-        if len(distributions) == 0:
-            raise ValueError("Distributions dict is empty")
-        for name, dist in distributions.items():
-            if not isinstance(dist, CountDistribution):
-                raise TypeError(
-                    f"Distribution '{name}' is not a CountDistribution, "
-                    f"got {type(dist).__name__}"
-                )
+        if isinstance(counts, pd.Series):
+            series = counts.copy()
+        elif isinstance(counts, np.ndarray):
+            series = pd.Series(counts, name="event_count")
+        elif isinstance(counts, list):
+            series = pd.Series(counts, name="event_count")
+        else:
+            raise TypeError(
+                f"{cls._ERROR_PREFIX} __init__: "
+                f"counts must be pd.Series, np.ndarray, or list, "
+                f"got {type(counts).__name__}"
+            )
+        if len(series) == 0:
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} __init__: "
+                f"counts cannot be empty"
+            )
+        if series.isna().any():
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} __init__: "
+                f"counts contain {series.isna().sum()} null values"
+            )
+        if (series < 0).any():
+            raise ValueError(
+                f"{cls._ERROR_PREFIX} __init__: "
+                f"counts cannot contain negative values"
+            )
 
-    def _get_computer(self, distribution: CountDistribution) -> CountDistributionComputer:
+        return series
+
+    @classmethod
+    def _validate_collection(cls, collection) -> None:
+        """Validate the collection.
+
+        Raises:
+            TypeError: If not a CountDistributionCollection.
+        """
+        if not isinstance(collection, CountDistributionCollection):
+            raise TypeError(
+                f"{cls._ERROR_PREFIX} __init__: "
+                f"collection must be CountDistributionCollection, "
+                f"got {type(collection).__name__}"
+            )
+
+    def _get_computer(self, distribution: CountDistribution):
         """Look up and create the right computer for a distribution.
+
+        Uses the model registry for the lookup.
 
         Args:
             distribution: A CountDistribution instance.
@@ -150,16 +136,33 @@ class CountsFitResult:
             The matching computer instance.
 
         Raises:
-            KeyError: If no computer is registered for this distribution type.
+            KeyError: If distribution type is not in the registry.
         """
         dist_type = type(distribution)
-        if dist_type not in COMPUTER_MAP:
+        if dist_type not in DISTRIBUTION_TO_MODEL:
             raise KeyError(
-                f"No computer registered for {dist_type.__name__}. "
-                f"Available: {[t.__name__ for t in COMPUTER_MAP.keys()]}"
+                f"{self._ERROR_PREFIX} _get_computer: "
+                f"No computer registered for {dist_type.__name__}"
             )
-        computer_cls = COMPUTER_MAP[dist_type]
-        return computer_cls(distribution)
+        model_name = DISTRIBUTION_TO_MODEL[dist_type]
+        computer_class = MODEL_REGISTRY[model_name]["computer"]
+        return computer_class(distribution)
+
+    def _count_params(self, distribution: CountDistribution) -> int:
+        """Count the free parameters of a distribution.
+
+        Handles the special case of PoissonMixture where k is a
+        hyperparameter, not a fitted parameter.
+
+        Args:
+            distribution: A CountDistribution instance.
+
+        Returns:
+            Number of free parameters.
+        """
+        if isinstance(distribution, PoissonMixtureDistribution):
+            return 2 * distribution.params["k"] - 1
+        return len(distribution.params)
 
     # ---- Metrics ----
 
@@ -174,15 +177,12 @@ class CountsFitResult:
         k_values = self.counts.values
         rows = []
 
-        for name, dist in self.distributions.items():
+        for name, dist in self.collection:
             computer = self._get_computer(dist)
             pmf_vals = computer.compute_pmf(k_values)
             log_lik = float(np.sum(np.log(pmf_vals + 1e-10)))
 
-            n_params = len(dist.params)
-            # For mixture models, k is a hyperparameter not a fitted param
-            if isinstance(dist, PoissonMixtureDistribution):
-                n_params = 2 * dist.params["k"] - 1
+            n_params = self._count_params(dist)
 
             aic = 2 * n_params - 2 * log_lik
             aicc = aic + (2 * n_params ** 2 + 2 * n_params) / max(n - n_params - 1, 1)
@@ -217,7 +217,7 @@ class CountsFitResult:
             (self.counts == k).sum() for k in k_range
         ])
 
-        for name, dist in self.distributions.items():
+        for name, dist in self.collection:
             computer = self._get_computer(dist)
             expected = computer.compute_pmf(k_range) * n
 
@@ -234,9 +234,7 @@ class CountsFitResult:
                 exp_binned = exp_binned[:-1]
                 obs_binned = obs_binned[:-1]
 
-            n_params = len(dist.params)
-            if isinstance(dist, PoissonMixtureDistribution):
-                n_params = 2 * dist.params["k"] - 1
+            n_params = self._count_params(dist)
 
             try:
                 stat, p_value = chisquare(obs_binned, exp_binned, ddof=n_params)
@@ -245,7 +243,7 @@ class CountsFitResult:
                     "chi2_stat": round(float(stat), 4),
                     "p_value": round(float(p_value), 4),
                 })
-            except Exception as e:
+            except Exception:
                 rows.append({
                     "model": name,
                     "chi2_stat": np.nan,
@@ -268,7 +266,10 @@ class CountsFitResult:
         """
         valid = {"aic", "aicc", "bic"}
         if criterion not in valid:
-            raise ValueError(f"criterion must be one of {valid}, got '{criterion}'")
+            raise ValueError(
+                f"{self._ERROR_PREFIX} best_distribution: "
+                f"criterion must be one of {valid}, got '{criterion}'"
+            )
 
         metrics = self.compute_fit_metrics()
         best_row = metrics.sort_values(criterion).iloc[0]
@@ -300,7 +301,7 @@ class CountsFitResult:
             f"  N observations: {len(self.counts)}",
             f"  Mean: {self.counts.mean():.4f}",
             f"  Variance: {self.counts.var():.4f}",
-            f"  Models compared: {len(self.distributions)}",
+            f"  Models compared: {len(self.collection)}",
             f"  Best model: {best_name}",
             f"",
             f"  Rankings:",
@@ -320,7 +321,7 @@ class CountsFitResult:
         # Each distribution's description
         lines.extend(["", "  Distribution Descriptions:"])
         for name in metrics["model"]:
-            dist = self.distributions[name]
+            dist = self.collection.get(name)
             lines.append(f"")
             lines.append(f"    {name}:")
             for desc_line in dist.describe():
@@ -352,7 +353,7 @@ class CountsFitResult:
             The matplotlib Figure object.
         """
         metrics = self.compute_fit_metrics()
-        n_models = len(self.distributions)
+        n_models = len(self.collection)
         n_cols = min(3, n_models)
         n_rows = (n_models + n_cols - 1) // n_cols
 
@@ -368,7 +369,7 @@ class CountsFitResult:
 
         for i, (_, row) in enumerate(metrics.iterrows()):
             name = row["model"]
-            dist = self.distributions[name]
+            dist = self.collection.get(name)
             computer = self._get_computer(dist)
 
             ax = axes[i]
@@ -402,6 +403,66 @@ class CountsFitResult:
 
         return fig
 
+    def plot_fits_overlay(self, show: bool = True, save_to: str = None):
+        """Plot all fitted distributions overlaid on one plot.
+
+        Shows the observed histogram in the background with each
+        fitted PMF as a colored line. Best model is drawn thicker.
+        Good for at-a-glance comparison of where models diverge.
+
+        Args:
+            show: If True, calls plt.show().
+            save_to: Optional filepath to save the figure.
+
+        Returns:
+            The matplotlib Axes object.
+        """
+        metrics = self.compute_fit_metrics()
+        best_name = metrics.iloc[0]["model"]
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        k_range = np.arange(0, self.counts.max() + 1)
+        observed_counts = self.counts.value_counts().sort_index()
+        observed_freq = observed_counts / len(self.counts)
+
+        # Observed bars in background
+        ax.bar(observed_freq.index, observed_freq.values,
+               alpha=0.3, label="Observed", color="steelblue", width=0.8)
+
+        # Color cycle for fitted lines
+        colors = plt.cm.Set1(np.linspace(0, 1, len(self.collection)))
+
+        for i, (_, row) in enumerate(metrics.iterrows()):
+            name = row["model"]
+            dist = self.collection.get(name)
+            computer = self._get_computer(dist)
+            theoretical = computer.compute_pmf(k_range)
+
+            is_best = name == best_name
+            linewidth = 3 if is_best else 1.5
+            label = f"{name} (BEST)" if is_best else name
+
+            ax.plot(k_range, theoretical, "o-",
+                    color=colors[i], label=label,
+                    markersize=4 if is_best else 3,
+                    linewidth=linewidth,
+                    alpha=1.0 if is_best else 0.7)
+
+        ax.set_xlabel("Events per Person")
+        ax.set_ylabel("Probability")
+        ax.set_title("All Models vs Observed")
+        ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+
+        plt.tight_layout()
+
+        if save_to:
+            fig.savefig(save_to, dpi=300, bbox_inches="tight")
+        if show:
+            plt.show()
+
+        return ax
+
     def plot_all_qq(self, show: bool = True, save_to: str = None):
         """QQ plots for all distributions in a grid.
 
@@ -413,7 +474,7 @@ class CountsFitResult:
             The matplotlib Figure object.
         """
         metrics = self.compute_fit_metrics()
-        n_models = len(self.distributions)
+        n_models = len(self.collection)
         n_cols = min(3, n_models)
         n_rows = (n_models + n_cols - 1) // n_cols
 
@@ -429,7 +490,7 @@ class CountsFitResult:
 
         for i, (_, row) in enumerate(metrics.iterrows()):
             name = row["model"]
-            dist = self.distributions[name]
+            dist = self.collection.get(name)
             computer = self._get_computer(dist)
 
             ax = axes[i]
@@ -516,7 +577,7 @@ class CountsFitResult:
         """Retrieve a specific distribution by name.
 
         Args:
-            name: The distribution name used in the distributions dict.
+            name: The distribution name.
 
         Returns:
             The CountDistribution instance.
@@ -524,19 +585,14 @@ class CountsFitResult:
         Raises:
             KeyError: If name is not in the results.
         """
-        if name not in self.distributions:
-            raise KeyError(
-                f"'{name}' not in results. "
-                f"Available: {list(self.distributions.keys())}"
-            )
-        return self.distributions[name]
+        return self.collection.get(name)
 
     def __repr__(self) -> str:
         return (
             f"CountsFitResult("
-            f"{len(self.distributions)} distributions, "
+            f"{len(self.collection)} distributions, "
             f"n={len(self.counts)})"
         )
 
     def __len__(self) -> int:
-        return len(self.distributions)
+        return len(self.collection)

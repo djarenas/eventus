@@ -37,7 +37,7 @@ class HurdlePoissonFitter(CountDistributionFitter):
         Returns:
             HurdlePoissonDistribution with fitted pi and lambda.
         """
-        counts = self.counts.values
+        counts = self.counts
         n = len(counts)
         nonzero = counts[counts > 0]
         n_nonzero = len(nonzero)
@@ -88,7 +88,7 @@ class HurdlePoissonGammaFitter(CountDistributionFitter):
         Returns:
             HurdlePoissonGammaDistribution with fitted pi, alpha, and beta.
         """
-        counts = self.counts.values
+        counts = self.counts
         n = len(counts)
         nonzero = counts[counts > 0]
         n_nonzero = len(nonzero)

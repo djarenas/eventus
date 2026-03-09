@@ -27,7 +27,7 @@ class GeneralizedPoissonFitter(CountDistributionFitter):
         Returns:
             GeneralizedPoissonDistribution with fitted theta and lambda.
         """
-        counts = self.counts.values
+        counts = self.counts
         mean = counts.mean()
         var = counts.var()
 
@@ -51,7 +51,7 @@ class GeneralizedPoissonFitter(CountDistributionFitter):
                     np.log(theta)
                     + (k - 1) * np.log(val)
                     - val
-                    - sum(np.log(i) for i in range(1, k + 1))
+                    - sum(np.log(i) for i in range(1, int(k) + 1))
                 )
                 ll += log_pmf
             return -ll

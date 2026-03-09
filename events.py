@@ -1,3 +1,8 @@
+import numpy as np
+import pandas as pd
+
+from .event_semantics import EventSemantics
+
 class Events:
     """A collection of events that happened to people.
 
@@ -102,10 +107,9 @@ class Events:
             filtered = filtered[filtered[self.semantics.end_time_col] <= end]
         return Events(filtered, self.semantics)
 
-    def count_per_person(self) -> pd.Series:
+    def count_per_person(self) -> np.ndarray:
         counts = self.data.groupby(self.semantics.person_id_col).size()
-        counts.name = "event_count"
-        return counts
+        return counts.to_numpy()
 
     def __len__(self):
         return len(self.data)
