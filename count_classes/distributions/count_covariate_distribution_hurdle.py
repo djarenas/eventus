@@ -1,21 +1,21 @@
-"""Hurdle count regression distributions.
+"""Hurdle count covariate distributions.
 
-Hurdle regression distributions have two-stage coefficient sets:
+Hurdle covariate distributions have two-stage coefficient sets:
 one for the hurdle (logistic model for crossing the threshold)
 and one for the count (truncated count model given crossing).
 
 HurdlePoissonGamma adds a dispersion component.
 """
 
-from .count_regression_distributions import CountRegressionDistribution
+from .count_covariate_distributions import CountCovariateDistribution
 
 
 # =====================================================================
 #  Hurdle Poisson
 # =====================================================================
 
-class HurdlePoissonRegressionDistribution(CountRegressionDistribution):
-    """Hurdle Poisson regression distribution.
+class HurdlePoissonCovariateDistribution(CountCovariateDistribution):
+    """Hurdle Poisson covariate distribution.
 
     Two components: hurdle and count.
     P(cross hurdle)_i = logit(intercept + h1*age_i + ...)
@@ -24,11 +24,11 @@ class HurdlePoissonRegressionDistribution(CountRegressionDistribution):
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_spec_hurdle import HurdlePoissonRegressionSpec
-        if not isinstance(spec, HurdlePoissonRegressionSpec):
+        from .count_covariate_spec_hurdle import HurdlePoissonCovariateSpec
+        if not isinstance(spec, HurdlePoissonCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be HurdlePoissonRegressionSpec, "
+                f"spec must be HurdlePoissonCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
 
@@ -37,8 +37,8 @@ class HurdlePoissonRegressionDistribution(CountRegressionDistribution):
 #  Hurdle Poisson-Gamma
 # =====================================================================
 
-class HurdlePoissonGammaRegressionDistribution(CountRegressionDistribution):
-    """Hurdle Poisson-Gamma regression distribution.
+class HurdlePoissonGammaCovariateDistribution(CountCovariateDistribution):
+    """Hurdle Poisson-Gamma covariate distribution.
 
     Three components: hurdle, count, and dispersion.
     P(cross hurdle)_i = logit(intercept + h1*age_i + ...)
@@ -48,10 +48,10 @@ class HurdlePoissonGammaRegressionDistribution(CountRegressionDistribution):
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_spec_hurdle import HurdlePoissonGammaRegressionSpec
-        if not isinstance(spec, HurdlePoissonGammaRegressionSpec):
+        from .count_covariate_spec_hurdle import HurdlePoissonGammaCovariateSpec
+        if not isinstance(spec, HurdlePoissonGammaCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be HurdlePoissonGammaRegressionSpec, "
+                f"spec must be HurdlePoissonGammaCovariateSpec, "
                 f"got {type(spec).__name__}"
             )

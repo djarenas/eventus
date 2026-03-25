@@ -1,6 +1,6 @@
-"""Regression distribution collection.
+"""Covariate distribution collection.
 
-A collection holds multiple fitted regression distributions and
+A collection holds multiple fitted covariate distributions and
 provides methods to compare them, save to YAML, and load from YAML.
 
 The key method is coefficient_comparison_table() which produces
@@ -11,15 +11,15 @@ primary output for multiverse analysis.
 import yaml
 import pandas as pd
 
-from .count_regression_distributions import CountRegressionDistribution
-from .count_regression_specs import (
-    CountRegressionSpec,
-    PoissonRegressionSpec,
-    PoissonGammaRegressionSpec,
-    GeometricRegressionSpec,
-    ZIPRegressionSpec,
-    ZIPGRegressionSpec,
-    GeneralizedPoissonRegressionSpec,
+from .count_covariate_distributions import CountCovariateDistribution
+from .count_covariate_specs import (
+    CountCovariateSpec,
+    PoissonCovariateSpec,
+    PoissonGammaCovariateSpec,
+    GeometricCovariateSpec,
+    ZIPCovariateSpec,
+    ZIPGCovariateSpec,
+    GeneralizedPoissonCovariateSpec,
 )
 
 # Registry mapping class name strings to classes for YAML loading
@@ -34,84 +34,84 @@ def _build_registries():
     if _REGRESSION_DIST_REGISTRY:
         return
 
-    from .count_regression_distributions import (
-        PoissonRegressionDistribution,
-        PoissonGammaRegressionDistribution,
-        GeometricRegressionDistribution,
-        ZIPRegressionDistribution,
-        ZIPGRegressionDistribution,
-        GeneralizedPoissonRegressionDistribution,
+    from .count_covariate_distributions import (
+        PoissonCovariateDistribution,
+        PoissonGammaCovariateDistribution,
+        GeometricCovariateDistribution,
+        ZIPCovariateDistribution,
+        ZIPGCovariateDistribution,
+        GeneralizedPoissonCovariateDistribution,
     )
-    from .count_regression_distribution_hurdle import (
-        HurdlePoissonRegressionDistribution,
-        HurdlePoissonGammaRegressionDistribution,
+    from .count_covariate_distribution_hurdle import (
+        HurdlePoissonCovariateDistribution,
+        HurdlePoissonGammaCovariateDistribution,
     )
-    from .count_regression_distribution_mixture import (
-        PoissonMixtureRegressionDistribution,
+    from .count_covariate_distribution_mixture import (
+        PoissonMixtureCovariateDistribution,
     )
-    from .count_regression_spec_hurdle import (
-        HurdlePoissonRegressionSpec,
-        HurdlePoissonGammaRegressionSpec,
+    from .count_covariate_spec_hurdle import (
+        HurdlePoissonCovariateSpec,
+        HurdlePoissonGammaCovariateSpec,
     )
-    from .count_regression_spec_mixture import (
-        PoissonMixtureRegressionSpec,
+    from .count_covariate_spec_mixture import (
+        PoissonMixtureCovariateSpec,
     )
 
     _REGRESSION_DIST_REGISTRY.update({
-        "PoissonRegressionDistribution": PoissonRegressionDistribution,
-        "PoissonGammaRegressionDistribution": PoissonGammaRegressionDistribution,
-        "GeometricRegressionDistribution": GeometricRegressionDistribution,
-        "ZIPRegressionDistribution": ZIPRegressionDistribution,
-        "ZIPGRegressionDistribution": ZIPGRegressionDistribution,
-        "GeneralizedPoissonRegressionDistribution": GeneralizedPoissonRegressionDistribution,
-        "HurdlePoissonRegressionDistribution": HurdlePoissonRegressionDistribution,
-        "HurdlePoissonGammaRegressionDistribution": HurdlePoissonGammaRegressionDistribution,
-        "PoissonMixtureRegressionDistribution": PoissonMixtureRegressionDistribution,
+        "PoissonCovariateDistribution": PoissonCovariateDistribution,
+        "PoissonGammaCovariateDistribution": PoissonGammaCovariateDistribution,
+        "GeometricCovariateDistribution": GeometricCovariateDistribution,
+        "ZIPCovariateDistribution": ZIPCovariateDistribution,
+        "ZIPGCovariateDistribution": ZIPGCovariateDistribution,
+        "GeneralizedPoissonCovariateDistribution": GeneralizedPoissonCovariateDistribution,
+        "HurdlePoissonCovariateDistribution": HurdlePoissonCovariateDistribution,
+        "HurdlePoissonGammaCovariateDistribution": HurdlePoissonGammaCovariateDistribution,
+        "PoissonMixtureCovariateDistribution": PoissonMixtureCovariateDistribution,
     })
 
     _REGRESSION_SPEC_REGISTRY.update({
-        "PoissonRegressionSpec": PoissonRegressionSpec,
-        "PoissonGammaRegressionSpec": PoissonGammaRegressionSpec,
-        "GeometricRegressionSpec": GeometricRegressionSpec,
-        "ZIPRegressionSpec": ZIPRegressionSpec,
-        "ZIPGRegressionSpec": ZIPGRegressionSpec,
-        "GeneralizedPoissonRegressionSpec": GeneralizedPoissonRegressionSpec,
-        "HurdlePoissonRegressionSpec": HurdlePoissonRegressionSpec,
-        "HurdlePoissonGammaRegressionSpec": HurdlePoissonGammaRegressionSpec,
-        "PoissonMixtureRegressionSpec": PoissonMixtureRegressionSpec,
+        "PoissonCovariateSpec": PoissonCovariateSpec,
+        "PoissonGammaCovariateSpec": PoissonGammaCovariateSpec,
+        "GeometricCovariateSpec": GeometricCovariateSpec,
+        "ZIPCovariateSpec": ZIPCovariateSpec,
+        "ZIPGCovariateSpec": ZIPGCovariateSpec,
+        "GeneralizedPoissonCovariateSpec": GeneralizedPoissonCovariateSpec,
+        "HurdlePoissonCovariateSpec": HurdlePoissonCovariateSpec,
+        "HurdlePoissonGammaCovariateSpec": HurdlePoissonGammaCovariateSpec,
+        "PoissonMixtureCovariateSpec": PoissonMixtureCovariateSpec,
     })
 
 
-class RegressionDistributionCollection:
-    """A validated group of fitted regression distributions.
+class CovariateDistributionCollection:
+    """A validated group of fitted covariate distributions.
 
-    Holds named regression distributions and provides methods to
+    Holds named covariate distributions and provides methods to
     compare coefficients across models, save to YAML, and load
     from YAML.
 
     Attributes:
-        distributions (dict): Maps name to CountRegressionDistribution.
+        distributions (dict): Maps name to CountCovariateDistribution.
 
     Example:
-        >>> collection = RegressionDistributionCollection(fitted)
+        >>> collection = CovariateDistributionCollection(fitted)
         >>> print(collection.coefficient_comparison_table())
         >>> collection.save_to_yaml("results.yaml")
 
     Example (load):
-        >>> loaded = RegressionDistributionCollection.build_from_yaml("results.yaml")
+        >>> loaded = CovariateDistributionCollection.build_from_yaml("results.yaml")
     """
 
-    _ERROR_PREFIX = "[RegressionDistributionCollection]"
+    _ERROR_PREFIX = "[CovariateDistributionCollection]"
 
     # Attribute Declarations
     distributions: dict
 
     def __init__(self, distributions: dict):
-        """Create a collection from a dict of regression distributions.
+        """Create a collection from a dict of covariate distributions.
 
         Args:
             distributions: Dict mapping names to
-                CountRegressionDistribution instances.
+                CountCovariateDistribution instances.
 
         Raises:
             TypeError: If not a dict or values are wrong type.
@@ -144,11 +144,11 @@ class RegressionDistributionCollection:
                     f"Distribution name must be a string, "
                     f"got {type(name).__name__}"
                 )
-            if not isinstance(dist, CountRegressionDistribution):
+            if not isinstance(dist, CountCovariateDistribution):
                 raise TypeError(
                     f"{self._ERROR_PREFIX} __init__: "
                     f"Distribution '{name}' must be a "
-                    f"CountRegressionDistribution, "
+                    f"CountCovariateDistribution, "
                     f"got {type(dist).__name__}"
                 )
 
@@ -243,7 +243,7 @@ class RegressionDistributionCollection:
         """
         lines = [
             f"{'=' * 65}",
-            f"  Regression Distribution Collection",
+            f"  Covariate Distribution Collection",
             f"{'=' * 65}",
             f"  Models: {len(self.distributions)}",
             f"",
@@ -291,7 +291,7 @@ class RegressionDistributionCollection:
             entry["name"] = name
             entries.append(entry)
 
-        output = {"regression_distributions": entries}
+        output = {"covariate_distributions": entries}
 
         try:
             with open(path, "w") as f:
@@ -303,14 +303,14 @@ class RegressionDistributionCollection:
             )
 
     @classmethod
-    def build_from_yaml(cls, path: str) -> "RegressionDistributionCollection":
+    def build_from_yaml(cls, path: str) -> "CovariateDistributionCollection":
         """Load a collection from a YAML file.
 
         Args:
             path: Path to the YAML file.
 
         Returns:
-            A validated RegressionDistributionCollection.
+            A validated CovariateDistributionCollection.
 
         Raises:
             TypeError: If path is not a string.
@@ -342,7 +342,7 @@ class RegressionDistributionCollection:
         cls._validate_yaml(config, path)
 
         distributions = {}
-        for i, entry in enumerate(config["regression_distributions"]):
+        for i, entry in enumerate(config["covariate_distributions"]):
             name = entry.get("name", f"model_{i}")
             dist = cls._build_distribution_from_entry(entry, i, path)
             distributions[name] = dist
@@ -357,26 +357,26 @@ class RegressionDistributionCollection:
                 f"{cls._ERROR_PREFIX} build_from_yaml: "
                 f"YAML at '{path}' must be a dictionary"
             )
-        if "regression_distributions" not in config:
+        if "covariate_distributions" not in config:
             raise ValueError(
                 f"{cls._ERROR_PREFIX} build_from_yaml: "
-                f"YAML at '{path}' must have 'regression_distributions' key"
+                f"YAML at '{path}' must have 'covariate_distributions' key"
             )
-        if not isinstance(config["regression_distributions"], list):
+        if not isinstance(config["covariate_distributions"], list):
             raise TypeError(
                 f"{cls._ERROR_PREFIX} build_from_yaml: "
-                f"'regression_distributions' must be a list"
+                f"'covariate_distributions' must be a list"
             )
-        if len(config["regression_distributions"]) == 0:
+        if len(config["covariate_distributions"]) == 0:
             raise ValueError(
                 f"{cls._ERROR_PREFIX} build_from_yaml: "
-                f"'regression_distributions' list cannot be empty"
+                f"'covariate_distributions' list cannot be empty"
             )
 
     @classmethod
     def _build_distribution_from_entry(cls, entry: dict, index: int,
-                                         path: str) -> CountRegressionDistribution:
-        """Build a single regression distribution from a YAML entry.
+                                         path: str) -> CountCovariateDistribution:
+        """Build a single covariate distribution from a YAML entry.
 
         Args:
             entry: Dict with distribution, spec, and coefficients.
@@ -384,7 +384,7 @@ class RegressionDistributionCollection:
             path: File path for error messages.
 
         Returns:
-            A CountRegressionDistribution instance.
+            A CountCovariateDistribution instance.
         """
         # Validate entry structure
         if "distribution" not in entry:
@@ -436,14 +436,14 @@ class RegressionDistributionCollection:
 
     # ---- Access ----
 
-    def get(self, name: str) -> CountRegressionDistribution:
+    def get(self, name: str) -> CountCovariateDistribution:
         """Retrieve a single distribution by name.
 
         Args:
             name: Distribution name.
 
         Returns:
-            The CountRegressionDistribution instance.
+            The CountCovariateDistribution instance.
 
         Raises:
             KeyError: If name not found.
@@ -474,4 +474,4 @@ class RegressionDistributionCollection:
 
     def __repr__(self) -> str:
         names = list(self.distributions.keys())
-        return f"RegressionDistributionCollection({len(names)} distributions: {names})"
+        return f"CovariateDistributionCollection({len(names)} distributions: {names})"

@@ -1,15 +1,15 @@
-"""Poisson Mixture count regression distribution.
+"""Poisson Mixture count covariate distribution.
 
-The mixture regression distribution has variable numbers of
+The mixture covariate distribution has variable numbers of
 rate components plus a weight component, mirroring the structure
-of PoissonMixtureRegressionSpec.
+of PoissonMixtureCovariateSpec.
 """
 
-from .count_regression_distributions import CountRegressionDistribution
+from .count_covariate_distributions import CountCovariateDistribution
 
 
-class PoissonMixtureRegressionDistribution(CountRegressionDistribution):
-    """Poisson Mixture regression distribution.
+class PoissonMixtureCovariateDistribution(CountCovariateDistribution):
+    """Poisson Mixture covariate distribution.
 
     Variable number of rate components plus weights.
     Each group has its own rate coefficients:
@@ -18,12 +18,12 @@ class PoissonMixtureRegressionDistribution(CountRegressionDistribution):
         P(group j)_i = softmax(intercept + w1*age_i + ...)
 
     Attributes:
-        spec: PoissonMixtureRegressionSpec
+        spec: PoissonMixtureCovariateSpec
         coefficients: dict with keys rate_1, rate_2, ..., weights
         k (int): Number of mixture components (from spec).
     """
 
-    _ERROR_PREFIX = "[PoissonMixtureRegressionDistribution]"
+    _ERROR_PREFIX = "[PoissonMixtureCovariateDistribution]"
 
     @property
     def k(self) -> int:
@@ -31,17 +31,17 @@ class PoissonMixtureRegressionDistribution(CountRegressionDistribution):
         return self.spec.k
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_spec_mixture import PoissonMixtureRegressionSpec
-        if not isinstance(spec, PoissonMixtureRegressionSpec):
+        from .count_covariate_spec_mixture import PoissonMixtureCovariateSpec
+        if not isinstance(spec, PoissonMixtureCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be PoissonMixtureRegressionSpec, "
+                f"spec must be PoissonMixtureCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
 
     def describe(self) -> list:
-        """Describe this mixture regression distribution."""
-        lines = [f"PoissonMixtureRegressionDistribution (K={self.k})"]
+        """Describe this mixture covariate distribution."""
+        lines = [f"PoissonMixtureCovariateDistribution (K={self.k})"]
         for j in range(1, self.k + 1):
             comp_name = f"rate_{j}"
             comp_coeffs = self.coefficients[comp_name]
@@ -65,6 +65,6 @@ class PoissonMixtureRegressionDistribution(CountRegressionDistribution):
     def __repr__(self) -> str:
         n_coeffs = sum(len(c) for c in self.coefficients.values())
         return (
-            f"PoissonMixtureRegressionDistribution("
+            f"PoissonMixtureCovariateDistribution("
             f"K={self.k}, {n_coeffs} coefficients)"
         )

@@ -1,4 +1,4 @@
-"""Hurdle count regression specs.
+"""Hurdle count covariate specs.
 
 Hurdle models have two stages: a hurdle component (logistic model
 for whether any events occur) and a count component (truncated
@@ -8,14 +8,14 @@ can have different covariates.
 HurdlePoissonGamma adds a dispersion component on top.
 """
 
-from .count_regression_specs import CountRegressionSpec, _validate_exact_components
+from .count_covariate_specs import CountCovariateSpec, _validate_exact_components
 
 
 # =====================================================================
 #  Hurdle Poisson
 # =====================================================================
 
-class HurdlePoissonRegressionSpec(CountRegressionSpec):
+class HurdlePoissonCovariateSpec(CountCovariateSpec):
     """Spec for Hurdle Poisson regression.
 
     Two components: hurdle and count.
@@ -26,7 +26,7 @@ class HurdlePoissonRegressionSpec(CountRegressionSpec):
     _REQUIRED = {"hurdle", "count"}
 
     def __init__(self, hurdle_covariates: list, count_covariates: list):
-        """Create a Hurdle Poisson regression spec.
+        """Create a Hurdle Poisson covariate spec.
 
         Args:
             hurdle_covariates: Covariates for the hurdle (yes/no) component.
@@ -48,7 +48,7 @@ class HurdlePoissonRegressionSpec(CountRegressionSpec):
 #  Hurdle Poisson-Gamma
 # =====================================================================
 
-class HurdlePoissonGammaRegressionSpec(CountRegressionSpec):
+class HurdlePoissonGammaCovariateSpec(CountCovariateSpec):
     """Spec for Hurdle Poisson-Gamma regression.
 
     Three components: hurdle, count, and dispersion.
@@ -62,7 +62,7 @@ class HurdlePoissonGammaRegressionSpec(CountRegressionSpec):
 
     def __init__(self, hurdle_covariates: list, count_covariates: list,
                  dispersion_covariates: list):
-        """Create a Hurdle Poisson-Gamma regression spec.
+        """Create a Hurdle Poisson-Gamma covariate spec.
 
         Args:
             hurdle_covariates: Covariates for the hurdle component.

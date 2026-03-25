@@ -1,6 +1,6 @@
-"""Count regression specs — base class and simple specs.
+"""Count covariate specs — base class and simple specs.
 
-A regression spec defines what a model should look like before
+A covariate spec defines what a model should look like before
 fitting. It says which covariates go into which model component.
 It does not have coefficients — those come from fitting.
 
@@ -11,8 +11,8 @@ A spec is a model design choice. It answers the question:
 from abc import ABC, abstractmethod
 
 
-class CountRegressionSpec(ABC):
-    """Base class for all count regression specifications.
+class CountCovariateSpec(ABC):
+    """Base class for all count covariate specifications.
 
     A spec defines which covariates go into which model component.
     Each subclass knows what components its model type requires
@@ -23,13 +23,13 @@ class CountRegressionSpec(ABC):
             names. e.g. {"rate": ["age", "BMI"], "dispersion": ["age"]}
 
     Example:
-        >>> spec = PoissonRegressionSpec(rate_covariates=["age", "BMI"])
+        >>> spec = PoissonCovariateSpec(rate_covariates=["age", "BMI"])
         >>> spec.describe()
-        ['Poisson regression spec',
+        ['Poisson covariate spec',
          '  rate: age, BMI']
     """
 
-    _ERROR_PREFIX = "[CountRegressionSpec]"
+    _ERROR_PREFIX = "[CountCovariateSpec]"
 
     # Attribute Declarations
     components: dict
@@ -183,7 +183,7 @@ class CountRegressionSpec(ABC):
         return f"{self.__class__.__name__}({comp_summary})"
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, CountRegressionSpec):
+        if not isinstance(other, CountCovariateSpec):
             return False
         return (self.__class__ == other.__class__
                 and self.components == other.components)
@@ -224,7 +224,7 @@ def _validate_exact_components(components: dict, required: set, class_name: str)
 #  Poisson
 # =====================================================================
 
-class PoissonRegressionSpec(CountRegressionSpec):
+class PoissonCovariateSpec(CountCovariateSpec):
     """Spec for Poisson regression.
 
     One component: rate.
@@ -234,7 +234,7 @@ class PoissonRegressionSpec(CountRegressionSpec):
     _REQUIRED = {"rate"}
 
     def __init__(self, rate_covariates: list):
-        """Create a Poisson regression spec.
+        """Create a Poisson covariate spec.
 
         Args:
             rate_covariates: List of covariate names for the rate component.
@@ -252,7 +252,7 @@ class PoissonRegressionSpec(CountRegressionSpec):
 #  Poisson-Gamma
 # =====================================================================
 
-class PoissonGammaRegressionSpec(CountRegressionSpec):
+class PoissonGammaCovariateSpec(CountCovariateSpec):
     """Spec for Poisson-Gamma regression.
 
     Two components: rate and dispersion.
@@ -263,7 +263,7 @@ class PoissonGammaRegressionSpec(CountRegressionSpec):
     _REQUIRED = {"rate", "dispersion"}
 
     def __init__(self, rate_covariates: list, dispersion_covariates: list):
-        """Create a Poisson-Gamma regression spec.
+        """Create a Poisson-Gamma covariate spec.
 
         Args:
             rate_covariates: Covariates for the rate component.
@@ -285,7 +285,7 @@ class PoissonGammaRegressionSpec(CountRegressionSpec):
 #  Geometric
 # =====================================================================
 
-class GeometricRegressionSpec(CountRegressionSpec):
+class GeometricCovariateSpec(CountCovariateSpec):
     """Spec for Geometric regression.
 
     One component: rate.
@@ -295,7 +295,7 @@ class GeometricRegressionSpec(CountRegressionSpec):
     _REQUIRED = {"rate"}
 
     def __init__(self, rate_covariates: list):
-        """Create a Geometric regression spec.
+        """Create a Geometric covariate spec.
 
         Args:
             rate_covariates: Covariates for the rate component.
@@ -313,7 +313,7 @@ class GeometricRegressionSpec(CountRegressionSpec):
 #  ZIP
 # =====================================================================
 
-class ZIPRegressionSpec(CountRegressionSpec):
+class ZIPCovariateSpec(CountCovariateSpec):
     """Spec for Zero-Inflated Poisson regression.
 
     Two components: rate and zero_inflation.
@@ -324,7 +324,7 @@ class ZIPRegressionSpec(CountRegressionSpec):
     _REQUIRED = {"rate", "zero_inflation"}
 
     def __init__(self, rate_covariates: list, zero_inflation_covariates: list):
-        """Create a ZIP regression spec.
+        """Create a ZIP covariate spec.
 
         Args:
             rate_covariates: Covariates for the rate component.
@@ -346,7 +346,7 @@ class ZIPRegressionSpec(CountRegressionSpec):
 #  ZIPG
 # =====================================================================
 
-class ZIPGRegressionSpec(CountRegressionSpec):
+class ZIPGCovariateSpec(CountCovariateSpec):
     """Spec for Zero-Inflated Poisson-Gamma regression.
 
     Three components: rate, dispersion, and zero_inflation.
@@ -356,7 +356,7 @@ class ZIPGRegressionSpec(CountRegressionSpec):
 
     def __init__(self, rate_covariates: list, dispersion_covariates: list,
                  zero_inflation_covariates: list):
-        """Create a ZIPG regression spec.
+        """Create a ZIPG covariate spec.
 
         Args:
             rate_covariates: Covariates for the rate component.
@@ -380,7 +380,7 @@ class ZIPGRegressionSpec(CountRegressionSpec):
 #  Generalized Poisson
 # =====================================================================
 
-class GeneralizedPoissonRegressionSpec(CountRegressionSpec):
+class GeneralizedPoissonCovariateSpec(CountCovariateSpec):
     """Spec for Generalized Poisson regression.
 
     Two components: rate and dispersion.
@@ -389,7 +389,7 @@ class GeneralizedPoissonRegressionSpec(CountRegressionSpec):
     _REQUIRED = {"rate", "dispersion"}
 
     def __init__(self, rate_covariates: list, dispersion_covariates: list):
-        """Create a Generalized Poisson regression spec.
+        """Create a Generalized Poisson covariate spec.
 
         Args:
             rate_covariates: Covariates for the rate component.

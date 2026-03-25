@@ -1,15 +1,15 @@
-"""Poisson Mixture count regression spec.
+"""Poisson Mixture count covariate spec.
 
-The mixture regression spec is more complex than the others because
+The mixture covariate spec is more complex than the others because
 the number of components (K) is variable. Each component has its
 own rate covariates, and there's a separate weight component that
 determines membership probabilities.
 """
 
-from .count_regression_specs import CountRegressionSpec
+from .count_covariate_specs import CountCovariateSpec
 
 
-class PoissonMixtureRegressionSpec(CountRegressionSpec):
+class PoissonMixtureCovariateSpec(CountCovariateSpec):
     """Spec for Poisson Mixture regression.
 
     Variable number of rate components plus a weight component.
@@ -24,7 +24,7 @@ class PoissonMixtureRegressionSpec(CountRegressionSpec):
         components (dict): Component name to covariate list mapping.
 
     Example:
-        >>> spec = PoissonMixtureRegressionSpec(
+        >>> spec = PoissonMixtureCovariateSpec(
         ...     k=2,
         ...     rate_covariates_per_component={
         ...         1: ["age", "BMI"],
@@ -34,14 +34,14 @@ class PoissonMixtureRegressionSpec(CountRegressionSpec):
         ... )
     """
 
-    _ERROR_PREFIX = "[PoissonMixtureRegressionSpec]"
+    _ERROR_PREFIX = "[PoissonMixtureCovariateSpec]"
 
     # Attribute Declarations
     k: int
 
     def __init__(self, k: int, rate_covariates_per_component: dict,
                  weight_covariates: list):
-        """Create a Poisson Mixture regression spec.
+        """Create a Poisson Mixture covariate spec.
 
         Args:
             k: Number of mixture components. Must be >= 2.
@@ -135,8 +135,8 @@ class PoissonMixtureRegressionSpec(CountRegressionSpec):
         return components
 
     def describe(self) -> list:
-        """Describe this mixture regression spec."""
-        lines = [f"PoissonMixtureRegressionSpec (K={self.k})"]
+        """Describe this mixture covariate spec."""
+        lines = [f"PoissonMixtureCovariateSpec (K={self.k})"]
         for j in range(1, self.k + 1):
             covs = self.components[f"rate_{j}"]
             cov_str = ", ".join(covs) if covs else "(intercept only)"
@@ -148,6 +148,6 @@ class PoissonMixtureRegressionSpec(CountRegressionSpec):
 
     def __repr__(self) -> str:
         return (
-            f"PoissonMixtureRegressionSpec(K={self.k}, "
+            f"PoissonMixtureCovariateSpec(K={self.k}, "
             f"{len(self.unique_covariates())} unique covariates)"
         )

@@ -1,36 +1,36 @@
-"""Count regression distributions — base class and simple distributions.
+"""Count covariate distributions — base class and simple distributions.
 
-A regression distribution is the result of fitting a count regression
+A covariate distribution is the result of fitting a count regression
 model to data. It holds the spec (model design) and the fitted
 coefficients. It is a concept — "I am a PoissonGamma regression
 where rate depends on age by 0.03 and BMI by 0.05."
 
-A regression distribution does not hold data, does not compute
+A covariate distribution does not hold data, does not compute
 predictions, and does not plot. Those are the jobs of other objects.
 """
 
 from abc import ABC, abstractmethod
 import pandas as pd
 
-from .count_regression_specs import CountRegressionSpec
+from .count_covariate_specs import CountCovariateSpec
 
 
-class CountRegressionDistribution(ABC):
-    """Base class for all count regression distributions.
+class CountCovariateDistribution(ABC):
+    """Base class for all count covariate distributions.
 
-    A regression distribution holds a spec (the model design) and
+    A covariate distribution holds a spec (the model design) and
     the fitted coefficients for each component. It can describe
     itself and validate that its coefficients match its spec.
 
     Attributes:
-        spec (CountRegressionSpec): The model design blueprint.
+        spec (CountCovariateSpec): The model design blueprint.
         coefficients (dict): Maps component name to dict of
             covariate name → coefficient value.
             e.g. {"rate": {"intercept": 1.2, "age": 0.03}, ...}
 
     Example:
         >>> dist.describe()
-        ['PoissonGammaRegressionDistribution',
+        ['PoissonGammaCovariateDistribution',
          '  Rate:',
          '    intercept: 1.2000',
          '    age: 0.0300',
@@ -38,14 +38,14 @@ class CountRegressionDistribution(ABC):
          '    intercept: 0.8000']
     """
 
-    _ERROR_PREFIX = "[CountRegressionDistribution]"
+    _ERROR_PREFIX = "[CountCovariateDistribution]"
 
     # Attribute Declarations
-    spec: CountRegressionSpec
+    spec: CountCovariateSpec
     coefficients: dict
 
-    def __init__(self, spec: CountRegressionSpec, coefficients: dict):
-        """Create a regression distribution from a spec and coefficients.
+    def __init__(self, spec: CountCovariateSpec, coefficients: dict):
+        """Create a covariate distribution from a spec and coefficients.
 
         Validates that the spec is the right type for this distribution,
         that coefficients match the spec's components, and that all
@@ -226,7 +226,7 @@ class CountRegressionDistribution(ABC):
         )
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, CountRegressionDistribution):
+        if not isinstance(other, CountCovariateDistribution):
             return False
         return (self.__class__ == other.__class__
                 and self.spec == other.spec
@@ -237,19 +237,19 @@ class CountRegressionDistribution(ABC):
 #  Poisson
 # =====================================================================
 
-class PoissonRegressionDistribution(CountRegressionDistribution):
-    """Poisson regression distribution.
+class PoissonCovariateDistribution(CountCovariateDistribution):
+    """Poisson covariate distribution.
 
     One component: rate.
     rate_i = exp(intercept + b1*age_i + b2*BMI_i + ...)
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_specs import PoissonRegressionSpec
-        if not isinstance(spec, PoissonRegressionSpec):
+        from .count_covariate_specs import PoissonCovariateSpec
+        if not isinstance(spec, PoissonCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be PoissonRegressionSpec, "
+                f"spec must be PoissonCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
 
@@ -258,8 +258,8 @@ class PoissonRegressionDistribution(CountRegressionDistribution):
 #  Poisson-Gamma
 # =====================================================================
 
-class PoissonGammaRegressionDistribution(CountRegressionDistribution):
-    """Poisson-Gamma regression distribution.
+class PoissonGammaCovariateDistribution(CountCovariateDistribution):
+    """Poisson-Gamma covariate distribution.
 
     Two components: rate and dispersion.
     rate_i = exp(intercept + b1*age_i + ...)
@@ -267,11 +267,11 @@ class PoissonGammaRegressionDistribution(CountRegressionDistribution):
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_specs import PoissonGammaRegressionSpec
-        if not isinstance(spec, PoissonGammaRegressionSpec):
+        from .count_covariate_specs import PoissonGammaCovariateSpec
+        if not isinstance(spec, PoissonGammaCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be PoissonGammaRegressionSpec, "
+                f"spec must be PoissonGammaCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
 
@@ -280,19 +280,19 @@ class PoissonGammaRegressionDistribution(CountRegressionDistribution):
 #  Geometric
 # =====================================================================
 
-class GeometricRegressionDistribution(CountRegressionDistribution):
-    """Geometric regression distribution.
+class GeometricCovariateDistribution(CountCovariateDistribution):
+    """Geometric covariate distribution.
 
     One component: rate.
     Special case of PoissonGamma with fixed maximum dispersion.
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_specs import GeometricRegressionSpec
-        if not isinstance(spec, GeometricRegressionSpec):
+        from .count_covariate_specs import GeometricCovariateSpec
+        if not isinstance(spec, GeometricCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be GeometricRegressionSpec, "
+                f"spec must be GeometricCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
 
@@ -301,8 +301,8 @@ class GeometricRegressionDistribution(CountRegressionDistribution):
 #  ZIP
 # =====================================================================
 
-class ZIPRegressionDistribution(CountRegressionDistribution):
-    """Zero-Inflated Poisson regression distribution.
+class ZIPCovariateDistribution(CountCovariateDistribution):
+    """Zero-Inflated Poisson covariate distribution.
 
     Two components: rate and zero_inflation.
     rate_i = exp(intercept + b1*age_i + ...)
@@ -310,11 +310,11 @@ class ZIPRegressionDistribution(CountRegressionDistribution):
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_specs import ZIPRegressionSpec
-        if not isinstance(spec, ZIPRegressionSpec):
+        from .count_covariate_specs import ZIPCovariateSpec
+        if not isinstance(spec, ZIPCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be ZIPRegressionSpec, "
+                f"spec must be ZIPCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
 
@@ -323,18 +323,18 @@ class ZIPRegressionDistribution(CountRegressionDistribution):
 #  ZIPG
 # =====================================================================
 
-class ZIPGRegressionDistribution(CountRegressionDistribution):
-    """Zero-Inflated Poisson-Gamma regression distribution.
+class ZIPGCovariateDistribution(CountCovariateDistribution):
+    """Zero-Inflated Poisson-Gamma covariate distribution.
 
     Three components: rate, dispersion, and zero_inflation.
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_specs import ZIPGRegressionSpec
-        if not isinstance(spec, ZIPGRegressionSpec):
+        from .count_covariate_specs import ZIPGCovariateSpec
+        if not isinstance(spec, ZIPGCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be ZIPGRegressionSpec, "
+                f"spec must be ZIPGCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
 
@@ -343,17 +343,17 @@ class ZIPGRegressionDistribution(CountRegressionDistribution):
 #  Generalized Poisson
 # =====================================================================
 
-class GeneralizedPoissonRegressionDistribution(CountRegressionDistribution):
-    """Generalized Poisson regression distribution.
+class GeneralizedPoissonCovariateDistribution(CountCovariateDistribution):
+    """Generalized Poisson covariate distribution.
 
     Two components: rate and dispersion.
     """
 
     def _validate_spec_type(self, spec) -> None:
-        from .count_regression_specs import GeneralizedPoissonRegressionSpec
-        if not isinstance(spec, GeneralizedPoissonRegressionSpec):
+        from .count_covariate_specs import GeneralizedPoissonCovariateSpec
+        if not isinstance(spec, GeneralizedPoissonCovariateSpec):
             raise TypeError(
                 f"{self._ERROR_PREFIX} __init__: "
-                f"spec must be GeneralizedPoissonRegressionSpec, "
+                f"spec must be GeneralizedPoissonCovariateSpec, "
                 f"got {type(spec).__name__}"
             )
