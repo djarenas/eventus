@@ -1,0 +1,27 @@
+stacked_bar:
+  bar_height: 14        # px height of each bar (HTML only)
+  gap: 3                # px gap between bars (HTML only)
+  colors:
+    before: "#F5F5F5"
+    active: "#4CAF50"
+    middle: "#F44336"
+    after:  "#BDBDBD"
+    no_coverage: "#EEEEEE"
+
+active_timeseries:
+  tick_interval_days: 90
+  line_color: "#2196F3"
+  fill_alpha: 0.15
+  figsize: [14, 5]
+
+coverage_histogram:
+  bins: 30
+  color: "#4CAF50"
+  zero_coverage_color: "#E0E0E0"
+  figsize: [10, 5]
+
+general:
+  dpi: 150
+  font_size: 11
+  title_font_size: 13
+  style: "seaborn-v0_8-whitegrid"

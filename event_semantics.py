@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 import yaml
 
-REQUIRED_FIELDS = {"person_id_col", "event_id_col", "start_time_col", "end_time_col"}
-OPTIONAL_FIELDS = {"event_type_col", "metadata_cols"}
+REQUIRED_FIELDS = {"entity_id_col", "start_time_col", "end_time_col"}
+OPTIONAL_FIELDS = {"event_type_col", "event_id_col", "metadata_cols"}
 ALL_FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 
 
@@ -10,12 +10,12 @@ ALL_FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 class EventSemantics:
     """A description of what columns mean in event data.
 
-    Maps generic concepts (person, event, start time, end time)
+    Maps generic concepts (entity, event, start time, end time)
     to specific column names in a DataFrame. This decouples all
     downstream logic from specific column naming conventions.
 
     Attributes:
-        person_id_col (str): Column containing person identifiers.
+        entity_id_col (str): Column containing entity identifiers.
         event_id_col (str): Column containing event identifiers.
         start_time_col (str): Column containing event start times.
         end_time_col (str): Column containing event end times.
@@ -23,10 +23,10 @@ class EventSemantics:
         metadata_cols (list[str]): Optional list of extra data columns.
     """
 
-    person_id_col: str
-    event_id_col: str
+    entity_id_col: str
     start_time_col: str
     end_time_col: str
+    event_id_col: str | None = None
     event_type_col: str | None = None
     metadata_cols: list[str] = field(default_factory=list)
 
@@ -88,7 +88,7 @@ class EventSemantics:
     def __repr__(self) -> str:
         lines = [
             "EventSemantics",
-            f"  person_id : {self.person_id_col}",
+            f"  entity_id : {self.entity_id_col}",
             f"  event_id  : {self.event_id_col}",
             f"  start_time: {self.start_time_col}",
             f"  end_time  : {self.end_time_col}",
