@@ -1,10 +1,11 @@
 """
-span_analyzer.py
+events_within_span_analyzer.py
 High-level analytics for Events collections within user-supplied spans.
 """
 from __future__ import annotations
-from .span_analyzer_utils import compute_activity_inactivity
-from .span_coverage_result import SpanCoverageResult
+from .events_within_span_analyzer_utils import compute_activity_inactivity
+from .validation_utils import validate_shared_entity_col
+from .pipe_delimited_intermediate_event_analysis import PipeDelimitedIntermediateEventAnalysis
 
 
 class EventsWithinSpansAnalyzer:
@@ -19,8 +20,7 @@ class EventsWithinSpansAnalyzer:
     events : Events
         Merged (non-overlapping) events collection.
     spans : EventsPerEntity
-        One row per entity defining their span window. Must use the same
-        entity_id_col as events, and must have start_time_col <= end_time_col.
+        One row per entity defining their span window.
     entity_col : str
         Column used to identify entities across both events and spans.
     meaningful_gap : int
@@ -29,13 +29,13 @@ class EventsWithinSpansAnalyzer:
 
     Examples
     --------
-    Insurance coverage:
+    Basic usage:
         analyzer = EventsWithinSpansAnalyzer(events, spans)
-        results  = analyzer.calc_active_vs_inactive()
+        result   = analyzer.calc_active_vs_inactive()
 
-    With a 7-day fudge factor:
+    With a 7-day gap bridge:
         analyzer = EventsWithinSpansAnalyzer(events, spans, meaningful_gap=7)
-        results  = analyzer.calc_active_vs_inactive()
+        result   = analyzer.calc_active_vs_inactive()
     """
 
     _ERROR = "[EventsWithinSpansAnalyzer] Error"
@@ -48,22 +48,6 @@ class EventsWithinSpansAnalyzer:
         *,
         meaningful_gap: int = 0,
     ) -> None:
-        """
-        Parameters
-        ----------
-        events : Events
-            A validated Events object — many rows per entity allowed.
-        spans : EventsPerEntity
-            A validated EventsPerEntity object — exactly one row per entity,
-            where start_time_col is the span start and end_time_col is the
-            span end.
-        entity_col : str | None
-            Column identifying the entity in both objects. Defaults to
-            events.semantics.entity_id_col if not provided.
-        meaningful_gap : int
-            Gaps between consecutive events <= this many days are treated
-            as continuous coverage. Default 0 (no bridging).
-        """
         from .events import Events
         from .events_per_entity import EventsPerEntity
 
@@ -75,7 +59,9 @@ class EventsWithinSpansAnalyzer:
 
         # --- Validate meaningful_gap ---
         if not isinstance(meaningful_gap, int) or meaningful_gap < 0:
-            raise ValueError(f"{self._ERROR}: meaningful_gap must be a non-negative integer")
+            raise ValueError(
+                f"{self._ERROR}: meaningful_gap must be a non-negative integer"
+            )
 
         # --- Resolve entity_col ---
         if entity_col is None:
@@ -92,11 +78,7 @@ class EventsWithinSpansAnalyzer:
             )
 
         # --- Check semantics are compatible ---
-        if events.semantics.entity_id_col != spans.semantics.entity_id_col:
-            raise ValueError(
-                f"{self._ERROR}: events and spans have different entity_id_col — "
-                f"'{events.semantics.entity_id_col}' vs '{spans.semantics.entity_id_col}'"
-            )
+        validate_shared_entity_col(events, spans, label_a="events", label_b="spans")
 
         # --- Merge overlapping events once, bridging small gaps ---
         self.events         = events.merge_overlapping_events(meaningful_gap=meaningful_gap)
@@ -128,7 +110,7 @@ class EventsWithinSpansAnalyzer:
     # Analytics
     # ------------------------------------------------------------------ #
 
-    def calc_active_vs_inactive(self) -> SpanCoverageResult:
+    def calc_active_vs_inactive(self) -> PipeDelimitedIntermediateEventAnalysis:
         """
         Compute active vs. inactive days for each entity within their span.
 
@@ -137,17 +119,10 @@ class EventsWithinSpansAnalyzer:
 
         Returns
         -------
-        pd.DataFrame
-            One row per entity with columns:
-            [entity_col, span_start, span_end, span_duration_days,
-             active_days, inactive_days,
-             inactive_days_before_first_event,
-             inactive_days_after_last_event,
-             inactive_days_middle,
-             first_event_start, last_event_end]
-
-            All day columns except span_duration_days are NA if the entity
-            has no events overlapping their span.
+        PipeDelimitedIntermediateEventAnalysis
+            One row per entity. Inherits from PipeDelimitedIntermediate so
+            it can be passed directly to StackedEventsPlotter and other
+            visualization classes.
         """
         df = compute_activity_inactivity(
             events_df=self.events.data,
@@ -158,7 +133,7 @@ class EventsWithinSpansAnalyzer:
             span_start_col=self._span_start_col,
             span_end_col=self._span_end_col,
         )
-        return SpanCoverageResult(df, self.entity_col)
+        return PipeDelimitedIntermediateEventAnalysis(df, self.entity_col)
 
     # ------------------------------------------------------------------ #
     # Special methods

@@ -69,6 +69,21 @@ class Events:
         )
         return Events(merged_df, self.semantics)
 
+
+    def clip_to_spans(self, spans, ignore_entities_with_no_span: bool = False) -> "Events":
+        from events_utils import clip_events_to_spans as _clip
+        clipped_df = _clip(
+            events_df=self.data,
+            spans_df=spans.data,
+            entity_col=self.semantics.entity_id_col,
+            start_col=self.semantics.start_time_col,
+            end_col=self.semantics.end_time_col,
+            span_start_col=spans.semantics.start_time_col,
+            span_end_col=spans.semantics.end_time_col,
+            ignore_entities_with_no_span=ignore_entities_with_no_span,
+        )
+        return Events(clipped_df, self.semantics)
+
     def count_per_entity(self) -> np.ndarray:
         counts = self.data.groupby(self.semantics.entity_id_col).size()
         return counts.to_numpy()
@@ -151,4 +166,7 @@ class Events:
         return len(self.data)
 
     def __repr__(self):
-        return f"Events({len(self)} rows, entity_col='{self.semantics.entity_id_col}')"
+        n_events = len(self)
+        entity_col = self.semantics.entity_id_col
+        n_entity = self.data[entity_col].nunique()
+        return f"Events({n_events} rows, entity_col={entity_col}, unique {entity_col}s = {n_entity})"
