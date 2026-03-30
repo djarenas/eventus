@@ -1,5 +1,5 @@
 """
-pipe_delimited_intermediate_event_analysis_utils.py
+pipe_delimited_intermediate_events_utils.py
 Utility functions for PipeDelimitedIntermediateEventAnalysis.
 """
 from __future__ import annotations
@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pandas as pd
 
-_ERROR_PREFIX = "[pipe_delimited_intermediate_event_analysis_utils] Error"
+_ERROR_PREFIX = "[pipe_delimited_intermediate_events_utils] Error"
 
 
 # --------------------------------------------------------------------------- #
@@ -259,3 +259,85 @@ def calc_tier3(data: pd.DataFrame, entity_col: str, percentiles: list[int] = [25
         f"t3_inactive_days_middle (n={len(middle_pos)}, entities where middle>0)":
             _stats(middle_pos["inactive_days_middle"], percentiles),
     }
+
+
+# --------------------------------------------------------------------------- #
+# self_analyze workhorse
+# --------------------------------------------------------------------------- #
+
+def compute_from_pipe_delimited(
+    data: pd.DataFrame,
+    entity_col: str,
+) -> pd.DataFrame:
+    """
+    Compute active/inactive day columns from pipe-delimited event columns.
+    Called by PipeDelimitedIntermediateEvents.self_analyze().
+
+    Requires columns: span_start, span_end, event_starts, event_ends.
+
+    Returns the input DataFrame with added columns:
+    span_duration_days, active_days, inactive_days,
+    inactive_days_before_first_event, inactive_days_after_last_event,
+    inactive_days_middle, first_event_start, last_event_end.
+    """
+    from .events_within_span_analyzer_utils import compute_activity_inactivity
+
+    if "span_start" not in data.columns or "event_starts" not in data.columns:
+        raise ValueError(
+            "[compute_from_pipe_delimited] Error: data must have "
+            "span_start, span_end, event_starts, event_ends columns"
+        )
+
+    # Explode pipe-delimited intervals into a long-form events DataFrame
+    rows = []
+    for _, row in data.iterrows():
+        if pd.isna(row.get("event_starts")):
+            continue
+        starts = str(row["event_starts"]).split(" | ")
+        ends   = str(row["event_ends"]).split(" | ")
+        for s, e in zip(starts, ends):
+            try:
+                rows.append({
+                    entity_col: row[entity_col],
+                    "start":    pd.Timestamp(s.strip()),
+                    "end":      pd.Timestamp(e.strip()),
+                })
+            except Exception:
+                continue
+
+    if not rows:
+        # No events — all entities get NA analysis columns
+        out = data.copy()
+        for col in ["span_duration_days", "active_days", "inactive_days",
+                    "inactive_days_before_first_event",
+                    "inactive_days_after_last_event",
+                    "inactive_days_middle", "first_event_start", "last_event_end"]:
+            if col not in out.columns:
+                out[col] = pd.NA
+        return out
+
+    events_df = pd.DataFrame(rows)
+    spans_df  = data[[entity_col, "span_start", "span_end"]].copy()
+
+    analysis = compute_activity_inactivity(
+        events_df=events_df,
+        span_df=spans_df,
+        entity_col=entity_col,
+        start_col="start",
+        end_col="end",
+        span_start_col="span_start",
+        span_end_col="span_end",
+    )
+
+    # Analysis columns to add (drop span cols already in data)
+    add_cols = ["span_duration_days", "active_days", "inactive_days",
+                "inactive_days_before_first_event", "inactive_days_after_last_event",
+                "inactive_days_middle", "first_event_start", "last_event_end"]
+
+    out = data.copy()
+    for col in add_cols:
+        if col in analysis.columns:
+            mapping = analysis.set_index(entity_col)[col]
+            out[col] = out[entity_col].map(mapping)
+
+    return out

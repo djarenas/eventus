@@ -4,8 +4,8 @@ A specialized Occurrences subclass that enforces one row per entity.
 """
 from __future__ import annotations
 import pandas as pd
-from occurrences import Occurrences
-from occurrence_semantics import OccurrenceSemantics
+from .occurrences import Occurrences
+from .occurrence_semantics import OccurrenceSemantics
 
 _ERROR_PREFIX = "[OccurrencesPerEntity] Error"
 
@@ -69,8 +69,8 @@ class OccurrencesPerEntity(Occurrences):
         # Build a 1-year window around each diagnosis date
         spans = diagnoses.build_span(window=(365, 365), span_semantics=span_sem)
         """
-        from events_per_entity import EventsPerEntity
-        from occurrences_utils import build_span_from_occurrences
+        from .events_per_entity import EventsPerEntity
+        from .occurrences_utils import build_span_from_occurrences
 
         if span_semantics.entity_id_col != self.semantics.entity_id_col:
             raise ValueError(

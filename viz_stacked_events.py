@@ -112,18 +112,19 @@ class StackedEventsPlotter:
         self._occurrences = occurrences
 
         # --- Validate occ_* columns in intermediate against config ---
+        # Only check base occurrence columns (raw pipe-delimited dates),
+        # skip analysis columns like occ_identity_count, occ_identity_mean_gap_days etc.
+        _ANALYZED_SUFFIXES = (
+            "_count", "_first", "_last", "_recency_days",
+            "_mean_gap_days", "_std_gap_days", "_min_gap_days",
+            "_max_gap_days", "_density", "_burstiness", "_cv",
+        )
         cfg_identities_lower = {
             o["identity"].lower().replace(" ", "_"): o["identity"]
             for o in self._cfg["occurrences"]
         }
-        for col in intermediate.occurrence_cols:
-            col_key = col[4:]
-            if col_key not in cfg_identities_lower:
-                raise ValueError(
-                    f"{_ERROR_PREFIX}: intermediate has occurrence column '{col}' "
-                    f"but no matching config entry found. "
-                    f"Available: {sorted(cfg_identities)}"
-                )
+        # base_occ_cols that have no config entry are silently not drawn
+        # — user may combine an analyzed intermediate without wanting markers
 
         # --- Validate sort_by columns ---
         if sort_by is not None:
@@ -246,7 +247,9 @@ class StackedEventsPlotter:
                     occ_by_entity[entity].append((
                         pd.Timestamp(orow[date_col]).normalize(),
                         cfg_entry["color"],
-                        cfg_entry["thickness"],
+                        cfg_entry.get("marker", "line"),
+                        cfg_entry.get("thickness", 1.5),
+                        cfg_entry.get("size", 50),
                     ))
 
         all_segments = {}
@@ -285,13 +288,15 @@ class StackedEventsPlotter:
                             markers.append((
                                 (d - span_start).days,
                                 cfg_entry["color"],
-                                cfg_entry["thickness"],
+                                cfg_entry.get("marker", "line"),
+                                cfg_entry.get("thickness", 1.5),
+                                cfg_entry.get("size", 50),
                             ))
 
             # --- Markers from Occurrences objects ---
-            for d, color, thickness in occ_by_entity.get(entity, []):
+            for d, color, marker_type, thickness, size in occ_by_entity.get(entity, []):
                 if span_start <= d <= span_end:
-                    markers.append(((d - span_start).days, color, thickness))
+                    markers.append(((d - span_start).days, color, marker_type, thickness, size))
 
             all_markers[entity] = markers
 
@@ -404,20 +409,25 @@ class StackedEventsPlotter:
                 ax.broken_barh(xranges, (y_center - bar_h / 2, bar_h),
                                facecolors=color)
 
-        # Draw occurrence markers — group by color for vlines batch call
-        marker_by_color: dict[str, tuple[list, list, list]] = defaultdict(
+        # Draw occurrence markers — group by (color, marker_type, thickness, size)
+        marker_by_key: dict[tuple, tuple[list, list, list]] = defaultdict(
             lambda: ([], [], [])  # xs, ymins, ymaxs
         )
         for i, entity in enumerate(entities):
             y_center = i
-            for day_offset, color, thickness in all_markers[entity]:
-                xs, ymins, ymaxs = marker_by_color[(color, thickness)]
+            for day_offset, color, marker_type, thickness, size in all_markers[entity]:
+                xs, ymins, ymaxs = marker_by_key[(color, marker_type, thickness, size)]
                 xs.append(day_offset)
                 ymins.append(y_center - bar_h / 2)
                 ymaxs.append(y_center + bar_h / 2)
 
-        for (color, thickness), (xs, ymins, ymaxs) in marker_by_color.items():
-            if xs:
+        for (color, marker_type, thickness, size), (xs, ymins, ymaxs) in marker_by_key.items():
+            if not xs:
+                continue
+            if marker_type == "circle":
+                y_centers = [(ymin + ymax) / 2 for ymin, ymax in zip(ymins, ymaxs)]
+                ax.scatter(xs, y_centers, s=size, color=color, zorder=4, linewidths=0)
+            else:  # default: line
                 ax.vlines(x=xs, ymin=ymins, ymax=ymaxs,
                           colors=color, linewidths=thickness)
 

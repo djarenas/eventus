@@ -5,7 +5,7 @@ Mirrors the Events pattern — validates inputs and triages bad rows.
 """
 from __future__ import annotations
 import pandas as pd
-from occurrence_semantics import OccurrenceSemantics
+from .occurrence_semantics import OccurrenceSemantics
 
 _ERROR_PREFIX = "[Occurrences] Error"
 

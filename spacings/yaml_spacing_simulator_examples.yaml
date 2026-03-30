@@ -1,0 +1,56 @@
+# Common parameters  
+span_days: 180  
+spacing_days: 30  
+spacing_multiple_max: 6  
+noise: 2  
+probability: 0.5  
+  
+# Choose one of these values for spacing_function:  
+# fixed_multiples, random_uniform, poisson, exponential,  
+# normal, gamma, weibull, lognormal, seasonal, custom  
+  
+# Fixed multiples example  
+spacing_function: fixed_multiples  
+probabilities_per_multiple:  
+  1: 0.5  
+  2: 0.4  
+  3: 0.3  
+  4: 0.2  
+  5: 0.1  
+  6: 0.05  
+  
+# Random uniform example  
+# spacing_function: random_uniform  
+  
+# Poisson example  
+# spacing_function: poisson  
+  
+# Exponential example  
+# spacing_function: exponential  
+  
+# Normal example  
+# spacing_function: normal  
+  
+# Gamma example  
+# spacing_function: gamma  
+# gamma_shape: 2  
+# gamma_scale: 15  
+  
+# Weibull example  
+# spacing_function: weibull  
+# weibull_shape: 1.5  
+# weibull_scale: 30  
+  
+# Lognormal example  
+# spacing_function: lognormal  
+# lognormal_mean: 3.4   # log of mean days  
+# lognormal_sigma: 0.5  
+  
+# Seasonal example  
+# spacing_function: seasonal  
+# seasonal_amplitude: 5  
+# seasonal_period: 12  
+  
+# Custom example  
+# spacing_function: custom  
+# function_expression: "30 + 10 * np.sin(multiple) + np.random.normal(0, 2)"  

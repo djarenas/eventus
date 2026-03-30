@@ -162,6 +162,69 @@ class PipeDelimitedIntermediate:
         from pipe_delimited_utils import validate_content
         return validate_content(self.data, self.entity_col)
 
+    @classmethod
+    def combine(cls, *intermediates) -> "PipeDelimitedIntermediate":
+        """
+        Combine two or more PipeDelimitedIntermediate objects into one.
+
+        All intermediates must share the same entity_col and the same
+        set of entities. Columns from each intermediate are merged — if
+        a column exists in multiple intermediates the last one wins.
+
+        Parameters
+        ----------
+        *intermediates : PipeDelimitedIntermediate
+            Two or more intermediate objects to combine.
+
+        Returns
+        -------
+        PipeDelimitedIntermediate
+            A new base-class intermediate with all columns merged.
+
+        Raises
+        ------
+        ValueError
+            If entity_col values differ or entity sets differ.
+        """
+        if len(intermediates) < 2:
+            raise ValueError(
+                "[PipeDelimitedIntermediate] combine() requires at least 2 intermediates"
+            )
+
+        # Validate all inputs are PipeDelimitedIntermediate or subclasses
+        for i, obj in enumerate(intermediates):
+            if not isinstance(obj, PipeDelimitedIntermediate):
+                raise TypeError(
+                    f"[PipeDelimitedIntermediate] combine(): intermediates[{i}] "
+                    f"must be a PipeDelimitedIntermediate or subclass, "
+                    f"got {type(obj).__name__}"
+                )
+
+        entity_col = intermediates[0].entity_col
+        for i, obj in enumerate(intermediates[1:], 1):
+            if obj.entity_col != entity_col:
+                raise ValueError(
+                    f"[PipeDelimitedIntermediate] combine(): entity_col mismatch — "
+                    f"intermediates[0] has '{entity_col}', "
+                    f"intermediates[{i}] has '{obj.entity_col}'"
+                )
+
+        # Start with first intermediate's data, merge rest in
+        combined = intermediates[0].data.copy()
+        for obj in intermediates[1:]:
+            new_cols = [c for c in obj.data.columns if c != entity_col]
+            combined = combined.merge(
+                obj.data[[entity_col] + new_cols],
+                on=entity_col,
+                how="outer",
+                suffixes=("", "_dup"),
+            )
+            # Drop any duplicate columns
+            dup_cols = [c for c in combined.columns if c.endswith("_dup")]
+            combined = combined.drop(columns=dup_cols)
+
+        return cls(combined, entity_col)
+
     def to_csv(self, path: str) -> None:
         """Save the intermediate DataFrame to CSV."""
         self.data.to_csv(path, index=False)

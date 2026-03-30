@@ -1,5 +1,5 @@
 """
-pipe_delimited_intermediate_event_analysis.py
+pipe_delimited_intermediate_events.py
 Child of PipeDelimitedIntermediate for events-within-span analysis results.
 Produced by EventsWithinSpansAnalyzer.calc_active_vs_inactive().
 """
@@ -9,7 +9,7 @@ import yaml
 
 from .pipe_delimited_intermediate import PipeDelimitedIntermediate
 
-_ERROR_PREFIX = "[PipeDelimitedIntermediateEventAnalysis] Error"
+_ERROR_PREFIX = "[PipeDelimitedIntermediateEvents] Error"
 
 _ANALYSIS_COLS = {
     "span_duration_days",
@@ -23,7 +23,7 @@ _ANALYSIS_COLS = {
 }
 
 
-class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
+class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
     """
     Result of EventsWithinSpansAnalyzer.calc_active_vs_inactive().
 
@@ -49,14 +49,19 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
 
     def __init__(self, data: pd.DataFrame, entity_col: str = "entity_id") -> None:
         super().__init__(data, entity_col)
-        self._validate_analysis_cols()
 
-    def _validate_analysis_cols(self) -> None:
-        missing = _ANALYSIS_COLS - set(self.data.columns)
-        if missing:
+    @property
+    def is_analyzed(self) -> bool:
+        """True if all analysis columns are present."""
+        return _ANALYSIS_COLS.issubset(set(self.data.columns))
+
+    def _require_analyzed(self, method_name: str) -> None:
+        """Raise clearly if analysis columns are missing."""
+        if not self.is_analyzed:
+            missing = sorted(_ANALYSIS_COLS - set(self.data.columns))
             raise ValueError(
-                f"{_ERROR_PREFIX}: data is missing required analysis columns: "
-                f"{sorted(missing)}"
+                f"{_ERROR_PREFIX}: .{method_name}() requires analysis columns "
+                f"which are missing: {missing}. Call .self_analyze() first."
             )
 
     # ------------------------------------------------------------------ #
@@ -68,7 +73,7 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
         cls,
         data: pd.DataFrame,
         entity_col: str = "entity_id",
-    ) -> "PipeDelimitedIntermediateEventAnalysis":
+    ) -> "PipeDelimitedIntermediateEvents":
         """Build from an existing DataFrame (e.g. reloaded from to_csv())."""
         return cls(data, entity_col)
 
@@ -76,19 +81,41 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
     # Diagnostics — thin wrappers over utils
     # ------------------------------------------------------------------ #
 
+    def self_analyze(self) -> "PipeDelimitedIntermediateEvents":
+        """
+        Compute active/inactive day columns from event_starts/event_ends
+        and span_start/span_end. Returns a new enriched instance.
+
+        Requires: span_start, span_end, event_starts, event_ends columns.
+
+        Returns
+        -------
+        PipeDelimitedIntermediateEvents
+            New instance with added columns:
+            active_days, inactive_days, inactive_days_before_first_event,
+            inactive_days_after_last_event, inactive_days_middle,
+            span_duration_days, first_event_start, last_event_end.
+        """
+        from .pipe_delimited_intermediate_events_utils import compute_from_pipe_delimited
+        enriched_df = compute_from_pipe_delimited(self.data, self.entity_col)
+        return PipeDelimitedIntermediateEvents(enriched_df, self.entity_col)
+
     def tier1(self) -> dict:
         """Funnel — no coverage vs any coverage. Denominator: all entities."""
-        from .pipe_delimited_intermediate_event_analysis_utils import calc_tier1
+        self._require_analyzed("tier1")
+        from .pipe_delimited_intermediate_events_utils import calc_tier1
         return calc_tier1(self.data, self.entity_col)
 
     def tier2(self) -> dict:
         """Behavioral flags. Denominator: entities with any coverage."""
-        from .pipe_delimited_intermediate_event_analysis_utils import calc_tier2
+        self._require_analyzed("tier2")
+        from .pipe_delimited_intermediate_events_utils import calc_tier2
         return calc_tier2(self.data, self.entity_col)
 
     def tier3(self, percentiles: list[int] = [25, 50, 75]) -> dict:
         """Continuous stats on active/inactive days."""
-        from .pipe_delimited_intermediate_event_analysis_utils import calc_tier3
+        self._require_analyzed("tier3")
+        from .pipe_delimited_intermediate_events_utils import calc_tier3
         return calc_tier3(self.data, self.entity_col, percentiles)
 
     def full_summary(self, percentiles: list[int] = [25, 50, 75]) -> dict:
@@ -123,8 +150,36 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
         pd.DataFrame
             Columns: [date, n_total, n_active, pct_active, n_entered, n_exited]
         """
-        from .pipe_delimited_intermediate_event_analysis_utils import calc_activity_over_time
+        from .pipe_delimited_intermediate_events_utils import calc_activity_over_time
         return calc_activity_over_time(self.data, self.entity_col, granularity)
+
+    def _histogram_plotter(self, config_path: str):
+        from .viz_histograms import EventAnalysisHistogramPlotter
+        return EventAnalysisHistogramPlotter(config_path, self)
+
+    def plot_active_days(self, config_path: str, path: str) -> None:
+        """Histogram of active days for all covered entities."""
+        self._histogram_plotter(config_path).plot_active_days(path)
+
+    def plot_inactive_days(self, config_path: str, path: str) -> None:
+        """Histogram of total inactive days for all covered entities."""
+        self._histogram_plotter(config_path).plot_inactive_days(path)
+
+    def plot_inactive_before(self, config_path: str, path: str) -> None:
+        """Histogram of inactive days before first event (where > 0)."""
+        self._histogram_plotter(config_path).plot_inactive_before(path)
+
+    def plot_inactive_after(self, config_path: str, path: str) -> None:
+        """Histogram of inactive days after last event (where > 0)."""
+        self._histogram_plotter(config_path).plot_inactive_after(path)
+
+    def plot_inactive_middle(self, config_path: str, path: str) -> None:
+        """Histogram of inactive days in middle gaps (where > 0)."""
+        self._histogram_plotter(config_path).plot_inactive_middle(path)
+
+    def plot_violin(self, config_path: str, path: str) -> None:
+        """Violin plot comparing all inactive metrics side by side."""
+        self._histogram_plotter(config_path).plot_violin(path)
 
     def plot_activity_over_time(
         self,
@@ -156,7 +211,7 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
         self,
         by: list[str],
         ascending: bool | list[bool] = True,
-    ) -> "PipeDelimitedIntermediateEventAnalysis":
+    ) -> "PipeDelimitedIntermediateEvents":
         """
         Sort entities by one or more columns and return a new instance.
 
@@ -169,7 +224,7 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
 
         Returns
         -------
-        PipeDelimitedIntermediateEventAnalysis
+        PipeDelimitedIntermediateEvents
             A new sorted instance. Original is unchanged.
         """
         invalid = [c for c in by if c not in self.data.columns]
@@ -181,7 +236,7 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
         sorted_df = self.data.sort_values(
             by=by, ascending=ascending, na_position="last"
         ).reset_index(drop=True)
-        return PipeDelimitedIntermediateEventAnalysis(sorted_df, self.entity_col)
+        return PipeDelimitedIntermediateEvents(sorted_df, self.entity_col)
 
     # ------------------------------------------------------------------ #
     # Dunder
@@ -194,7 +249,7 @@ class PipeDelimitedIntermediateEventAnalysis(PipeDelimitedIntermediate):
         n_covered = int(self.data["active_days"].notna().sum())
         n_total   = len(self.data)
         return (
-            f"PipeDelimitedIntermediateEventAnalysis(\n"
+            f"PipeDelimitedIntermediateEvents(\n"
             f"  entities     : {n_total}\n"
             f"  with coverage: {n_covered}\n"
             f"  no coverage  : {n_total - n_covered}\n"

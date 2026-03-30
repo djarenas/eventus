@@ -5,7 +5,7 @@ High-level analytics for Events collections within user-supplied spans.
 from __future__ import annotations
 from .events_within_span_analyzer_utils import compute_activity_inactivity
 from .validation_utils import validate_shared_entity_col
-from .pipe_delimited_intermediate_event_analysis import PipeDelimitedIntermediateEventAnalysis
+from .pipe_delimited_intermediate_events import PipeDelimitedIntermediateEvents
 
 
 class EventsWithinSpansAnalyzer:
@@ -110,7 +110,7 @@ class EventsWithinSpansAnalyzer:
     # Analytics
     # ------------------------------------------------------------------ #
 
-    def calc_active_vs_inactive(self) -> PipeDelimitedIntermediateEventAnalysis:
+    def calc_active_vs_inactive(self) -> PipeDelimitedIntermediateEvents:
         """
         Compute active vs. inactive days for each entity within their span.
 
@@ -119,7 +119,7 @@ class EventsWithinSpansAnalyzer:
 
         Returns
         -------
-        PipeDelimitedIntermediateEventAnalysis
+        PipeDelimitedIntermediateEvents
             One row per entity. Inherits from PipeDelimitedIntermediate so
             it can be passed directly to StackedEventsPlotter and other
             visualization classes.
@@ -133,7 +133,7 @@ class EventsWithinSpansAnalyzer:
             span_start_col=self._span_start_col,
             span_end_col=self._span_end_col,
         )
-        return PipeDelimitedIntermediateEventAnalysis(df, self.entity_col)
+        return PipeDelimitedIntermediateEvents(df, self.entity_col)
 
     # ------------------------------------------------------------------ #
     # Special methods
