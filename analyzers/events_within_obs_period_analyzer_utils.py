@@ -1,12 +1,12 @@
 """
-events_within_span_analyzer_utils.py
-Utility functions used by `EventsWithinSpansAnalyzer`.
+events_within_obs_period_analyzer_utils.py
+Utility functions used by `EventsWithinObsPeriodsAnalyzer`.
 """
 from __future__ import annotations
 import pandas as pd
 import numpy as np
 
-_ERROR_PREFIX = "[events_within_span_analyzer_utils] Error"
+_ERROR_PREFIX = "[events_within_obs_period_analyzer_utils] Error"
 _DATE_FMT = "%Y-%m-%d"
 
 

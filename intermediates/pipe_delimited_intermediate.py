@@ -209,6 +209,52 @@ class PipeDelimitedIntermediate:
                     f"intermediates[{i}] has '{obj.entity_col}'"
                 )
 
+        # Validate entity sets match
+        base_entities = set(intermediates[0].data[entity_col])
+        for i, obj in enumerate(intermediates[1:], 1):
+            other_entities = set(obj.data[entity_col])
+            only_in_base  = base_entities - other_entities
+            only_in_other = other_entities - base_entities
+            if only_in_base or only_in_other:
+                raise ValueError(
+                    f"[PipeDelimitedIntermediate] combine(): entity sets do not match. "
+                    f"intermediates[0] has {len(only_in_base)} entities not in "
+                    f"intermediates[{i}], and intermediates[{i}] has "
+                    f"{len(only_in_other)} entities not in intermediates[0]. "
+                    f"Make sure both analyzers used the same ObsPeriodPerEntity."
+                )
+
+        # Validate span boundaries match across all intermediates
+        base = intermediates[0].data
+        if SPAN_START_COL in base.columns and SPAN_END_COL in base.columns:
+            for i, obj in enumerate(intermediates[1:], 1):
+                if SPAN_START_COL not in obj.data.columns:
+                    continue
+                # Align on entity_col and compare span boundaries
+                merged = base[[entity_col, SPAN_START_COL, SPAN_END_COL]].merge(
+                    obj.data[[entity_col, SPAN_START_COL, SPAN_END_COL]],
+                    on=entity_col,
+                    suffixes=("_a", "_b"),
+                )
+                start_mismatch = (
+                    pd.to_datetime(merged[f"{SPAN_START_COL}_a"]) !=
+                    pd.to_datetime(merged[f"{SPAN_START_COL}_b"])
+                )
+                end_mismatch = (
+                    pd.to_datetime(merged[f"{SPAN_END_COL}_a"]) !=
+                    pd.to_datetime(merged[f"{SPAN_END_COL}_b"])
+                )
+                bad = merged[start_mismatch | end_mismatch]
+                if not bad.empty:
+                    examples = bad[entity_col].head(3).tolist()
+                    raise ValueError(
+                        f"[PipeDelimitedIntermediate] combine(): span boundaries "
+                        f"do not match between intermediates[0] and "
+                        f"intermediates[{i}] for {len(bad)} entities. "
+                        f"Example entity IDs: {examples}. "
+                        f"Make sure both analyzers used the same ObsPeriodPerEntity."
+                    )
+
         # Start with first intermediate's data, merge rest in
         combined = intermediates[0].data.copy()
         for obj in intermediates[1:]:
