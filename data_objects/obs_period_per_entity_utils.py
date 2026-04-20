@@ -26,39 +26,57 @@ def validate_identity(identity: str) -> None:
         )
 
 
-def validate_age_window(age_start: int, age_end: int) -> None:
+_VALID_AGE_UNITS = {"years", "months"}
+
+def validate_age_window(
+    age_start: int,
+    age_end:   int,
+    age_unit:  str = "years",
+) -> None:
     """
     Raise if age window parameters are invalid.
     """
+    if age_unit not in _VALID_AGE_UNITS:
+        raise ValueError(
+            f"{_ERROR_PREFIX}: age_unit must be one of "
+            f"{sorted(_VALID_AGE_UNITS)}, got {age_unit!r}"
+        )
+    max_val = 120 if age_unit == "years" else 1440  # 120 years * 12
     for name, val in [("age_start", age_start), ("age_end", age_end)]:
         if not isinstance(val, int):
             raise TypeError(
                 f"{_ERROR_PREFIX}: {name} must be an integer, "
                 f"got {type(val).__name__}"
             )
-        if not (0 <= val <= 120):
+        if not (0 <= val <= max_val):
             raise ValueError(
-                f"{_ERROR_PREFIX}: {name} must be between 0 and 120, "
-                f"got {val}"
+                f"{_ERROR_PREFIX}: {name} must be between 0 and {max_val} "
+                f"({age_unit}), got {val}"
             )
     if age_start >= age_end:
         raise ValueError(
             f"{_ERROR_PREFIX}: age_start ({age_start}) must be less than "
-            f"age_end ({age_end})"
+            f"age_end ({age_end}) [{age_unit}]"
         )
 
 
-def handle_leap_year(dob: pd.Timestamp, years: int) -> pd.Timestamp:
+def handle_leap_year(
+    dob:      pd.Timestamp,
+    amount:   int,
+    age_unit: str = "years",
+) -> pd.Timestamp:
     """
-    Add years to a date of birth, handling Feb 29 leap year birthdays.
+    Add years or months to a date of birth, handling Feb 29 leap year birthdays.
     Feb 29 birthdays shift to Feb 28 in non-leap years.
 
     Parameters
     ----------
     dob : pd.Timestamp
         Date of birth.
-    years : int
-        Number of years to add.
+    amount : int
+        Number of years or months to add.
+    age_unit : str
+        "years" or "months". Default "years".
 
     Returns
     -------
@@ -66,14 +84,23 @@ def handle_leap_year(dob: pd.Timestamp, years: int) -> pd.Timestamp:
         The resulting date.
     """
     try:
-        result = dob + relativedelta(years=years)
+        if age_unit == "months":
+            result = dob + relativedelta(months=amount)
+        else:
+            result = dob + relativedelta(years=amount)
         return pd.Timestamp(result)
     except Exception:
         # Fallback for Feb 29 → Feb 28
-        fallback = date(dob.year + years, 2, 28)
+        if age_unit == "months":
+            # Convert months to approximate year/month
+            total_months = dob.month - 1 + amount
+            new_year  = dob.year + total_months // 12
+            fallback  = date(new_year, 2, 28)
+        else:
+            fallback = date(dob.year + amount, 2, 28)
         warnings.warn(
             f"[ObsPeriodPerEntity] Feb 29 birthday {dob.date()} shifted to "
-            f"Feb 28 {fallback} when adding {years} years.",
+            f"Feb 28 {fallback} when adding {amount} {age_unit}.",
             UserWarning, stacklevel=3,
         )
         return pd.Timestamp(fallback)
@@ -183,6 +210,7 @@ def build_age_window_spans(
     entity_col: str,
     start_col:  str,
     end_col:    str,
+    age_unit:   str = "years",
 ) -> pd.DataFrame:
     """
     Build a spans DataFrame where each entity's window is derived
@@ -236,10 +264,10 @@ def build_age_window_spans(
 
     # Compute start and end dates per entity
     df[start_col] = df[dob_col].apply(
-        lambda dob: handle_leap_year(dob, age_start)
+        lambda dob: handle_leap_year(dob, age_start, age_unit)
     )
     df[end_col] = df[dob_col].apply(
-        lambda dob: handle_leap_year(dob, age_end)
+        lambda dob: handle_leap_year(dob, age_end, age_unit)
     )
 
     return df[[entity_col, start_col, end_col]].reset_index(drop=True)

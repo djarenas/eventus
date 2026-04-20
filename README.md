@@ -1,473 +1,467 @@
-# Python Events Package — Design README
+# eventus
 
-## Overview
+A domain-agnostic Python framework for analyzing entities that experience events within defined observation periods, with optional point-in-time occurrences.
 
-A Python package for analyzing events, spans, and occurrences for entities
-(persons, companies, policies, etc.). All classes are domain-agnostic and
-composable. The package follows a clean pipeline:
-
-**Raw objects → Analyzers → Intermediates → Plotters**
-
-All inter-module imports use relative imports (`from .module import ...`)
-so the package can be installed and used as a proper Python package.
+Motivated by recurring analytical challenges in health services research and insurance analytics — where entities have coverage periods, claim events, and discrete clinical occurrences — eventus provides a principled object-oriented pipeline applicable to any domain where entities, time spans, events, and occurrences co-exist.
 
 ---
 
-## Module Structure
+## The five abstractions
 
 ```
-event_semantics.py                              ✅
-events.py                                       ✅
-events_per_entity.py                            ✅
-events_utils.py                                 ✅
-validation_utils.py                             ✅
-events_within_span_analyzer.py                  ✅
-events_within_span_analyzer_utils.py            ✅
-pipe_delimited_intermediate.py                  ✅
-pipe_delimited_utils.py                         ✅
-pipe_delimited_intermediate_event_analysis.py   ✅
-pipe_delimited_intermediate_event_analysis_utils.py ✅
-occurrence_semantics.py                         ✅
-occurrences.py                                  ✅
-occurrences_per_entity.py                       ✅
-occurrences_utils.py                            ✅
-viz_stacked_events.py                           ✅
-stacked_events_config.yaml                      ✅
-viz_activity_over_time.py                       ✅
-activity_over_time_config.yaml                  ✅
-viz_histograms.py                               ✅
-histograms_config.yaml                          ✅
-test_utils.py                                   ✅
-occurrences_within_spans_analyzer.py            🔲
-occurrences_within_events_analyzer.py           🔲
+Semantics → Data Objects → Cleaners → Analyzers → Intermediates → Visualizers
 ```
 
----
+**Semantics** — column mappings and identity labels. Decouple analytical logic from specific data schemas.
 
-## Pipeline
+**Data Objects** — validated containers. If it exists, it is complete. The constructor raises on invalid data.
 
-```
-Events + EventsPerEntity (spans)
-        ↓
-EventsWithinSpansAnalyzer.calc_active_vs_inactive()
-        ↓
-PipeDelimitedIntermediateEventAnalysis
-        ├── .tier1() / .tier2() / .tier3() / .print_summary()
-        ├── .sort(by, ascending)
-        ├── .activity_over_time(granularity)
-        ├── .plot_activity_over_time(config_path, path, granularity)
-        ├── .plot_active_days(config_path, path)
-        ├── .plot_inactive_days(config_path, path)
-        ├── .plot_inactive_before(config_path, path)
-        ├── .plot_inactive_after(config_path, path)
-        ├── .plot_inactive_middle(config_path, path)
-        ├── .plot_violin(config_path, path)
-        └── StackedEventsPlotter(config_path, intermediate, ...).plot(path)
+**Cleaners** — transparent, auditable row-level cleaning. Every rejected row is recorded with an explicit reason. Call `print_quality_report()` to see a full summary.
 
-OccurrencesPerEntity
-        └── .build_span(window, span_semantics) → EventsPerEntity
-```
+**Analyzers** — compute quantities from data objects, produce intermediates.
+
+**Intermediates** — the universal handshake format between analyzers and visualizers. One row per entity, pipe-delimited multi-value columns.
+
+**Visualizers** — consume intermediates and config files, produce plots. Config-driven — all visual choices live in a versioned YAML.
 
 ---
 
-## Built Classes
+## Module structure
 
-### `EventSemantics`
-Maps generic concepts to specific column names in a DataFrame.
+### Semantics
+| Module | Class | Purpose |
+|---|---|---|
+| `event_semantics.py` | `EventSemantics` | Column mapping for event data |
+| `occurrence_semantics.py` | `OccurrenceSemantics` | Column mapping for occurrence data |
 
-**Attributes:** `entity_id_col`, `start_time_col`, `end_time_col`,
-`event_id_col` (optional), `event_type_col` (optional), `metadata_cols`
+### Data objects
+| Module | Class | Purpose |
+|---|---|---|
+| `events.py` | `Events` | Validated event collection |
+| `events_per_entity.py` | `EventsPerEntity` | One row per entity enforced |
+| `obs_period_per_entity.py` | `ObsPeriodPerEntity` | One observation window per entity |
+| `occurrences.py` | `Occurrences` | Validated occurrence collection |
+| `occurrences_per_entity.py` | `OccurrencesPerEntity` | One occurrence per entity (landmark events) |
 
-**Key methods:** `build_from_yaml(path)` → `EventSemantics`
+### Cleaning
+| Module | Class | Purpose |
+|---|---|---|
+| `events_cleaner_config.py` | `EventsCleanerConfig` | Events cleaning configuration |
+| `events_cleaner.py` | `EventsCleaner` | Full events cleaning pipeline with audit trail |
+| `occurrences_cleaner_config.py` | `OccurrencesCleanerConfig` | Occurrences cleaning configuration |
+| `occurrences_cleaner.py` | `OccurrencesCleaner` | Occurrences cleaning pipeline with audit trail |
 
----
+### Analyzers
+| Module | Class | Purpose |
+|---|---|---|
+| `events_within_obs_periods_analyzer.py` | `EventsWithinObsPeriodsAnalyzer` | Active/inactive days per entity |
+| `occurrences_within_obs_periods_analyzer.py` | `OccurrencesWithinObsPeriodsAnalyzer` | Occurrences within observation periods |
+| `event_duration_analyzer.py` | `EventDurationAnalyzer` | Duration distribution |
 
-### `Events`
-A validated collection of events with start and end times.
-Bad rows are triaged into `.rejected`.
+### Intermediates
+| Module | Class | Purpose |
+|---|---|---|
+| `pipe_delimited_intermediate.py` | `PipeDelimitedIntermediate` | Base intermediate — `combine()`, `from_objects()`, `copy()` |
+| `pipe_delimited_intermediate_events.py` | `PipeDelimitedIntermediateEvents` | Events intermediate — `self_analyze()`, `print_summary()` |
+| `pipe_delimited_intermediate_occurrences.py` | `PipeDelimitedIntermediateOccurrences` | Occurrences intermediate — `self_analyze(extras=)`, `print_summary()` |
 
-**Attributes:** `data`, `semantics`, `rejected`
+### Visualizers
+| Module | Class | Purpose |
+|---|---|---|
+| `stacked_timeline_plotter.py` | `StackedTimelinePlotter` | Stacked bar timeline — `plot()`, `from_objects()` |
+| `stacked_timeline_config.py` | `StackedTimelineConfig` | Timeline config — `build_from_yaml()`, `to_yaml()` |
+| `activity_over_time_plotter.py` | `ActivityOverTimePlotter` | Cohort activity line + entry/exit bars |
+| `activity_over_time_config.py` | `ActivityOverTimeConfig` | Activity plotter config |
+| `events_duration_plotter.py` | `EventsDurationPlotter` | Duration histograms |
+| `histogram_config.py` | `HistogramConfig` | Histogram configuration |
 
-**Triage rules:**
-- Null `entity_id_col`, `start_time_col`, or `end_time_col` → rejected
-- `start_time_col > end_time_col` → rejected
-
-**Key methods:**
-- `merge_overlapping_events(meaningful_gap=0)` → `Events`
-- `clip_to_spans(spans, ignore_entities_with_no_span=False)` → `Events`
-- `filter_by_entities(ids)` → `Events`
-- `filter_by_dates(start, end)` → `Events`
-- `count_per_entity()` → `np.ndarray`
-- `copy()` → `Events`
-
----
-
-### `EventsPerEntity`
-Inherits from `Events`. Enforces exactly one row per entity after triage.
-
----
-
-### `events_utils.py`
-- `merge_overlapping_events(events_df, semantics, meaningful_gap)` → `pd.DataFrame`
-- `clip_events_to_spans(events_df, spans_df, entity_col, start_col, end_col, span_start_col, span_end_col, ignore_entities_with_no_span=False)` → `pd.DataFrame`
-
----
-
-### `validation_utils.py`
-- `validate_shared_entity_col(obj_a, obj_b, label_a, label_b)` → `str`
-
----
-
-### `EventsWithinSpansAnalyzer`
-Analyzes event coverage within per-entity span windows.
-Overlapping events are merged once at construction time.
-
-**Constructor:**
-```python
-EventsWithinSpansAnalyzer(
-    events: Events,
-    spans: EventsPerEntity,
-    entity_col: str | None = None,
-    meaningful_gap: int = 0,
-)
-```
-
-**Key methods:**
-- `calc_active_vs_inactive()` → `PipeDelimitedIntermediateEventAnalysis`
-
----
-
-### `PipeDelimitedIntermediate`
-Base class. Universal handshake format between analyzers and visualizers.
-One row per entity. All multi-value columns are pipe-delimited strings.
-
-**Required columns:** `entity_id` (name configurable)
-
-**Optional paired columns** (must have both or neither):
-- `span_start` + `span_end`
-- `event_starts` + `event_ends`
-
-**Optional occurrence columns:** any column prefixed `occ_`
-
-**Key methods:**
-- `self_validate()` → `pd.DataFrame` of bad rows
-- `from_dataframe(df, entity_col)` → `PipeDelimitedIntermediate`
-- `to_csv(path)`
-- `identity_to_col(identity)` → `str`
-- `col_to_identity(col)` → `str`
-
-**Properties:** `has_spans`, `has_events`, `occurrence_cols`, `occurrence_identities`
-
----
-
-### `pipe_delimited_utils.py`
-- `validate_content(data, entity_col)` → `pd.DataFrame` of bad rows
-
----
-
-### `PipeDelimitedIntermediateEventAnalysis`
-Inherits from `PipeDelimitedIntermediate`.
-Result of `EventsWithinSpansAnalyzer.calc_active_vs_inactive()`.
-One row per entity.
-
-**Additional required columns:**
-
-| Column | Description |
+### Utils
+| Module | Purpose |
 |---|---|
-| `span_duration_days` | total span length in days |
-| `active_days` | days covered by events (NA if no coverage) |
-| `inactive_days` | span_duration_days - active_days (NA if no coverage) |
-| `inactive_days_before_first_event` | gap before first event (NA if no coverage) |
-| `inactive_days_after_last_event` | gap after last event (NA if no coverage) |
-| `inactive_days_middle` | inactive days between events (NA if no coverage) |
-| `first_event_start` | first event start clipped to span_start (NA if no coverage) |
-| `last_event_end` | last event end clipped to span_end (NA if no coverage) |
+| `events_utils.py` | Overlap merging, clipping |
+| `events_within_obs_period_analyzer_utils.py` | Activity/inactivity computation |
+| `obs_period_per_entity_utils.py` | Span construction helpers |
+| `occurrences_utils.py` | Span building from occurrence dates |
+| `occurrences_self_analyze_utils.py` | Burstiness, memory, gap stats computation |
+| `pipe_delimited_utils.py` | Intermediate validation |
+| `pipe_delimited_intermediate_events_utils.py` | Events analysis column computation |
+| `pipe_delimited_intermediate_occurrences_utils.py` | Cohort-level summary after self_analyze() |
+| `stacked_timeline_plotter_utils.py` | Segment parsing, x-axis formatting |
+| `activity_over_time_plotter_utils.py` | Line panel, diverging bar panel |
+| `events_duration_utils.py` | Duration computation |
+| `validation_utils.py` | Shared validation helpers |
+| `test_utils.py` | Testing helpers |
 
-**Diagnostic methods** (thin wrappers over utils):
-- `tier1()`, `tier2()`, `tier3(percentiles=[25,50,75])` → dict
-- `full_summary(percentiles)` → dict
-- `print_summary(percentiles)`, `save_summary(path, percentiles)`
-
-**Analysis methods:**
-- `activity_over_time(granularity="month")` → `pd.DataFrame`
-  Columns: `[day, n_total, n_active, pct_active, n_entered, n_exited]`
-  X axis is relative days from span_start. `pct_active` is a fraction (0–1).
-- `sort(by, ascending=True)` → `PipeDelimitedIntermediateEventAnalysis`
-
-**Visualization methods:**
-- `plot_activity_over_time(config_path, path, granularity="month")`
-- `plot_active_days(config_path, path)`
-- `plot_inactive_days(config_path, path)`
-- `plot_inactive_before(config_path, path)`
-- `plot_inactive_after(config_path, path)`
-- `plot_inactive_middle(config_path, path)`
-- `plot_violin(config_path, path)`
-
-**Inherited:** `self_validate()`, `to_csv()`, `from_dataframe()`
+### Example data
+| Module | Function | Purpose |
+|---|---|---|
+| `generate_example_data.py` | `generate_hospitalizations()` | Synthetic messy hospitalization data |
+| | `generate_patient_demographics()` | Synthetic patient demographics with DOB |
 
 ---
 
-### `pipe_delimited_intermediate_event_analysis_utils.py`
-Workhorse functions — all independently callable:
-- `calc_tier1(data, entity_col)` → dict
-- `calc_tier2(data, entity_col)` → dict
-- `calc_tier3(data, entity_col, percentiles)` → dict
-- `calc_activity_over_time(data, entity_col, granularity)` → `pd.DataFrame`
+## The hierarchy
+
+```
+Events                    Occurrences
+    ↓                         ↓
+EventsPerEntity           OccurrencesPerEntity
+    ↓
+ObsPeriodPerEntity
+```
 
 ---
 
-### `OccurrenceSemantics`
-Maps column names for point-in-time occurrence data.
+## Quick start
 
-**Attributes:** `entity_id_col`, `date_col`, `identity` (optional human-readable label),
-`occurrence_id_col` (optional), `metadata_cols`
+### 1. Define semantics
 
-**Key methods:** `build_from_yaml(path)` → `OccurrenceSemantics`
-
----
-
-### `Occurrences`
-A validated collection of point-in-time occurrences (no end date).
-
-**Attributes:** `data`, `semantics`, `rejected`
-
-**Triage rules:**
-- Null `entity_id_col` → rejected
-- Null or unparseable `date_col` → rejected
-
-**Key methods:**
-- `filter_by_entities(ids)` → `Occurrences`
-- `filter_by_dates(start, end)` → `Occurrences`
-- `count_per_entity()` → `pd.Series`
-- `copy()` → `Occurrences`
-
----
-
-### `OccurrencesPerEntity`
-Inherits from `Occurrences`. One occurrence per entity.
-
-**Additional method:**
-- `build_span(window=(before_days, after_days), span_semantics)` → `EventsPerEntity`
-
----
-
-### `occurrences_utils.py`
-- `build_span_from_occurrences(data, semantics, span_semantics, window)` → `pd.DataFrame`
-
----
-
-### `StackedEventsPlotter`
-Pure renderer. One horizontal bar per entity showing event intervals within
-a span, with optional occurrence markers as vertical lines.
-Accepts any `PipeDelimitedIntermediate` or subclass.
-
-**Constructor:**
 ```python
-StackedEventsPlotter(
-    config_path: str,
-    intermediate: PipeDelimitedIntermediate,
-    occurrences: list | None = None,
-    sort_by: list[str] | None = None,
-    ascending: bool | list = True,
-    n_sample: int | None = None,
-    random_state: int | None = None,
+from eventus import EventSemantics, OccurrenceSemantics
+
+event_sem = EventSemantics(
+    entity_id_col  = "patient_id",
+    start_time_col = "admit_date",
+    end_time_col   = "discharge_date",
+    identity       = "inpatient_hospitalization",
+)
+
+occ_sem = OccurrenceSemantics(
+    entity_id_col = "patient_id",
+    date_col      = "ed_visit_date",
+    identity      = "ed_visit",
 )
 ```
 
-**Key methods:** `plot(path)` — saves to .png, .jpg, .jpeg
+### 2. Clean
+
+```python
+from eventus import EventsCleanerConfig, EventsCleaner
+from eventus import OccurrencesCleanerConfig, OccurrencesCleaner
+
+event_config = EventsCleanerConfig.build_from_yaml("event_cleaner.yaml")
+events       = EventsCleaner(raw_hosp_df, event_sem, event_config).clean()
+
+occ_config   = OccurrencesCleanerConfig.build_from_yaml("occ_cleaner.yaml")
+ed_visits    = OccurrencesCleaner(raw_ed_df, occ_sem, occ_config).clean()
+```
+
+### 3. Define observation period
+
+```python
+from eventus import ObsPeriodPerEntity
+
+# Fixed calendar period
+obs = ObsPeriodPerEntity.from_calendar(
+    entity_ids = events.data["patient_id"].unique(),
+    start      = "2022-01-01",
+    end        = "2022-12-31",
+    entity_col = "patient_id",
+    identity   = "medicaid_2022",
+)
+
+# Age window
+obs = ObsPeriodPerEntity.from_age_window(
+    entity_df  = demographics_df,
+    dob_col    = "date_of_birth",
+    age_start  = 65,
+    age_end    = 70,
+    entity_col = "patient_id",
+    age_unit   = "years",        # "years" or "months"
+    identity   = "age_65_to_70",
+)
+```
+
+### 4. Convenience path — from_objects()
+
+```python
+from eventus import PipeDelimitedIntermediate
+
+intermediate = PipeDelimitedIntermediate.from_objects(
+    obs_period  = obs,
+    events      = events,
+    occurrences = [ed_visits, vaccinations],
+)
+```
+
+### 5. Or explicit path — full control
+
+```python
+from eventus import (
+    EventsWithinObsPeriodsAnalyzer,
+    OccurrencesWithinObsPeriodsAnalyzer,
+)
+
+events_result = EventsWithinObsPeriodsAnalyzer(
+    events     = events,
+    obs_period = obs,
+).compute_event_coverage()
+
+occ_result = OccurrencesWithinObsPeriodsAnalyzer(
+    occurrences = ed_visits,
+    obs_period  = obs,
+).calc()
+
+# Optionally enrich with statistics before plotting
+occ_enriched = occ_result.self_analyze(
+    extras = ["burstiness", "memory", "mean_gap"]
+)
+
+# Combine
+combined = PipeDelimitedIntermediate.combine(events_result, occ_enriched)
+```
+
+### 6. Visualize — stacked timeline
+
+```python
+from eventus import StackedTimelinePlotter, StackedTimelineConfig
+
+# Convenience path
+StackedTimelinePlotter.from_objects(
+    obs_period  = obs,
+    events      = events,
+    occurrences = ed_visits,
+    config      = StackedTimelineConfig.build_from_yaml("config.yaml"),
+).plot("timeline.png")
+
+# Or with the intermediate directly
+config = StackedTimelineConfig.build_from_yaml("config.yaml")
+StackedTimelinePlotter(combined, config).plot("timeline.png")
+```
+
+### 7. Visualize — activity over time
+
+```python
+from eventus import ActivityOverTimePlotter, ActivityOverTimeConfig
+
+config  = ActivityOverTimeConfig.build_from_yaml("activity_config.yaml")
+plotter = ActivityOverTimePlotter(events_result, config, granularity="month")
+plotter.plot("activity.png")
+```
 
 ---
 
-### `stacked_events_config.yaml`
+## Observation period construction paths
+
+| Classmethod | Requires | Output columns |
+|---|---|---|
+| `ObsPeriodPerEntity(df, sem)` | DataFrame + semantics | Your column names |
+| `from_calendar(entity_ids, start, end, entity_col)` | List of IDs + dates | `obs_start`, `obs_end` |
+| `from_age_window(entity_df, dob_col, age_start, age_end, entity_col, age_unit)` | Demographics with DOB | `obs_start`, `obs_end` |
+| `from_events(events)` | Events object | Same as events columns |
+| `occurrences_per_entity.build_obs_period(window, span_sem)` | OccurrencesPerEntity | Your column names |
+
+---
+
+## Combining intermediates
+
+`PipeDelimitedIntermediate.combine()` merges two or more intermediates. All must share the same entity_col, entity set, and span boundaries:
+
+```python
+combined = PipeDelimitedIntermediate.combine(events_result, ed_result, hep_result)
+```
+
+Raises with specific entity IDs if span boundaries differ — ensures all intermediates came from the same `ObsPeriodPerEntity`.
+
+---
+
+## Occurrence statistics — self_analyze()
+
+`PipeDelimitedIntermediateOccurrences.self_analyze()` computes per-entity statistics from pipe-delimited occurrence columns:
+
+```python
+# Default — always computed
+enriched = result.self_analyze()
+# Adds: occ_{identity}_n, _first, _last, _time_to_first, _recency_days
+
+# Optional extras
+enriched = result.self_analyze(extras=["burstiness", "memory", "mean_gap"])
+# Also adds: occ_{identity}_burstiness, _memory, _mean_gap
+
+# Everything
+enriched = result.self_analyze(extras="all")
+```
+
+Available extras: `mean_gap`, `std_gap`, `cv_gap`, `min_gap`, `max_gap`, `burstiness`, `memory`, `density`
+
+Burstiness and memory follow the Goh-Barabási formulation. Burstiness requires ≥ 3 occurrences, memory requires ≥ 4. Entities below the threshold get `NaN` — never an error.
+
+---
+
+## Stacked timeline config reference
+
 ```yaml
 general:
-  row_height: 0.5
-  bar_height_ratio: 0.8
-  dpi: 150
-  font_size: 11
-  title_font_size: 13
-  style: "seaborn-v0_8-whitegrid"
-  title: null
+  row_height:         0.5       # inches per entity row
+  bar_height_ratio:   0.8       # bar fills this fraction of row
+  dpi:                150
+  show_entity_labels: false
+  x_axis:             "auto"    # "auto", "calendar", "normalized"
 
-colors:
-  before: "#9E9E9E"
-  active: "#4CAF50"
-  middle: "#F44336"
-  after:  "#BDBDBD"
-  no_coverage: "#EEEEEE"
+poi_settings:
+  color_before:    "#9E9E9E"   # inactive before first event
+  color_middle:    "#F44336"   # gap between events
+  color_after:     "#BDBDBD"   # inactive after last event
+  color_no_events: "#EEEEEE"   # entity with no events at all
 
-occurrences:
-  - identity: "Hepatitis B vaccination"
-    color: "#FF5722"
-    thickness: 1.5
+events_settings:
+  - identity: events            # required — no auto-discovery
+    color:    "#4CAF50"
+    label:    "Hospitalization"
+
+occurrences_settings:           # required — no auto-discovery
+  - identity: ed_visit          # matches occ_ed_visit column
+    color:    "#FF5722"
+    marker:   "circle"          # "circle", "triangle", "square", "diamond", "star"
+    size:     5
+    label:    "ED Visit"
+
+legend:
+  show:               true
+  outside:            true      # place legend outside plot area (recommended)
+  font_size:          9
+  show_poi_in_legend: false
+
+x_axis_labels:
+  format:   "%Y-%m"             # strftime — calendar mode only
+  unit:     "months"            # "days", "months", or "years"
+  interval: 3                   # tick every N units
 ```
 
----
-
-### `ActivityOverTimePlotter`
-Two subplots sharing the x-axis (relative days from span_start):
-- Top: line chart of `pct_active` (fraction 0–1) with optional fill
-- Bottom: up/down arrows showing entities entered/exited, sized proportionally
-
-**Constructor:**
-```python
-ActivityOverTimePlotter(
-    config_path: str,
-    timeseries: pd.DataFrame,  # output of activity_over_time()
-)
-```
-
-**Key methods:** `plot(path)` — saves to .png, .jpg, .jpeg
+**Config is authoritative — no auto-discovery.** If `events_settings` is empty, only the POI bar is drawn. If `occurrences_settings` is empty, no markers are drawn. Unconfigured `occ_` columns are silently ignored.
 
 ---
 
-### `activity_over_time_config.yaml`
-```yaml
-general:
-  figsize: [14, 7]
-  dpi: 150
-  font_size: 11
-  title_font_size: 13
-  style: "seaborn-v0_8-whitegrid"
-  title: null
-  xtick_interval: 60
+## Design principles
 
-line:
-  color: "#2196F3"
-  linewidth: 2.0
-  fill_alpha: 0.15
+**Domain agnosticism** — all classes accept user-defined column names through semantics objects.
 
-arrows:
-  show: true
-  arrow_axis_y: 0.5
-  entered_color: "#4CAF50"
-  exited_color: "#F44336"
-  max_size: 200
-  min_size: 20
+**One job per class** — Events validates, EventsCleaner cleans, Analyzers compute, Visualizers draw.
 
-layout:
-  top_height_ratio: 3
-  bottom_height_ratio: 1
-```
+**If it exists it is complete** — constructors raise on invalid data. No silent failures, no partial objects.
+
+**Config is the methods section** — every analytical and visual decision lives in a versioned YAML, not in code.
+
+**The intermediate is the handshake** — any analyzer output can feed any visualizer. Column naming conventions carry all structural information.
+
+**Parallelism** — Events and Occurrences are siblings, not parent/child. Both have cleaners, both feed analyzers, both produce pipe-delimited intermediates that combine freely.
 
 ---
 
-### `EventAnalysisHistogramPlotter`
-Histograms and violin plots for `PipeDelimitedIntermediateEventAnalysis`.
-All histograms show p25/p50/p75 percentile lines and n/% subtitle.
-Metrics filtered to entities where value > 0 where appropriate.
+## Identity rules
 
-**Constructor:**
-```python
-EventAnalysisHistogramPlotter(
-    config_path: str,
-    intermediate: PipeDelimitedIntermediateEventAnalysis,
-)
-```
-
-**Plot methods:**
-- `plot_active_days(path)`
-- `plot_inactive_days(path)`
-- `plot_inactive_before(path)`
-- `plot_inactive_after(path)`
-- `plot_inactive_middle(path)`
-- `plot_violin(path)` — all four inactive metrics side by side, subtitle outside axes
-
-**Workhorse extractors** (independently callable):
-- `_get_active_days(data)`, `_get_inactive_days(data)`
-- `_get_inactive_before(data)`, `_get_inactive_after(data)`, `_get_inactive_middle(data)`
-
----
-
-### `histograms_config.yaml`
-```yaml
-general:
-  dpi: 150
-  font_size: 11
-  title_font_size: 13
-  style: "seaborn-v0_8-whitegrid"
-
-histogram:
-  bins: 30
-  color: "#4CAF50"
-  edgecolor: "#ffffff"
-  alpha: 0.85
-  figsize: [10, 5]
-  legend_loc: "upper right"
-  subtitle_loc: "upper right"
-
-violin:
-  color: "#2196F3"
-  alpha: 0.7
-  inner: "box"
-  figsize: [12, 6]
-```
-
----
-
-### `test_utils.py`
-Test utilities for validating the activity_over_time computation.
-
-**Functions:**
-- `make_asymptote_test_data(n, asymptote, scale, span_days, random_state)`
-  → `PipeDelimitedIntermediateEventAnalysis`
-  Builds synthetic data where true curve = `asymptote * (1 - exp(-x/scale))`
-- `plot_asymptote_test(result, asymptote, scale, path, granularity)`
-  Plots computed vs theoretical curve for visual validation.
-
----
-
-## Designed Classes (not yet built)
-
-### `OccurrencesWithinSpansAnalyzer`
-Takes `Occurrences` + `EventsPerEntity`. Returns a `PipeDelimitedIntermediate`
-child with per-occurrence rows.
-
-### `OccurrencesWithinEventsAnalyzer`
-Takes `Occurrences` + `Events`. Returns a `PipeDelimitedIntermediate` child
-with per-occurrence rows.
-
----
-
-## Typical Usage
+The `identity` attribute must contain only letters, numbers, and underscores (`^[a-zA-Z0-9_]+$`):
 
 ```python
-# Build semantics
-event_sem = EventSemantics.build_from_yaml("event_sem.yaml")
-span_sem  = EventSemantics.build_from_yaml("span_sem.yaml")
-occ_sem   = OccurrenceSemantics.build_from_yaml("occ_sem.yaml")
+# Valid
+EventSemantics(..., identity="inpatient_hospitalization")
+OccurrenceSemantics(..., identity="ed_visit")
 
-# Build objects
-events = Events(events_df, event_sem)
-spans  = EventsPerEntity(spans_df, span_sem)
+# Raises
+EventSemantics(..., identity="inpatient hospitalization")  # spaces not allowed
+```
 
-# Or build spans from an occurrence (e.g. index date)
-diagnoses = OccurrencesPerEntity(dx_df, occ_sem)
-spans     = diagnoses.build_span(window=(365, 365), span_semantics=span_sem)
+Identities flow into intermediate column names (`occ_ed_visit`), plot labels, and the de-identification pipeline.
 
-# Analyze
-result = EventsWithinSpansAnalyzer(events, spans, meaningful_gap=7).calc_active_vs_inactive()
+---
 
-# Diagnostics
-result.print_summary()
+## Sorting entities in the timeline
 
-# Stacked bar plot
-StackedEventsPlotter(
-    config_path="stacked_events_config.yaml",
-    intermediate=result,
-    sort_by=["active_days", "first_event_start"],
-    n_sample=200,
-    random_state=42,
-).plot("stacked.png")
+The plotter draws entities in the order they appear in the intermediate. To sort, reorder before plotting:
 
-# Activity over time
-result.plot_activity_over_time(
-    config_path="activity_over_time_config.yaml",
-    path="activity.png",
-    granularity="month",
+```python
+sorted_df  = combined.data.sort_values("active_days", ascending=False)
+sorted_int = PipeDelimitedIntermediate(sorted_df, entity_col="patient_id")
+StackedTimelinePlotter(sorted_int, config).plot("timeline.png")
+```
+
+Common sort columns from `compute_event_coverage()`:
+
+| Column | Meaning |
+|---|---|
+| `active_days` | Total days covered by events |
+| `inactive_days` | Total days with no events |
+| `inactive_days_before_first_event` | Days before first event |
+| `inactive_days_after_last_event` | Days after last event |
+| `span_duration_days` | Total observation period length |
+
+After `self_analyze()`, also sort by `occ_{identity}_n`, `occ_{identity}_first`, `occ_{identity}_burstiness`, etc.
+
+A `sort_by` parameter will be added to `StackedTimelinePlotter.from_objects()` in a future release once `OccurrencesCleaner` is complete. *(Update: `OccurrencesCleaner` is now done — `from_objects()` sort support is the next step.)*
+
+---
+
+## Example data
+
+```python
+from eventus.generate_example_data import (
+    generate_hospitalizations,
+    generate_patient_demographics,
 )
 
-# Histograms
-result.plot_active_days("histograms_config.yaml", "active_days.png")
-result.plot_violin("histograms_config.yaml", "violin.png")
+# Edit CONFIG section at the top of generate_example_data.py
+# to change N_PATIENTS, OBS_PERIOD_START/END, DOB_YEAR_MIN/MAX, RANDOM_SEED
+
+hosp_df  = generate_hospitalizations()    # messy — with intentional errors
+demog_df = generate_patient_demographics() # DOBs, sex
+
+# Patients with zero stays do not appear in hosp_df — realistic
 ```
+
+---
+
+## Vignettes
+
+The following vignettes demonstrate the full eventus pipeline using synthetic inpatient hospitalization data generated by `generate_example_data.py`.
+
+**Vignette 1 — Cleaning hospitalization data**
+Raw hospitalization data with null dates, causality violations, duplicates, and overlapping stays. Clean it with a configurable pipeline that produces a full audit trail of every decision made.
+
+**Vignette 2 — Duration histograms**
+Plot the distribution of hospitalization lengths with configurable bins, percentile lines, and optional stratification by hospital or other categorical variables.
+
+**Vignette 3 — Days hospitalized within an observation period**
+For each patient, compute how many days they were hospitalized during their period of interest — handling overlapping stays, period boundary clipping, meaningful gap decisions, and patients with zero hospitalizations. Includes burstiness, memory, and gap statistics.
+
+**Vignette 4 — Stacked timeline visualization**
+Visualize hospitalizations and occurrences (ED visits, vaccinations) within each patient's observation period as a stacked bar chart. Color-coded segments show inactive time before, between, and after hospitalizations. Configuration-driven — all visual choices live in a YAML file.
+
+**Vignette 5 — Activity over time**
+Plot what fraction of the cohort is actively hospitalized at each timepoint. Includes a diverging bar panel showing how many patients entered and exited the active pool — revealing the flow behind the activity curve. A flat activity line with large bars in both directions tells a different story than a flat line with no movement.
+
+*Vignettes are in development.*
+
+---
+
+## Planned future work
+
+**`IntervalActivityCalculator`**
+Standalone class for computing cohort activity timeseries from a `PipeDelimitedIntermediateEvents`. Currently `activity_over_time()` lives as a method on the intermediate — this will separate computation from visualization:
+
+```python
+ts = IntervalActivityCalculator(intermediate, granularity="month").calc()
+ActivityOverTimePlotter(ts, config).plot("activity.png")
+```
+
+**`StackedTimelinePlotter.from_objects()` sort support**
+Add `sort_by` parameter once the full pipeline is stable:
+
+```python
+StackedTimelinePlotter.from_objects(
+    obs_period  = obs,
+    events      = events,
+    occurrences = ed_visits,
+    sort_by     = ["active_days"],
+    ascending   = [False],
+    config      = config,
+).plot("timeline.png")
+```
+
+**`Deidentifier` and `DeidentifierConfig`**
+Entity-level date perturbation and ID hashing from a versioned config file. Destroys absolute dates required for re-identification while preserving all analytical quantities. See the de-identification paper draft for full design specification.
+
+**`__init__.py` and `pyproject.toml`**
+Package installation via `pip install eventus`.
+
+**Simulation layer**
+Generate synthetic entities whose spans, events, and occurrences conform to the `PipeDelimitedIntermediate` format. Enables validation of analytical methods against known ground truth.

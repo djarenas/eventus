@@ -2,10 +2,6 @@
 occurrence_semantics.py
 Semantics for point-in-time occurrence data.
 """
-"""
-occurrence_semantics.py
-Semantics for point-in-time occurrence data.
-"""
 from __future__ import annotations
 from dataclasses import dataclass, field
 import re

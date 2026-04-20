@@ -6,7 +6,6 @@ from __future__ import annotations
 import sys
 import pandas as pd
 
-sys.path.append("C:/Users/DanielArenas/Desktop/Github_Local")
 from data_objects.events import Events
 
 _ERROR_PREFIX = "[EventDurationAnalyzer] Error"

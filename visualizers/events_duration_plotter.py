@@ -16,9 +16,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 _ERROR_PREFIX = "[EventsDurationPlotter] Error"
-
-# Add the inner package folder directly to sys.path  
-sys.path.append(r"C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")  
   
 
 class EventsDurationPlotter:

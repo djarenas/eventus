@@ -58,16 +58,16 @@ class EventsPerEntity(Events):
     def filter_by_entities(self, entity_ids) -> "EventsPerEntity":
         """Return a new EventsPerEntity containing only the specified entities."""
         col = self.semantics.entity_id_col
-        return EventsPerEntity(
+        return EventsPerEntity._build_from_cleaned(
             self.data[self.data[col].isin(entity_ids)].copy(),
             self.semantics
         )
  
     def copy(self) -> "EventsPerEntity":
         """Return a copy of this EventsPerEntity."""
-        return EventsPerEntity(self.data.copy(), self.semantics)
+        return EventsPerEntity._build_from_cleaned(self.data.copy(), self.semantics)
  
-    def as_obs_period(
+    def return_as_obs_period(
         self,
         identity: str | None = None,
     ) -> "ObsPeriodPerEntity":
@@ -88,7 +88,7 @@ class EventsPerEntity(Events):
         ObsPeriodPerEntity
         """
         from .obs_period_per_entity import ObsPeriodPerEntity
-        return ObsPeriodPerEntity(
+        return ObsPeriodPerEntity._build_from_cleaned(
             self.data.copy(),
             self.semantics,
             identity=identity,

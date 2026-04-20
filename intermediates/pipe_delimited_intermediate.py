@@ -96,15 +96,30 @@ class PipeDelimitedIntermediate:
     def has_events(self) -> bool:
         return EVENT_STARTS_COL in self.data.columns
 
+    # Suffixes added by self_analyze() — not raw pipe-delimited columns
+    _DERIVED_SUFFIXES = {
+        "_n", "_first", "_last", "_time_to_first", "_recency_days",
+        "_mean_gap", "_std_gap", "_cv_gap", "_min_gap", "_max_gap",
+        "_burstiness", "_memory", "_density",
+    }
+
     @property
     def occurrence_cols(self) -> list[str]:
-        """Returns list of occurrence column names (prefixed with 'occ_')."""
-        return [c for c in self.data.columns if c.startswith("occ_")]
+        """
+        Raw pipe-delimited occ_ columns only.
+        Excludes derived stat columns added by self_analyze()
+        e.g. occ_ed_visit_n, occ_ed_visit_burstiness.
+        """
+        return [
+            c for c in self.data.columns
+            if c.startswith("occ_")
+            and not any(c.endswith(s) for s in self._DERIVED_SUFFIXES)
+        ]
 
     @property
     def occurrence_identities(self) -> list[str]:
-        """Returns occurrence identities derived from column names."""
-        return [c[4:].replace("_", " ") for c in self.occurrence_cols]
+        """Returns occurrence identities from raw occ_ column names."""
+        return [c[4:] for c in self.occurrence_cols]
 
     # ------------------------------------------------------------------ #
     # Class methods
@@ -270,6 +285,159 @@ class PipeDelimitedIntermediate:
             combined = combined.drop(columns=dup_cols)
 
         return cls(combined, entity_col)
+
+
+    @classmethod
+    def from_objects(
+        cls,
+        obs_period,
+        events      = None,
+        occurrences = None,
+    ) -> "PipeDelimitedIntermediate":
+        """
+        Build a PipeDelimitedIntermediate directly from data objects.
+
+        Runs the appropriate analyzers internally and combines the
+        results. At least one of events or occurrences must be provided.
+
+        Parameters
+        ----------
+        obs_period : ObsPeriodPerEntity
+            The observation window for each entity. Required.
+        events : Events | None
+            A validated Events object. If provided, runs
+            EventsWithinObsPeriodsAnalyzer.compute_event_coverage().
+        occurrences : Occurrences | list[Occurrences] | None
+            One or more validated Occurrences objects. If provided,
+            runs OccurrencesWithinObsPeriodsAnalyzer.calc().
+            Each must have an identity set.
+
+        Returns
+        -------
+        PipeDelimitedIntermediate
+            Combined intermediate ready for visualization.
+
+        Examples
+        --------
+        >>> intermediate = PipeDelimitedIntermediate.from_objects(
+        ...     obs_period  = obs,
+        ...     events      = events,
+        ...     occurrences = [ed_visits, vaccinations],
+        ... )
+        >>> StackedTimelinePlotter(intermediate, config).plot("out.png")
+        """
+        from data_objects.obs_period_per_entity import ObsPeriodPerEntity
+        from data_objects.events import Events
+        from data_objects.occurrences import Occurrences
+        from analyzers.events_within_obs_periods_analyzer import (
+            EventsWithinObsPeriodsAnalyzer
+        )
+        from analyzers.occurrences_within_obs_periods_analyzer import (
+            OccurrencesWithinObsPeriodsAnalyzer
+        )
+
+        _ERR = "[PipeDelimitedIntermediate.from_objects] Error"
+
+        # ── Validate obs_period ───────────────────────────────────────
+        if not isinstance(obs_period, ObsPeriodPerEntity):
+            raise TypeError(
+                f"{_ERR}: obs_period must be an ObsPeriodPerEntity "
+                f"object, got {type(obs_period).__name__}. "
+                f"Use ObsPeriodPerEntity.from_calendar(), "
+                f".from_age_window(), or .from_events() to build one."
+            )
+
+        # ── Validate events ───────────────────────────────────────────
+        if events is not None and not isinstance(events, Events):
+            raise TypeError(
+                f"{_ERR}: events must be an Events object or None, "
+                f"got {type(events).__name__}"
+            )
+
+        # ── Validate occurrences ──────────────────────────────────────
+        if occurrences is not None:
+            if isinstance(occurrences, Occurrences):
+                occurrences = [occurrences]
+            if not isinstance(occurrences, list) or not occurrences:
+                raise TypeError(
+                    f"{_ERR}: occurrences must be an Occurrences object, "
+                    f"a non-empty list of Occurrences objects, or None"
+                )
+            for i, occ in enumerate(occurrences):
+                if not isinstance(occ, Occurrences):
+                    raise TypeError(
+                        f"{_ERR}: occurrences[{i}] must be an Occurrences "
+                        f"object, got {type(occ).__name__}"
+                    )
+                if not occ.semantics.identity:
+                    raise ValueError(
+                        f"{_ERR}: occurrences[{i}] has no identity set. "
+                        f"Set identity in OccurrenceSemantics "
+                        f"e.g. identity='ed_visit'"
+                    )
+
+        # ── At least one input required ───────────────────────────────
+        if events is None and not occurrences:
+            raise ValueError(
+                f"{_ERR}: at least one of events or occurrences must "
+                f"be provided."
+            )
+
+        # ── Validate entity_col consistency ───────────────────────────
+        obs_entity_col = obs_period.semantics.entity_id_col
+        if events is not None:
+            if events.semantics.entity_id_col != obs_entity_col:
+                raise ValueError(
+                    f"{_ERR}: events.entity_id_col "
+                    f"'{events.semantics.entity_id_col}' does not match "
+                    f"obs_period.entity_id_col '{obs_entity_col}'"
+                )
+        if occurrences:
+            for i, occ in enumerate(occurrences):
+                if occ.semantics.entity_id_col != obs_entity_col:
+                    raise ValueError(
+                        f"{_ERR}: occurrences[{i}] "
+                        f"(identity='{occ.semantics.identity}') "
+                        f"entity_id_col '{occ.semantics.entity_id_col}' "
+                        f"does not match obs_period.entity_id_col "
+                        f"'{obs_entity_col}'"
+                    )
+
+        # ── Run analyzers ─────────────────────────────────────────────
+        results = []
+
+        if events is not None:
+            results.append(
+                EventsWithinObsPeriodsAnalyzer(events, obs_period)
+                .compute_event_coverage()
+            )
+
+        if occurrences:
+            results.append(
+                OccurrencesWithinObsPeriodsAnalyzer(occurrences, obs_period)
+                .calc()
+            )
+
+        # ── Combine ───────────────────────────────────────────────────
+        if len(results) == 1:
+            return results[0]
+
+        return cls.combine(*results)
+
+    def copy(self) -> "PipeDelimitedIntermediate":
+        """Return a copy of this PipeDelimitedIntermediate."""
+        return self.__class__(self.data.copy(), self.entity_col)
+
+    def sample(self, n:int, random_state: int) -> "PipeDelimitedIntermediate":
+        """Return a subset of the data as a PipeDelimitedIntermediate object"""
+        if not isinstance(n, int):
+            raise TypeError(f"{_ERROR_PREFIX} in sample(): n must be an integer, got {type(n)}")
+        if n <= 0:
+            raise ValueError(f"{_ERROR_PREFIX} in sample(): n must be greater than 0, got {n}")
+        if not isinstance(random_state, int):
+             raise TypeError(f"{_ERROR_PREFIX} in sample(): random_state must be an integer, got {type(n)}")
+        data = self.data.copy().sample(n=n, random_state=random_state)
+        return self.__class__(data, self.entity_col)
 
     def to_csv(self, path: str) -> None:
         """Save the intermediate DataFrame to CSV."""

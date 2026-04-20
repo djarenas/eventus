@@ -6,14 +6,10 @@ Produces a validated Events object with a full quality report.
 from __future__ import annotations
 import sys
 import pandas as pd
-
+import yaml
 
 from .events_cleaner_config import EventsCleanerConfig
-
-# Add the inner package folder directly to sys.path  
-sys.path.append(r"C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")  
 from semantics.event_semantics import EventSemantics
-
 
 _ERROR_PREFIX = "[EventsCleaner] Error"
 
@@ -256,6 +252,116 @@ class EventsCleaner:
 
         return Events(self._cleaned, self._semantics)
 
+    def calc_report(self) -> dict:  
+        """Return a structured summary of the cleaning results as a dictionary."""  
+        self._require_cleaned("quality_report_dict")  
+    
+        n_clean    = len(self._cleaned)  
+        n_rejected = len(self._rejected)  
+        n_modified = len(self._modified)  
+        n_total    = self._n_input  
+    
+        report = {  
+            "total_input_rows": n_total,  
+            "rejected": [],  
+            "modified": [],  
+            "totals": {  
+                "total_rejected": {  
+                    "count": n_rejected,  
+                    "pct_of_input": round(100 * n_rejected / n_total, 1)  
+                },  
+                "total_modified_kept": {  
+                    "count": n_modified,  
+                    "pct_of_input": round(100 * n_modified / n_total, 1)  
+                } if n_modified > 0 else None,  
+                "clean_rows": {  
+                    "count": n_clean,  
+                    "pct_of_input": round(100 * n_clean / n_total, 1)  
+                }  
+            }  
+        }  
+    
+        # Rejected breakdown  
+        if n_rejected > 0:  
+            counts = (  
+                self._rejected["_rejection_reason"]  
+                .value_counts()  
+                .reset_index()  
+            )  
+            counts.columns = ["reason", "n"]  
+            for _, row in counts.iterrows():  
+                report["rejected"].append({  
+                    "reason": row["reason"],  
+                    "count": int(row["n"]),  
+                    "pct_of_input": round(100 * row["n"] / n_total, 1)  
+                })  
+    
+        # Modified breakdown  
+        if n_modified > 0:  
+            counts = (  
+                self._modified["_rejection_reason"]  
+                .value_counts()  
+                .reset_index()  
+            )  
+            counts.columns = ["reason", "n"]  
+            for _, row in counts.iterrows():  
+                report["modified"].append({  
+                    "reason": row["reason"],  
+                    "count": int(row["n"]),  
+                    "pct_of_input": round(100 * row["n"] / n_total, 1)  
+                })  
+    
+        # Optional merge info  
+        if getattr(self._config, "merge_overlapping", False):  
+            report["merge_info"] = {  
+                "meaningful_gap_days": self._config.meaningful_gap,  
+                "clean_rows_after_merge": n_clean  
+            }  
+    
+        return report  
+    
+    def print_report(self) -> None:  
+        """Pretty-print the quality report dictionary."""  
+        report = self.calc_report()
+        print("Cleaning report")  
+        print("─" * 56)  
+        print(f"{'Total input rows:':<42} {report['total_input_rows']:>8,}")  
+        print("─" * 56)  
+    
+        # Rejected section  
+        rejected = report.get("rejected", [])  
+        if rejected:  
+            print("  Rejected:")  
+            for item in rejected:  
+                label = f"    {item['reason']}:"  
+                print(f"{label:<44} {item['count']:>6,}   ({item['pct_of_input']}%)")  
+        else:  
+            print("  No rows rejected")  
+    
+        # Modified section  
+        modified = report.get("modified", [])  
+        if modified:  
+            print("  Modified (kept):")  
+            for item in modified:  
+                label = f"    {item['reason']}:"  
+                print(f"{label:<44} {item['count']:>6,}   ({item['pct_of_input']}%)")  
+    
+        print("─" * 56)  
+    
+        # Totals section  
+        totals = report.get("totals", {})  
+        if "total_rejected" in totals and totals["total_rejected"]:  
+            tr = totals["total_rejected"]  
+            print(f"{'Total rejected:':<42} {tr['count']:>8,}   ({tr['pct_of_input']}%)")  
+    
+        if "total_modified_kept" in totals and totals["total_modified_kept"]:  
+            tm = totals["total_modified_kept"]  
+            print(f"{'Total modified (kept):':<42} {tm['count']:>8,}   ({tm['pct_of_input']}%)")  
+    
+        if "clean_rows" in totals:  
+            cr = totals["clean_rows"]  
+            print(f"{'Clean rows:':<42} {cr['count']:>8,}   ({cr['pct_of_input']}%)")  
+
     # ------------------------------------------------------------------ #
     # Properties
     # ------------------------------------------------------------------ #
@@ -273,85 +379,7 @@ class EventsCleaner:
         self._require_cleaned("modified")
         return self._modified.copy()
 
-    # ------------------------------------------------------------------ #
-    # Quality report
-    # ------------------------------------------------------------------ #
 
-    def quality_report(self) -> None:
-        """Print a structured summary of the cleaning results."""
-        self._require_cleaned("quality_report")
-
-        n_clean    = len(self._cleaned)
-        n_rejected = len(self._rejected)
-        n_modified = len(self._modified)
-        n_total    = self._n_input
-
-        print(f"Cleaning report")
-        print(f"{'─' * 56}")
-        print(f"{'Total input rows:':<42} {n_total:>8,}")
-        print(f"{'─' * 56}")
-
-        # Rejected
-        if n_rejected > 0:
-            print(f"  Rejected:")
-            counts = (
-                self._rejected["_rejection_reason"]
-                .value_counts().reset_index()
-            )
-            counts.columns = ["reason", "n"]
-            for _, row in counts.iterrows():
-                label = f"    {row['reason']}:"
-                print(f"{label:<44} {int(row['n']):>6,}   ({round(100*row['n']/n_total,1)}%)")
-        else:
-            print(f"  No rows rejected")
-
-        # Modified
-        if n_modified > 0:
-            print(f"  Modified (kept):")
-            counts = (
-                self._modified["_rejection_reason"]
-                .value_counts().reset_index()
-            )
-            counts.columns = ["reason", "n"]
-            for _, row in counts.iterrows():
-                label = f"    {row['reason']}:"
-                print(f"{label:<44} {int(row['n']):>6,}   ({round(100*row['n']/n_total,1)}%)")
-
-        print(f"{'─' * 56}")
-        print(f"{'Total rejected:':<42} {n_rejected:>8,}   ({round(100*n_rejected/n_total,1)}%)")
-        if n_modified > 0:
-            print(f"{'Total modified (kept):':<42} {n_modified:>8,}   ({round(100*n_modified/n_total,1)}%)")
-        print(f"{'Clean rows:':<42} {n_clean:>8,}   ({round(100*n_clean/n_total,1)}%)")
-
-        if self._config.merge_overlapping:
-            print(f"{'─' * 56}")
-            print(f"  Overlapping intervals merged "
-                  f"(meaningful_gap={self._config.meaningful_gap} days)")
-            print(f"{'Clean rows after merge:':<42} {n_clean:>8,}")
-
-    def quality_report_df(self) -> pd.DataFrame:
-        """Return quality report as a DataFrame."""
-        self._require_cleaned("quality_report_df")
-
-        n_total = self._n_input
-        rows    = []
-
-        for df_, action in [(self._rejected, "rejected"), (self._modified, "modified")]:
-            if len(df_) > 0:
-                counts = df_["_rejection_reason"].value_counts().reset_index()
-                counts.columns = ["reason", "n"]
-                counts["action"] = action
-                counts["pct_of_input"] = (counts["n"] / n_total * 100).round(1)
-                rows.extend(counts.to_dict("records"))
-
-        rows.append({
-            "reason":       "CLEAN",
-            "n":            len(self._cleaned),
-            "action":       "kept",
-            "pct_of_input": round(100 * len(self._cleaned) / n_total, 1),
-        })
-
-        return pd.DataFrame(rows)[["reason", "action", "n", "pct_of_input"]]
 
     # ------------------------------------------------------------------ #
     # Internal helpers

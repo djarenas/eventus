@@ -8,17 +8,24 @@ The third level of the event hierarchy:
     EventsPerEntity
         ↓ (semantic meaning: observation window)
     ObsPeriodPerEntity
+
+Default output column names for classmethods:
+    entity_id_col  → caller-supplied entity_col parameter
+    start_time_col → "obs_start"
+    end_time_col   → "obs_end"
+
+Power users who need custom column names use direct construction:
+    ObsPeriodPerEntity(df, full_semantics, identity="...")
 """
 from __future__ import annotations
 import pandas as pd
-import sys
 
 # Add the inner package folder directly to sys.path  
+import sys
 sys.path.append(r"C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")  
-  
+
 from data_objects.events_per_entity import EventsPerEntity
 from semantics.event_semantics import EventSemantics
-
 
 _ERROR_PREFIX = "[ObsPeriodPerEntity] Error"
 
@@ -36,9 +43,9 @@ class ObsPeriodPerEntity(EventsPerEntity):
     and occurrences are analyzed. Four construction paths:
 
     - Direct construction from a DataFrame (full control)
-    - from_calendar()   — same dates for all entities
-    - from_age_window() — per-entity dates derived from date of birth
-    - from_events()     — first event start to last event end
+    - construct_from_calendar()   — same dates for all entities
+    - construct_from_age_window() — per-entity dates derived from date of birth
+    - construct_from_events()     — first event start to last event end
 
     Classmethods produce output with standard column names:
         obs_start, obs_end
@@ -61,7 +68,7 @@ class ObsPeriodPerEntity(EventsPerEntity):
     >>> obs = ObsPeriodPerEntity(spans_df, sem, identity="medicaid_2022")
 
     >>> # Calendar period — output has obs_start, obs_end
-    >>> obs = ObsPeriodPerEntity.from_calendar(
+    >>> obs = ObsPeriodPerEntity.construct_from_calendar(
     ...     entity_ids = events.data["patient_id"].unique(),
     ...     start      = "2022-01-01",
     ...     end        = "2022-12-31",
@@ -70,7 +77,7 @@ class ObsPeriodPerEntity(EventsPerEntity):
     ... )
 
     >>> # Age window — output has obs_start, obs_end
-    >>> obs = ObsPeriodPerEntity.from_age_window(
+    >>> obs = ObsPeriodPerEntity.construct_from_age_window(
     ...     entity_df  = patients_df,
     ...     dob_col    = "date_of_birth",
     ...     age_start  = 65,
@@ -80,7 +87,7 @@ class ObsPeriodPerEntity(EventsPerEntity):
     ... )
 
     >>> # From events — reuses events.semantics column names
-    >>> obs = ObsPeriodPerEntity.from_events(events, identity="hospitalization_window")
+    >>> obs = ObsPeriodPerEntity.construct_from_events(events, identity="hospitalization_window")
     """
 
     _DEFAULT_IDENTITY = _DEFAULT_IDENTITY
@@ -129,7 +136,7 @@ class ObsPeriodPerEntity(EventsPerEntity):
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def from_calendar(
+    def construct_from_calendar(
         cls,
         entity_ids: list,
         start:      str,
@@ -177,17 +184,18 @@ class ObsPeriodPerEntity(EventsPerEntity):
         warn_future_dates(df, _OBS_START_COL, _OBS_END_COL, entity_col)
 
         obj = cls(df, semantics, identity=identity)
-        obj._construction_path = "from_calendar"
+        obj._construction_path = "construct_from_calendar"
         return obj
 
     @classmethod
-    def from_age_window(
+    def construct_from_age_window(
         cls,
         entity_df:  pd.DataFrame,
         dob_col:    str,
         age_start:  int,
         age_end:    int,
         entity_col: str,
+        age_unit:   str        = "years",
         identity:   str | None = None,
     ) -> "ObsPeriodPerEntity":
         """
@@ -203,12 +211,14 @@ class ObsPeriodPerEntity(EventsPerEntity):
         dob_col : str
             Column containing date of birth.
         age_start : int
-            Start of observation window in years (0-120).
+            Start of observation window.
         age_end : int
-            End of observation window in years (0-120).
-            Must be greater than age_start.
+            End of observation window. Must be greater than age_start.
         entity_col : str
             Name of the entity identifier column.
+        age_unit : str
+            Unit for age_start and age_end. "years" (default) or "months".
+            Use "months" for pediatric cohorts e.g. age_start=6, age_end=18.
         identity : str | None
             Name for this observation period. Default 'general_entity'.
 
@@ -216,6 +226,24 @@ class ObsPeriodPerEntity(EventsPerEntity):
         -------
         ObsPeriodPerEntity
             Output columns: {entity_col}, obs_start, obs_end.
+
+        Examples
+        --------
+        >>> # Ages 65-70 years
+        >>> obs = ObsPeriodPerEntity.construct_from_age_window(
+        ...     entity_df=demog_df, dob_col="dob",
+        ...     age_start=65, age_end=70,
+        ...     entity_col="patient_id",
+        ... )
+
+        >>> # Ages 6-18 months (pediatric)
+        >>> obs = ObsPeriodPerEntity.construct_from_age_window(
+        ...     entity_df=demog_df, dob_col="dob",
+        ...     age_start=6, age_end=18,
+        ...     entity_col="patient_id",
+        ...     age_unit="months",
+        ...     identity="age_6_to_18_months",
+        ... )
 
         Notes
         -----
@@ -226,7 +254,7 @@ class ObsPeriodPerEntity(EventsPerEntity):
             validate_age_window, build_age_window_spans, warn_future_dates
         )
 
-        validate_age_window(age_start, age_end)
+        validate_age_window(age_start, age_end, age_unit)
 
         semantics = cls._default_semantics(entity_col)
 
@@ -238,16 +266,19 @@ class ObsPeriodPerEntity(EventsPerEntity):
             entity_col = entity_col,
             start_col  = _OBS_START_COL,
             end_col    = _OBS_END_COL,
+            age_unit   = age_unit,
         )
 
         warn_future_dates(df, _OBS_START_COL, _OBS_END_COL, entity_col)
 
         obj = cls(df, semantics, identity=identity)
-        obj._construction_path = f"from_age_window(age {age_start}→{age_end})"
+        obj._construction_path = (
+            f"construct_from_age_window(age {age_start}→{age_end} {age_unit})"
+        )
         return obj
 
     @classmethod
-    def from_events(
+    def construct_from_events(
         cls,
         events,
         identity: str | None = None,
@@ -276,16 +307,16 @@ class ObsPeriodPerEntity(EventsPerEntity):
         """
         from .events import Events
         from .obs_period_per_entity_utils import (
-            build_spans_from_events, warn_future_dates
+            build_spans_construct_from_events, warn_future_dates
         )
 
         if not isinstance(events, Events):
             raise TypeError(
-                f"{_ERROR_PREFIX}: from_events requires an Events object, "
+                f"{_ERROR_PREFIX}: construct_from_events requires an Events object, "
                 f"got {type(events).__name__}"
             )
 
-        df = build_spans_from_events(
+        df = build_spans_construct_from_events(
             events_df      = events.data,
             entity_col     = events.semantics.entity_id_col,
             start_col      = events.semantics.start_time_col,
@@ -302,7 +333,7 @@ class ObsPeriodPerEntity(EventsPerEntity):
         )
 
         obj = cls(df, events.semantics, identity=identity)
-        obj._construction_path = "from_events"
+        obj._construction_path = "construct_from_events"
         return obj
 
     # ------------------------------------------------------------------ #

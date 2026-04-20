@@ -1,5 +1,5 @@
 """
-generate_example_data.py
+generate_example_events_data.py
 Generates synthetic inpatient hospitalization and patient demographics data
 for eventus vignettes.
 
@@ -17,7 +17,7 @@ N_PATIENTS = 50
 
 # Observation period — hospitalizations are generated within this range
 OBS_PERIOD_START = "2022-01-01"
-OBS_PERIOD_END   = "2025-12-31"
+OBS_PERIOD_END   = "2022-06-30"
 
 # Hospitalizations per patient — random between these bounds (inclusive)
 # MIN_STAYS = 0 means some patients have no hospitalizations and will

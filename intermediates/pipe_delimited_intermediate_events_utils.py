@@ -17,6 +17,7 @@ _ERROR_PREFIX = "[pipe_delimited_intermediate_events_utils] Error"
 def _validate_span_durations(data: pd.DataFrame, entity_col: str) -> int:
     """Warn if span durations differ. Returns max span duration in days."""
     durations = data["span_duration_days"].dropna()
+    durations = pd.to_numeric(durations, errors='coerce')
     if durations.empty:
         raise ValueError(f"{_ERROR_PREFIX}: no valid span_duration_days found")
 

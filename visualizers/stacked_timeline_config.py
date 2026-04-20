@@ -196,10 +196,11 @@ class OccurrenceLayerConfig:
 @dataclass
 class LegendConfig:
     """Legend display settings."""
-    show:             bool  = True
-    location:         str   = _DEFAULT_LEGEND_LOCATION
-    font_size:        int   = _DEFAULT_LEGEND_FONT_SIZE
+    show:               bool  = True
+    location:           str   = _DEFAULT_LEGEND_LOCATION
+    font_size:          int   = _DEFAULT_LEGEND_FONT_SIZE
     show_poi_in_legend: bool  = False
+    outside:            bool  = True   # place legend outside plot area
 
     def __post_init__(self) -> None:
         if self.location not in _VALID_LEGEND_LOCS:
@@ -470,10 +471,11 @@ class StackedTimelineConfig:
                 for o in self.occurrences_settings
             ],
             "legend": {
-                "show":              self.legend.show,
-                "location":  self.legend.location,
-                "font_size":         self.legend.font_size,
+                "show":               self.legend.show,
+                "location":           self.legend.location,
+                "font_size":          self.legend.font_size,
                 "show_poi_in_legend": self.legend.show_poi_in_legend,
+                "outside":            self.legend.outside,
             },
             "x_axis_labels": {
                 "format":   self.x_axis_labels.format,

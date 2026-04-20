@@ -337,42 +337,69 @@ class RiskAcrossNumerical:
     # -----------------------------  
     # Plotting  
     # -----------------------------  
-    def plot(self, filename: str = "plot_risk_across_numerical.jpg"):  
+    def plot(  
+        self,  
+        filename: str = "plot_risk_across_numerical.jpg",  
+        overall_from: str = "displayed",  # "displayed" or "all_cleaned"  
+    ):  
+        """  
+        Plot risk percentage by numerical bin with 95% CI error bars and an overall reference line.  
+    
+        Parameters  
+        ----------  
+        filename : str  
+            Output file path.  
+        overall_from : str  
+            - "displayed": overall % from bins shown in the plot (after filtering)  
+            - "all_cleaned": overall % from all cleaned rows (before bin filtering)  
+        """  
         summary = self.get_binned_summary()  
-  
+    
         if summary.empty:  
             print("No bins met minimum_count_per_bin. No plot created.")  
             return None  
-  
+    
         fig, ax = plt.subplots(figsize=(10, 6))  
-        x_labels = summary["bin"].astype(str)  
-        y = summary["risk_percentage"]  
-  
-        ax.bar(x_labels, y)  
-
+    
+        # X/Y values  
         x = np.arange(len(summary))  
         y = summary["risk_percentage"].to_numpy()  
-        
+    
+        # Asymmetric CI error bars  
         yerr_lower = y - summary["ci_lower_pct"].to_numpy()  
         yerr_upper = summary["ci_upper_pct"].to_numpy() - y  
         yerr = np.vstack([yerr_lower, yerr_upper])  
-        
-        ax.bar(x, y, alpha=0.8)  
-        ax.errorbar(x, y, yerr=yerr, fmt='none', ecolor='black', capsize=4)  
-        
+    
+        # Bars + CI  
+        ax.bar(x, y, alpha=0.8, label="Bin risk %")  
+        ax.errorbar(x, y, yerr=yerr, fmt="none", ecolor="black", capsize=4, linewidth=1)  
+    
+        # Overall horizontal reference line  
+        if overall_from == "displayed":  
+            overall_pct = (summary["true_count"].sum() / summary["entity_count"].sum()) * 100  
+        elif overall_from == "all_cleaned":  
+            overall_pct = self.cleaned_df[self.outcome_col].mean() * 100  
+        else:  
+            raise ValueError("overall_from must be 'displayed' or 'all_cleaned'.")  
+    
+        ax.axhline(  
+            y=overall_pct,  
+            color="red",  
+            linestyle="--",  
+            linewidth=2,  
+            label=f"Overall = {overall_pct:.1f}%"  
+        )  
+    
+        # Labels and formatting  
         ax.set_xticks(x)  
         ax.set_xticklabels(summary["bin"].astype(str), rotation=45, ha="right")  
-
         ax.set_xlabel(f"{self.numerical_col} bins")  
         ax.set_ylabel("Percentage with outcome")  
         ax.set_title(f"Percentage across {self.numerical_col}")  
         ax.set_ylim(0, 100)  
-  
-        plt.xticks(rotation=45, ha="right")  
+        ax.legend()  
+    
         plt.tight_layout()  
-  
         fig.savefig(filename, dpi=300, bbox_inches="tight")  
         print(f"Plot saved to: {filename}")  
         return fig, ax  
-  
-  

@@ -17,11 +17,6 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 from collections import defaultdict
 
-# Add the inner package folder directly to sys.path  
-import sys
-sys.path.append(r"C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")  
-
-
 _ERROR_PREFIX = "[StackedTimelinePlotter] Error"
 
 _MARKER_MAP = {
@@ -31,12 +26,6 @@ _MARKER_MAP = {
     "diamond":  "D",
     "star":     "*",
 }
-
-_DEFAULT_PALETTE = [
-    "#028090", "#E05C40", "#6B4FA0", "#E09820",
-    "#2C7BB6", "#D7191C", "#1A9641", "#FDAE61",
-    "#ABD9E9", "#F46D43",
-]
 
 
 class StackedTimelinePlotter:
@@ -96,6 +85,84 @@ class StackedTimelinePlotter:
         self._config       = config
 
     # ------------------------------------------------------------------ #
+    # Convenience classmethod
+    # ------------------------------------------------------------------ #
+
+    @classmethod
+    def from_objects(
+        cls,
+        obs_period,
+        events      = None,
+        occurrences = None,
+        config      = None,
+        sort_by     = None,
+        ascending   = True,
+    ) -> "StackedTimelinePlotter":
+        """
+        Build a StackedTimelinePlotter directly from data objects.
+
+        Convenience classmethod that runs the analyzers, combines
+        the intermediates, and returns a ready-to-plot plotter.
+        The intermediate is never exposed — use the standard
+        constructor if you need to inspect or sort it first.
+
+        Parameters
+        ----------
+        obs_period : ObsPeriodPerEntity
+            The observation window for each entity. Required.
+        events : Events | None
+            A validated Events object.
+        occurrences : Occurrences | list[Occurrences] | None
+            One or more validated Occurrences objects.
+        config : StackedTimelineConfig | None
+            Plot configuration. Uses defaults if not provided.
+        sort_by : list[str] | None
+            Column names to sort entities by before plotting.
+            Must exist in the intermediate after analyzers run.
+            Common values: 'active_days', 'inactive_days',
+            'inactive_days_before_first_event', 'span_duration_days',
+            'first_event_start', 'last_event_end'.
+            Default None — entities appear in obs_period order.
+        ascending : bool | list[bool]
+            Sort direction. Default True.
+
+        Returns
+        -------
+        StackedTimelinePlotter
+
+        Examples
+        --------
+        >>> # Sort by most active days first
+        >>> plotter = StackedTimelinePlotter.from_objects(
+        ...     obs_period = obs,
+        ...     events     = events,
+        ...     sort_by    = ["active_days"],
+        ...     ascending  = [False],
+        ...     config     = StackedTimelineConfig.build_from_yaml("config.yaml"),
+        ... )
+        >>> plotter.plot("timeline.png")
+        """
+        from intermediates.pipe_delimited_intermediate import PipeDelimitedIntermediate
+
+        if sort_by is not None and not isinstance(sort_by, list):
+            raise TypeError(
+                f"{_ERROR_PREFIX} in from_objects(): sort_by must be a "
+                f"list of column name strings or None, "
+                f"got {type(sort_by).__name__}"
+            )
+
+        intermediate = PipeDelimitedIntermediate.from_objects(
+            obs_period  = obs_period,
+            events      = events,
+            occurrences = occurrences,
+        )
+
+        if sort_by is not None:
+            intermediate = intermediate.sort(by=sort_by, ascending=ascending)
+
+        return cls(intermediate, config)
+
+    # ------------------------------------------------------------------ #
     # Public API
     # ------------------------------------------------------------------ #
 
@@ -132,9 +199,8 @@ class StackedTimelinePlotter:
         max_days    = max(d for _, _, d in span_lookup.values())
 
         # ── Resolve layer configs ─────────────────────────────────────
-        palette_idx          = 0
-        ev_cfg,  palette_idx = self._resolve_event_config(palette_idx)
-        occ_map, palette_idx = self._resolve_occ_configs(palette_idx)
+        ev_cfg  = self._resolve_event_config()
+        occ_map = self._resolve_occ_configs()
 
         # ── Precompute segments and markers ───────────────────────────
         bar_h = gcfg.bar_height_ratio
@@ -232,12 +298,18 @@ class StackedTimelinePlotter:
         ax.set_title(gcfg.title or f"Timeline — {ec}", fontsize=gcfg.title_font_size)
 
         if cfg.legend.show:
-            ax.legend(
+            legend_kwargs = dict(
                 handles  = self._build_legend_handles(ev_cfg, occ_map),
-                loc      = cfg.legend.location,
                 fontsize = cfg.legend.font_size,
                 frameon  = True,
             )
+            if cfg.legend.outside:
+                legend_kwargs["loc"]            = "upper left"
+                legend_kwargs["bbox_to_anchor"] = (1.01, 1)
+                legend_kwargs["borderaxespad"]  = 0
+            else:
+                legend_kwargs["loc"] = cfg.legend.location
+            ax.legend(**legend_kwargs)
 
         fig.tight_layout()
         fig.savefig(path, dpi=gcfg.dpi, bbox_inches="tight")
@@ -248,41 +320,46 @@ class StackedTimelinePlotter:
     # Config resolution helpers
     # ------------------------------------------------------------------ #
 
-    def _resolve_event_config(self, palette_idx: int):
-        """Return EventLayerConfig, auto-assigning color if needed."""
+    def _resolve_event_config(self):
+        """
+        Return the first EventLayerConfig from config, or None if not
+        configured. No auto-discovery — events must be explicitly configured.
+        If the intermediate has events but events_settings is empty,
+        only the POI bar is drawn.
+        """
         if not self._intermediate.has_events:
-            return None, palette_idx
-        ev_cfg = self._config.get_event_config("events")
-        if ev_cfg is None:
-            color = _DEFAULT_PALETTE[palette_idx % len(_DEFAULT_PALETTE)]
-            palette_idx += 1
+            return None
+        if not self._config.events_settings:
             warnings.warn(
-                f"[StackedTimelinePlotter] No events_settings found — "
-                f"auto-assigning color {color}.",
+                "[StackedTimelinePlotter] Intermediate has event columns "
+                "but no events_settings entry found in config. "
+                "Only the observation period bar will be drawn. "
+                "Add an events_settings entry to show event segments.",
                 UserWarning, stacklevel=3,
             )
-            from .stacked_timeline_config import EventLayerConfig
-            ev_cfg = EventLayerConfig(identity="events", color=color)
-        return ev_cfg, palette_idx
+            return None
+        return self._config.events_settings[0]
 
-    def _resolve_occ_configs(self, palette_idx: int):
-        """Return {col: OccurrenceLayerConfig} for all occ_ columns."""
+    def _resolve_occ_configs(self):
+        """
+        Return {col: OccurrenceLayerConfig} for configured identities only.
+        No auto-discovery — occurrences must be explicitly configured.
+        Warns if a configured identity has no matching column in the
+        intermediate. Silently ignores occ_ columns not in config.
+        """
         occ_map = {}
-        for col in self._intermediate.occurrence_cols:
-            identity = col[4:]
-            ocfg     = self._config.get_occurrence_config(identity)
-            if ocfg is None:
-                color = _DEFAULT_PALETTE[palette_idx % len(_DEFAULT_PALETTE)]
-                palette_idx += 1
+        for ocfg in self._config.occurrences_settings:
+            col = f"occ_{ocfg.identity}"
+            if col not in self._intermediate.data.columns:
                 warnings.warn(
-                    f"[StackedTimelinePlotter] No occurrences_settings for "
-                    f"'{identity}' — auto-assigning color {color}.",
+                    f"[StackedTimelinePlotter] occurrences_settings has "
+                    f"identity '{ocfg.identity}' but column '{col}' was "
+                    f"not found in the intermediate — skipping.",
                     UserWarning, stacklevel=3,
                 )
-                from .stacked_timeline_config import OccurrenceLayerConfig
-                ocfg = OccurrenceLayerConfig(identity=identity, color=color)
+                continue
             occ_map[col] = ocfg
-        return occ_map, palette_idx
+        return occ_map
 
     def _build_legend_handles(self, ev_cfg, occ_cfg_map) -> list:
         """Build legend handle list from resolved layer configs."""
@@ -321,7 +398,7 @@ class StackedTimelinePlotter:
         return handles
 
     # ------------------------------------------------------------------ #
-    # Dunder
+    # Validation and dunder
     # ------------------------------------------------------------------ #
 
     def _validate_path(self, path: str) -> None:
