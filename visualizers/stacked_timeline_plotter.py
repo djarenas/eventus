@@ -17,6 +17,13 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 from collections import defaultdict
 
+from .stacked_timeline_config import StackedTimelineConfig
+from intermediates.pipe_delimited_intermediate import (
+    PipeDelimitedIntermediate,
+    SPAN_START_COL,
+    SPAN_END_COL,
+)
+
 _ERROR_PREFIX = "[StackedTimelinePlotter] Error"
 
 _MARKER_MAP = {
@@ -26,6 +33,23 @@ _MARKER_MAP = {
     "diamond":  "D",
     "star":     "*",
 }
+
+# Valid sort columns and their types for correct pre-sort casting
+_SORT_NUMERIC = {
+    "active_days",
+    "inactive_days",
+    "inactive_days_before_first_event",
+    "inactive_days_after_last_event",
+    "inactive_days_middle",
+    "span_duration_days",
+}
+_SORT_DATE = {
+    "first_event_start",
+    "last_event_end",
+    "span_start",
+    "span_end",
+}
+_VALID_SORT_COLS = _SORT_NUMERIC | _SORT_DATE
 
 
 class StackedTimelinePlotter:
@@ -43,24 +67,38 @@ class StackedTimelinePlotter:
     config : StackedTimelineConfig | None
         Plot configuration. Uses StackedTimelineConfig.build_with_defaults()
         if not provided.
+    sort_by : list[str] | None
+        Column names to sort entities by before plotting. Must exist in
+        intermediate.data. Common values: 'active_days', 'inactive_days',
+        'inactive_days_before_first_event', 'span_duration_days',
+        'first_event_start', 'last_event_end'.
+        Default None — entities appear in intermediate order.
+    ascending : bool | list[bool]
+        Sort direction. A single bool applies to all columns. A list must
+        match the length of sort_by. Default True.
 
     Examples
     --------
-    >>> plotter = StackedTimelinePlotter(combined)
+    >>> plotter = StackedTimelinePlotter(intermediate)
     >>> plotter.plot("output.png")
 
     >>> config  = StackedTimelineConfig.build_from_yaml("config.yaml")
-    >>> plotter = StackedTimelinePlotter(combined, config)
+    >>> plotter = StackedTimelinePlotter(
+    ...     intermediate,
+    ...     config    = config,
+    ...     sort_by   = ["active_days"],
+    ...     ascending = [False],
+    ... )
     >>> plotter.plot("output.png")
     """
 
-    def __init__(self, intermediate, config=None) -> None:
-        from intermediates.pipe_delimited_intermediate import (
-            PipeDelimitedIntermediate,
-            SPAN_START_COL, SPAN_END_COL,
-        )
-        from .stacked_timeline_config import StackedTimelineConfig
-
+    def __init__(
+        self,
+        intermediate: PipeDelimitedIntermediate,
+        config:    StackedTimelineConfig | None = None,
+        sort_by:   list[str] | None            = None,
+        ascending: bool | list[bool]           = True,
+    ) -> None:
         if not isinstance(intermediate, PipeDelimitedIntermediate):
             raise TypeError(
                 f"{_ERROR_PREFIX}: intermediate must be a "
@@ -81,8 +119,114 @@ class StackedTimelinePlotter:
                 f"object, got {type(config).__name__}"
             )
 
+        if sort_by is not None:
+            self._validate_sort_args(sort_by, ascending, intermediate.data)
+            # Cast columns to correct types before sorting
+            sorted_data = self._prepare_for_sort(intermediate.data, sort_by)
+            sorted_data = sorted_data.sort_values(
+                by=sort_by, ascending=ascending, na_position="last"
+            ).reset_index(drop=True)
+            intermediate = intermediate.__class__(sorted_data, intermediate.entity_col)
+
         self._intermediate = intermediate
         self._config       = config
+
+    # ------------------------------------------------------------------ #
+    # Validation helpers
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _validate_sort_args(
+        sort_by:   list[str],
+        ascending: bool | list[bool],
+        data:      pd.DataFrame,
+    ) -> None:
+        """
+        Validate sort_by and ascending before sorting.
+
+        Raises
+        ------
+        TypeError
+            If sort_by is not a list of strings, or ascending is not
+            a bool or list of bools.
+        ValueError
+            If any sort_by column is not in _VALID_SORT_COLS, does not
+            exist in data, or if ascending list length does not match
+            sort_by.
+        """
+        if not isinstance(sort_by, list) or not sort_by:
+            raise TypeError(
+                f"{_ERROR_PREFIX}: sort_by must be a non-empty list of "
+                f"column name strings, got {type(sort_by).__name__}"
+            )
+        if not all(isinstance(s, str) for s in sort_by):
+            bad = [s for s in sort_by if not isinstance(s, str)]
+            raise TypeError(
+                f"{_ERROR_PREFIX}: all sort_by entries must be strings, "
+                f"got non-string values: {bad}"
+            )
+        invalid = [c for c in sort_by if c not in _VALID_SORT_COLS]
+        if invalid:
+            raise ValueError(
+                f"{_ERROR_PREFIX}: invalid sort_by column(s): {invalid}. "
+                f"Valid sort columns: {sorted(_VALID_SORT_COLS)}"
+            )
+        missing = [c for c in sort_by if c not in data.columns]
+        if missing:
+            raise ValueError(
+                f"{_ERROR_PREFIX}: sort_by column(s) not found in "
+                f"intermediate.data: {missing}. "
+                f"Available columns: {sorted(data.columns.tolist())}"
+            )
+        if isinstance(ascending, list):
+            if not all(isinstance(a, bool) for a in ascending):
+                bad = [a for a in ascending if not isinstance(a, bool)]
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: all ascending entries must be bools, "
+                    f"got: {bad}"
+                )
+            if len(ascending) != len(sort_by):
+                raise ValueError(
+                    f"{_ERROR_PREFIX}: ascending list length ({len(ascending)}) "
+                    f"must match sort_by length ({len(sort_by)})"
+                )
+        elif not isinstance(ascending, bool):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: ascending must be a bool or list of bools, "
+                f"got {type(ascending).__name__}"
+            )
+
+    @staticmethod
+    def _prepare_for_sort(
+        data:    pd.DataFrame,
+        sort_by: list[str],
+    ) -> pd.DataFrame:
+        """
+        Cast sort columns to their correct types before sorting.
+
+        Numeric columns are cast to float — avoids lexicographic sort
+        of string-encoded numbers. Date columns are cast to datetime.
+        Returns a copy with only the sort columns recast.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Intermediate data. Modified copy is returned.
+        sort_by : list[str]
+            Columns to prepare. Must all be in _VALID_SORT_COLS.
+
+        Returns
+        -------
+        pd.DataFrame
+            Copy of data with sort columns correctly typed.
+        """
+        data = data.copy()
+        for col in sort_by:
+            if col in _SORT_NUMERIC:
+                data[col] = pd.to_numeric(data[col], errors="coerce").astype(float)
+            elif col in _SORT_DATE:
+                data[col] = pd.to_datetime(data[col], errors="coerce")
+        return data
 
     # ------------------------------------------------------------------ #
     # Convenience classmethod
@@ -92,11 +236,11 @@ class StackedTimelinePlotter:
     def from_objects(
         cls,
         obs_period,
-        events      = None,
-        occurrences = None,
-        config      = None,
-        sort_by     = None,
-        ascending   = True,
+        events:      object | None                = None,
+        occurrences: object | list[object] | None = None,
+        config:      StackedTimelineConfig | None = None,
+        sort_by:     list[str] | None             = None,
+        ascending:   bool | list[bool]            = True,
     ) -> "StackedTimelinePlotter":
         """
         Build a StackedTimelinePlotter directly from data objects.
@@ -124,7 +268,8 @@ class StackedTimelinePlotter:
             'first_event_start', 'last_event_end'.
             Default None — entities appear in obs_period order.
         ascending : bool | list[bool]
-            Sort direction. Default True.
+            Sort direction. A single bool applies to all columns. A list
+            must match the length of sort_by. Default True.
 
         Returns
         -------
@@ -132,7 +277,6 @@ class StackedTimelinePlotter:
 
         Examples
         --------
-        >>> # Sort by most active days first
         >>> plotter = StackedTimelinePlotter.from_objects(
         ...     obs_period = obs,
         ...     events     = events,
@@ -142,25 +286,12 @@ class StackedTimelinePlotter:
         ... )
         >>> plotter.plot("timeline.png")
         """
-        from intermediates.pipe_delimited_intermediate import PipeDelimitedIntermediate
-
-        if sort_by is not None and not isinstance(sort_by, list):
-            raise TypeError(
-                f"{_ERROR_PREFIX} in from_objects(): sort_by must be a "
-                f"list of column name strings or None, "
-                f"got {type(sort_by).__name__}"
-            )
-
         intermediate = PipeDelimitedIntermediate.from_objects(
             obs_period  = obs_period,
             events      = events,
             occurrences = occurrences,
         )
-
-        if sort_by is not None:
-            intermediate = intermediate.sort(by=sort_by, ascending=ascending)
-
-        return cls(intermediate, config)
+        return cls(intermediate, config, sort_by=sort_by, ascending=ascending)
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -205,15 +336,17 @@ class StackedTimelinePlotter:
         # ── Precompute segments and markers ───────────────────────────
         bar_h = gcfg.bar_height_ratio
         color_segments, marker_groups = precompute(
-            entities    = entities,
-            data        = data,
-            entity_col  = ec,
-            span_lookup = span_lookup,
-            has_events  = self._intermediate.has_events,
-            ev_color    = ev_cfg.color if ev_cfg else cfg.poi_settings.color_no_events,
-            occ_cfg_map = occ_map,
-            poi         = cfg.poi_settings,
-            bar_h       = bar_h,
+            entities     = entities,
+            data         = data,
+            entity_col   = ec,
+            span_lookup  = span_lookup,
+            has_events   = self._intermediate.has_events,
+            ev_color     = ev_cfg.color if ev_cfg else cfg.poi_settings.color_no_events,
+            occ_cfg_map  = occ_map,
+            poi          = cfg.poi_settings,
+            bar_h        = bar_h,
+            jitter       = gcfg.jitter,
+            jitter_ratio = gcfg.jitter_ratio,
         )
 
         # ── Figure ────────────────────────────────────────────────────
@@ -256,7 +389,7 @@ class StackedTimelinePlotter:
                     ymax       = ymaxs,
                     colors     = color,
                     linewidths = size / 10,
-                    zorder     = 3,
+                    zorder     = 5,  # always above event segments (zorder=2)
                 )
             else:
                 y_centers = [(mn + mx) / 2 for mn, mx in zip(ymins, ymaxs)]
@@ -266,7 +399,7 @@ class StackedTimelinePlotter:
                     color      = color,
                     marker     = mk,
                     alpha      = alpha,
-                    zorder     = 3,
+                    zorder     = 5,  # always above event segments (zorder=2)
                     linewidths = 0,
                 )
 

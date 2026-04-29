@@ -188,18 +188,31 @@ def parse_segments(
 # ── Precomputation ────────────────────────────────────────────────────────
 
 def precompute(
-    entities:    list,
-    data:        pd.DataFrame,
-    entity_col:  str,
-    span_lookup: dict,
-    has_events:  bool,
-    ev_color:    str,
-    occ_cfg_map: dict,
-    poi,                     # POIConfig
-    bar_h:       float,
+    entities:     list,
+    data:         pd.DataFrame,
+    entity_col:   str,
+    span_lookup:  dict,
+    has_events:   bool,
+    ev_color:     str,
+    occ_cfg_map:  dict,
+    poi,                      # POIConfig
+    bar_h:        float,
+    jitter:       bool  = False,
+    jitter_ratio: float = 0.01,
 ) -> tuple[dict, dict]:
     """
     Pre-compute all segment and marker data for all entities.
+
+    Parameters
+    ----------
+    jitter : bool
+        If True, apply horizontal jitter to occurrence markers so
+        that overlapping occurrences on the same day are visible.
+        Default False.
+    jitter_ratio : float
+        Jitter magnitude as a ratio of each entity's span_days.
+        e.g. 0.01 = 1% of the observation period. Default 0.01.
+        Jittered positions are clipped to [0, span_days].
 
     Returns
     -------
@@ -208,6 +221,10 @@ def precompute(
     marker_groups : dict
         {(color, marker, size, alpha): [(x, y_min, y_max), ...]}
     """
+    import numpy as np
+
+    rng = np.random.default_rng(42)
+
     # Pre-index rows by entity for O(1) lookup
     entity_index = {
         entity: data[data[entity_col] == entity].iloc[0]
@@ -239,6 +256,9 @@ def precompute(
         # ── Occurrence markers ────────────────────────────────────────
         if row is None:
             continue
+
+        jitter_magnitude = span_days * jitter_ratio if jitter else 0.0
+
         for col, ocfg in occ_cfg_map.items():
             val = row.get(col)
             if pd.isna(val):
@@ -250,7 +270,12 @@ def precompute(
                     continue
                 if span_start <= d <= span_end:
                     x_pos = (d - span_start).days
-                    key   = (ocfg.color, ocfg.marker, ocfg.size, ocfg.alpha)
+                    if jitter_magnitude > 0:
+                        x_pos = float(np.clip(
+                            x_pos + rng.uniform(-jitter_magnitude, jitter_magnitude),
+                            0, span_days,
+                        ))
+                    key = (ocfg.color, ocfg.marker, ocfg.size, ocfg.alpha)
                     marker_groups[key].append((
                         x_pos,
                         i - bar_h / 2,

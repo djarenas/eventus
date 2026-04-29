@@ -243,9 +243,10 @@ class Occurrences:
     def __repr__(self) -> str:
         return (
             f"Occurrences(\n"
-            f"  identity   : {self.semantics.identity!r}\n"
-            f"  rows       : {len(self):,}\n"
-            f"  entity_col : '{self.semantics.entity_id_col}'\n"
-            f"  date_col   : '{self.semantics.date_col}'\n"
+            f"  identity        : {self.semantics.identity!r}\n"
+            f"  rows            : {len(self):,}\n"
+            f"  unique entities : {self.data[self.semantics.entity_id_col].nunique():,}\n"
+            f"  entity_col      : '{self.semantics.entity_id_col}'\n"
+            f"  date_col        : '{self.semantics.date_col}'\n"
             f")"
         )

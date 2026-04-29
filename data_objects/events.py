@@ -241,9 +241,10 @@ class Events:
     def __repr__(self) -> str:
         return (
             f"Events(\n"
-            f"  rows       : {len(self):,}\n"
-            f"  entity_col : '{self.semantics.entity_id_col}'\n"
-            f"  start_col  : '{self.semantics.start_time_col}'\n"
-            f"  end_col    : '{self.semantics.end_time_col}'\n"
+            f"  rows             : {len(self):,}\n"
+            f"  unique entities  : {self.data[self.semantics.entity_id_col].nunique():,}\n"
+            f"  entity_col       : '{self.semantics.entity_id_col}'\n"
+            f"  start_col        : '{self.semantics.start_time_col}'\n"
+            f"  end_col          : '{self.semantics.end_time_col}'\n"
             f")"
         )

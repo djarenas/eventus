@@ -70,17 +70,19 @@ def _validate_hex(value: str, name: str) -> None:
 @dataclass
 class GeneralConfig:
     """Layout, style, and global plot settings."""
-    row_height:       float       = _DEFAULT_ROW_HEIGHT
-    bar_height_ratio: float       = _DEFAULT_BAR_HEIGHT_RATIO
-    dpi:              int         = _DEFAULT_DPI
-    font_size:        int         = _DEFAULT_FONT_SIZE
-    title_font_size:  int         = _DEFAULT_TITLE_FONT_SIZE
-    style:            str         = _DEFAULT_STYLE
-    title:            str | None  = None
+    row_height:         float       = _DEFAULT_ROW_HEIGHT
+    bar_height_ratio:   float       = _DEFAULT_BAR_HEIGHT_RATIO
+    dpi:                int         = _DEFAULT_DPI
+    font_size:          int         = _DEFAULT_FONT_SIZE
+    title_font_size:    int         = _DEFAULT_TITLE_FONT_SIZE
+    style:              str         = _DEFAULT_STYLE
+    title:              str | None  = None
     show_entity_labels: bool        = True
-    x_axis:           str         = _DEFAULT_X_AXIS
-    max_entities:     int         = _DEFAULT_MAX_ENTITIES
-    figsize:          list | None = None
+    x_axis:             str         = _DEFAULT_X_AXIS
+    max_entities:       int         = _DEFAULT_MAX_ENTITIES
+    figsize:            list | None = None
+    jitter:             bool        = False
+    jitter_ratio:       float       = 0.01
 
     def __post_init__(self) -> None:
         if self.x_axis not in _VALID_X_AXIS:
@@ -103,6 +105,11 @@ class GeneralConfig:
                 f"{_ERROR_PREFIX}: general.figsize must be [width, height], "
                 f"got {self.figsize}"
             )
+        if not (0.0 < self.jitter_ratio <= 0.5):
+            raise ValueError(
+                f"{_ERROR_PREFIX}: general.jitter_ratio must be between "
+                f"0 and 0.5, got {self.jitter_ratio}"
+            )
 
 
 @dataclass
@@ -117,7 +124,7 @@ class POIConfig:
       color_after       — inactive days after last event
       color_no_events   — full bar color when entity has no events at all
     """
-    color:            str   = _DEFAULT_POI_COLOR   # fallback / no-event color
+    color:            str   = _DEFAULT_POI_COLOR
     color_before:     str   = "#9E9E9E"
     color_middle:     str   = "#F44336"
     color_after:      str   = "#BDBDBD"
@@ -200,7 +207,7 @@ class LegendConfig:
     location:           str   = _DEFAULT_LEGEND_LOCATION
     font_size:          int   = _DEFAULT_LEGEND_FONT_SIZE
     show_poi_in_legend: bool  = False
-    outside:            bool  = True   # place legend outside plot area
+    outside:            bool  = True
 
     def __post_init__(self) -> None:
         if self.location not in _VALID_LEGEND_LOCS:
@@ -230,9 +237,9 @@ class XAxisConfig:
     Works in both calendar and normalized mode.
     format is only used in calendar mode (strftime).
     """
-    format:   str = _DEFAULT_DATE_FORMAT  # strftime — calendar mode only
-    unit:     str = "months"              # "days", "months", or "years"
-    interval: int = 3                     # tick every N units
+    format:   str = _DEFAULT_DATE_FORMAT
+    unit:     str = "months"
+    interval: int = 3
 
     def __post_init__(self) -> None:
         if self.unit not in _VALID_X_UNITS:
@@ -257,8 +264,7 @@ class StackedTimelineConfig:
     One YAML drives everything: layout, period of interest bar,
     event segments, occurrence markers, legend, and x-axis.
 
-    Use build_with_defaults() for a sensible starting point —
-    no YAML needed for quick plots.
+    Use build_with_defaults() for a sensible starting point.
     Use build_from_yaml(path) for reproducible, version-controlled plots.
 
     Examples
@@ -268,24 +274,45 @@ class StackedTimelineConfig:
     >>> config.to_yaml("my_config.yaml")
     """
 
-    general:              GeneralConfig            = field(
-        default_factory=GeneralConfig
-    )
-    poi_settings:         POIConfig                = field(
-        default_factory=POIConfig
-    )
-    events_settings:      list[EventLayerConfig]   = field(
-        default_factory=list
-    )
-    occurrences_settings: list[OccurrenceLayerConfig] = field(
-        default_factory=list
-    )
-    legend:               LegendConfig             = field(
-        default_factory=LegendConfig
-    )
-    x_axis_labels:        XAxisConfig              = field(
-        default_factory=XAxisConfig
-    )
+    general:              GeneralConfig               = field(default_factory=GeneralConfig)
+    poi_settings:         POIConfig                   = field(default_factory=POIConfig)
+    events_settings:      list[EventLayerConfig]      = field(default_factory=list)
+    occurrences_settings: list[OccurrenceLayerConfig] = field(default_factory=list)
+    legend:               LegendConfig                = field(default_factory=LegendConfig)
+    x_axis_labels:        XAxisConfig                 = field(default_factory=XAxisConfig)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.general, GeneralConfig):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: general must be a GeneralConfig object, "
+                f"got {type(self.general).__name__}. "
+                f"Use GeneralConfig() or build_from_yaml()."
+            )
+        if not isinstance(self.poi_settings, POIConfig):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: poi_settings must be a POIConfig object, "
+                f"got {type(self.poi_settings).__name__}."
+            )
+        if not isinstance(self.legend, LegendConfig):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: legend must be a LegendConfig object, "
+                f"got {type(self.legend).__name__}."
+            )
+        if not isinstance(self.x_axis_labels, XAxisConfig):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: x_axis_labels must be an XAxisConfig object, "
+                f"got {type(self.x_axis_labels).__name__}."
+            )
+        if not isinstance(self.events_settings, list):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: events_settings must be a list, "
+                f"got {type(self.events_settings).__name__}."
+            )
+        if not isinstance(self.occurrences_settings, list):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: occurrences_settings must be a list, "
+                f"got {type(self.occurrences_settings).__name__}."
+            )
 
     # ------------------------------------------------------------------ #
     # Classmethods
@@ -293,13 +320,7 @@ class StackedTimelineConfig:
 
     @classmethod
     def build_with_defaults(cls) -> "StackedTimelineConfig":
-        """
-        Return a StackedTimelineConfig with all defaults.
-
-        events_settings and occurrences_settings are empty —
-        the plotter auto-discovers layers from the intermediate
-        and assigns colors from the default palette.
-        """
+        """Return a StackedTimelineConfig with all defaults."""
         return cls(
             general              = GeneralConfig(),
             poi_settings         = POIConfig(),
@@ -314,20 +335,21 @@ class StackedTimelineConfig:
         """
         Build a StackedTimelineConfig from a YAML file.
 
-        events_settings and occurrences_settings are optional —
-        omit them to use auto-discovery with default colors.
-
         Example YAML
         ------------
         general:
-          row_height:       0.15
+          row_height:       0.5
           bar_height_ratio: 0.84
           dpi:              150
           x_axis:           auto
+          jitter:           true
+          jitter_ratio:     0.01
 
         poi_settings:
-          color:           "#D6E0EA"
-          show_boundaries: true
+          color_before:    "#9E9E9E"
+          color_middle:    "#F44336"
+          color_after:     "#BDBDBD"
+          color_no_events: "#EEEEEE"
 
         events_settings:
           - identity: inpatient_hospitalization
@@ -339,11 +361,12 @@ class StackedTimelineConfig:
             marker:   circle
 
         legend:
-          show:     true
-          location: upper right
+          show:    true
+          outside: true
 
         x_axis_labels:
           format:   "%Y-%m"
+          unit:     months
           interval: 3
         """
         with open(path, "r") as f:
@@ -369,7 +392,7 @@ class StackedTimelineConfig:
         def _build(klass, data):
             if data is None:
                 return klass()
-            valid = set(klass.__dataclass_fields__.keys())
+            valid   = set(klass.__dataclass_fields__.keys())
             unknown = set(data.keys()) - valid
             if unknown:
                 raise ValueError(
@@ -378,29 +401,18 @@ class StackedTimelineConfig:
                 )
             return klass(**data)
 
-        # Parse events_settings list
-        events_raw = raw.get("events_settings") or []
-        events_settings = [
-            EventLayerConfig(**e) for e in events_raw
-        ]
-
-        # Parse occurrences_settings list
-        occs_raw = raw.get("occurrences_settings") or []
-        occurrences_settings = [
-            OccurrenceLayerConfig(**o) for o in occs_raw
-        ]
+        events_raw           = raw.get("events_settings") or []
+        occurrences_raw      = raw.get("occurrences_settings") or []
+        events_settings      = [EventLayerConfig(**e) for e in events_raw]
+        occurrences_settings = [OccurrenceLayerConfig(**o) for o in occurrences_raw]
 
         return cls(
-            general              = _build(GeneralConfig,
-                                          raw.get("general")),
-            poi_settings         = _build(POIConfig,
-                                          raw.get("poi_settings")),
+            general              = _build(GeneralConfig,  raw.get("general")),
+            poi_settings         = _build(POIConfig,      raw.get("poi_settings")),
             events_settings      = events_settings,
             occurrences_settings = occurrences_settings,
-            legend               = _build(LegendConfig,
-                                          raw.get("legend")),
-            x_axis_labels        = _build(XAxisConfig,
-                                          raw.get("x_axis_labels")),
+            legend               = _build(LegendConfig,   raw.get("legend")),
+            x_axis_labels        = _build(XAxisConfig,    raw.get("x_axis_labels")),
         )
 
     # ------------------------------------------------------------------ #
@@ -414,9 +426,7 @@ class StackedTimelineConfig:
                 return e
         return None
 
-    def get_occurrence_config(
-        self, identity: str
-    ) -> OccurrenceLayerConfig | None:
+    def get_occurrence_config(self, identity: str) -> OccurrenceLayerConfig | None:
         """Return OccurrenceLayerConfig for a given identity, or None."""
         for o in self.occurrences_settings:
             if o.identity == identity:
@@ -427,17 +437,19 @@ class StackedTimelineConfig:
         """Save this config to a YAML file."""
         cfg = {
             "general": {
-                "row_height":       self.general.row_height,
-                "bar_height_ratio": self.general.bar_height_ratio,
-                "dpi":              self.general.dpi,
-                "font_size":        self.general.font_size,
-                "title_font_size":  self.general.title_font_size,
-                "style":            self.general.style,
-                "title":            self.general.title,
+                "row_height":         self.general.row_height,
+                "bar_height_ratio":   self.general.bar_height_ratio,
+                "dpi":                self.general.dpi,
+                "font_size":          self.general.font_size,
+                "title_font_size":    self.general.title_font_size,
+                "style":              self.general.style,
+                "title":              self.general.title,
                 "show_entity_labels": self.general.show_entity_labels,
-                "x_axis":           self.general.x_axis,
-                "max_entities":     self.general.max_entities,
-                "figsize":          self.general.figsize,
+                "x_axis":             self.general.x_axis,
+                "max_entities":       self.general.max_entities,
+                "figsize":            self.general.figsize,
+                "jitter":             self.general.jitter,
+                "jitter_ratio":       self.general.jitter_ratio,
             },
             "poi_settings": {
                 "color":           self.poi_settings.color,
@@ -451,23 +463,14 @@ class StackedTimelineConfig:
                 "boundary_style":  self.poi_settings.boundary_style,
             },
             "events_settings": [
-                {
-                    "identity": e.identity,
-                    "color":    e.color,
-                    "alpha":    e.alpha,
-                    "label":    e.label,
-                }
+                {"identity": e.identity, "color": e.color,
+                 "alpha": e.alpha, "label": e.label}
                 for e in self.events_settings
             ],
             "occurrences_settings": [
-                {
-                    "identity": o.identity,
-                    "color":    o.color,
-                    "marker":   o.marker,
-                    "size":     o.size,
-                    "alpha":    o.alpha,
-                    "label":    o.label,
-                }
+                {"identity": o.identity, "color": o.color,
+                 "marker": o.marker, "size": o.size,
+                 "alpha": o.alpha, "label": o.label}
                 for o in self.occurrences_settings
             ],
             "legend": {
@@ -488,14 +491,16 @@ class StackedTimelineConfig:
         print(f"Config saved to: {path}")
 
     def __repr__(self) -> str:
-        n_ev  = len(self.events_settings)
-        n_occ = len(self.occurrences_settings)
+        n_ev     = len(self.events_settings)
+        n_occ    = len(self.occurrences_settings)
         ev_color = self.events_settings[0].color if n_ev else "auto"
         return (
             f"StackedTimelineConfig(\n"
             f"  x_axis               : '{self.general.x_axis}'\n"
             f"  row_height           : {self.general.row_height}\n"
             f"  show_entity_labels   : {self.general.show_entity_labels}\n"
+            f"  jitter               : {self.general.jitter} "
+            f"(ratio={self.general.jitter_ratio})\n"
             f"  events_settings      : {n_ev} layer(s)\n"
             f"  occurrences_settings : {n_occ} layer(s)\n"
             f"  poi colors           : "

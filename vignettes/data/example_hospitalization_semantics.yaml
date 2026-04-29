@@ -1,0 +1,4 @@
+identity: hospitalizations
+entity_id_col: person_id
+date_col: startdate
+  
