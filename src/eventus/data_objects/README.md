@@ -36,17 +36,21 @@ any interval.
 
 ### `Events`
 
-A validated collection of interval events.
-Enforces the event concept. For each row to be an event, it must have
-an entity, a start, and an end — that is it. All downstream use of this
-object does not need to know if it was a hospitalization, insurance
-coverage, or anything else.
+A validated collection of interval events. Enforces the event concept:
+for each row to be an event, it must have an entity, a start, and an
+end — that is it.
 
 A pandas DataFrame does not know what data it holds, it just knows how
 to hold it. The semantics attribute tells the object how to handle the
-data. Furthermore, the events object may still carry other data like
-"BMI during the event". All the object cares about is that the DataFrame
-has sufficient information to be called an event.
+data — which columns are the entity, the start, and the end. The
+`identity` attribute (`"inpatient_hospitalization"`, `"ed_visit"`) is a
+human-readable label that flows into intermediate column names and plot
+titles, but the analytical logic never branches on it. An
+`EventsWithinObsPeriodsAnalyzer` works identically whether the events
+are hospitalizations, insurance coverage spells, or anything else.
+Furthermore, the DataFrame may carry additional columns like
+`"bmi_at_admission"` — the object carries them through untouched,
+caring only that the minimum required columns are present.
 
 **Construction**
 ```python
@@ -176,9 +180,10 @@ entity ID and a date — no end date, no duration.
 
 An occurrence has no duration — it happened, at a point in time, to an
 entity. The semantics attribute tells the object which columns carry
-those concepts. Everything else in the DataFrame is carried through
-untouched. All downstream use of this object does not need to know if
-it was an ED visit, a vaccination, or a diagnosis date.
+those concepts. The `identity` label flows into intermediate column
+names (`occ_ed_visit`) and plot labels, but the analytical logic is
+indifferent to what kind of occurrence it is. Everything else in the
+DataFrame is carried through untouched.
 
 ```python
 from eventus import OccurrenceSemantics, Occurrences
