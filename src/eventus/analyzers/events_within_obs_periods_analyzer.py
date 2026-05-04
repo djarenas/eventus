@@ -11,7 +11,7 @@ import pandas as pd
 sys.path.append(r"C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")  
 from .events_within_obs_period_analyzer_utils import compute_activity_inactivity
 from .validation_utils import validate_shared_entity_col
-from intermediates.pipe_delimited_intermediate_events import PipeDelimitedIntermediateEvents
+from pipe_delimited_format.pipe_delimited_format_events import PipeDelimitedFormatEvents
 
 _ERROR = "[EventsWithinObsPeriodsAnalyzer] Error"
 
@@ -125,7 +125,7 @@ class EventsWithinObsPeriodsAnalyzer:
     # Analytics
     # ------------------------------------------------------------------ #
 
-    def compute_event_coverage(self) -> PipeDelimitedIntermediateEvents:
+    def compute_event_coverage(self) -> PipeDelimitedFormatEvents:
         """
         Compute active vs. inactive days for each entity within their
         observation period.
@@ -145,7 +145,7 @@ class EventsWithinObsPeriodsAnalyzer:
             span_start_col = self._span_start_col,
             span_end_col   = self._span_end_col,
         )
-        return PipeDelimitedIntermediateEvents(df, self.entity_col)
+        return PipeDelimitedFormatEvents(df, self.entity_col)
 
     # ------------------------------------------------------------------ #
     # Dunder

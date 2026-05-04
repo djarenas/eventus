@@ -1,4 +1,4 @@
-annotations"""
+"""
 pipe_delimited_format_events.py
 Child of PipeDelimitedFormat for events-within-span analysis results.
 Produced by EventsWithinSpansAnalyzer.calc_active_vs_inactive().

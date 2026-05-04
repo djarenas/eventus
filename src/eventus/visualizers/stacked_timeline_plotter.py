@@ -18,8 +18,8 @@ from matplotlib.lines import Line2D
 from collections import defaultdict
 
 from .stacked_timeline_config import StackedTimelineConfig
-from intermediates.pipe_delimited_intermediate import (
-    PipeDelimitedIntermediate,
+from pipe_delimited_format.pipe_delimited_format import (
+    PipeDelimitedFormat,
     SPAN_START_COL,
     SPAN_END_COL,
 )
@@ -58,33 +58,33 @@ class StackedTimelinePlotter:
 
     One horizontal bar per entity. The bar spans their observation period.
     Event segments and occurrence markers are overlaid from a
-    PipeDelimitedIntermediate.
+    PipeDelimitedFormat.
 
     Parameters
     ----------
-    intermediate : PipeDelimitedIntermediate
+    pipe_delimited : PipeDelimitedFormat
         Must contain span_start and span_end columns.
     config : StackedTimelineConfig | None
         Plot configuration. Uses StackedTimelineConfig.build_with_defaults()
         if not provided.
     sort_by : list[str] | None
         Column names to sort entities by before plotting. Must exist in
-        intermediate.data. Common values: 'active_days', 'inactive_days',
+        pipe_delimited.data. Common values: 'active_days', 'inactive_days',
         'inactive_days_before_first_event', 'span_duration_days',
         'first_event_start', 'last_event_end'.
-        Default None — entities appear in intermediate order.
+        Default None — entities appear in pipe_delimited order.
     ascending : bool | list[bool]
         Sort direction. A single bool applies to all columns. A list must
         match the length of sort_by. Default True.
 
     Examples
     --------
-    >>> plotter = StackedTimelinePlotter(intermediate)
+    >>> plotter = StackedTimelinePlotter(pipe_delimited)
     >>> plotter.plot("output.png")
 
     >>> config  = StackedTimelineConfig.build_from_yaml("config.yaml")
     >>> plotter = StackedTimelinePlotter(
-    ...     intermediate,
+    ...     pipe_delimited,
     ...     config    = config,
     ...     sort_by   = ["active_days"],
     ...     ascending = [False],
@@ -94,21 +94,21 @@ class StackedTimelinePlotter:
 
     def __init__(
         self,
-        intermediate: PipeDelimitedIntermediate,
+        pipe_delimited: PipeDelimitedFormat,
         config:    StackedTimelineConfig | None = None,
         sort_by:   list[str] | None            = None,
         ascending: bool | list[bool]           = True,
     ) -> None:
-        if not isinstance(intermediate, PipeDelimitedIntermediate):
+        if not isinstance(pipe_delimited, PipeDelimitedFormat):
             raise TypeError(
-                f"{_ERROR_PREFIX}: intermediate must be a "
-                f"PipeDelimitedIntermediate object, "
-                f"got {type(intermediate).__name__}"
+                f"{_ERROR_PREFIX}: pipe_delimited must be a "
+                f"PipeDelimitedFormat object, "
+                f"got {type(pipe_delimited).__name__}"
             )
-        if (SPAN_START_COL not in intermediate.data.columns or
-                SPAN_END_COL not in intermediate.data.columns):
+        if (SPAN_START_COL not in pipe_delimited.data.columns or
+                SPAN_END_COL not in pipe_delimited.data.columns):
             raise ValueError(
-                f"{_ERROR_PREFIX}: intermediate must contain "
+                f"{_ERROR_PREFIX}: pipe_delimited must contain "
                 f"'span_start' and 'span_end' columns."
             )
         if config is None:
@@ -120,15 +120,15 @@ class StackedTimelinePlotter:
             )
 
         if sort_by is not None:
-            self._validate_sort_args(sort_by, ascending, intermediate.data)
+            self._validate_sort_args(sort_by, ascending, pipe_delimited.data)
             # Cast columns to correct types before sorting
-            sorted_data = self._prepare_for_sort(intermediate.data, sort_by)
+            sorted_data = self._prepare_for_sort(pipe_delimited.data, sort_by)
             sorted_data = sorted_data.sort_values(
                 by=sort_by, ascending=ascending, na_position="last"
             ).reset_index(drop=True)
-            intermediate = intermediate.__class__(sorted_data, intermediate.entity_col)
+            pipe_delimited = pipe_delimited.__class__(sorted_data, pipe_delimited.entity_col)
 
-        self._intermediate = intermediate
+        self._pipe_delimited = pipe_delimited
         self._config       = config
 
     # ------------------------------------------------------------------ #
@@ -175,7 +175,7 @@ class StackedTimelinePlotter:
         if missing:
             raise ValueError(
                 f"{_ERROR_PREFIX}: sort_by column(s) not found in "
-                f"intermediate.data: {missing}. "
+                f"pipe_delimited.data: {missing}. "
                 f"Available columns: {sorted(data.columns.tolist())}"
             )
         if isinstance(ascending, list):
@@ -211,7 +211,7 @@ class StackedTimelinePlotter:
         Parameters
         ----------
         data : pd.DataFrame
-            Intermediate data. Modified copy is returned.
+            pipe_delimited data. Modified copy is returned.
         sort_by : list[str]
             Columns to prepare. Must all be in _VALID_SORT_COLS.
 
@@ -246,8 +246,8 @@ class StackedTimelinePlotter:
         Build a StackedTimelinePlotter directly from data objects.
 
         Convenience classmethod that runs the analyzers, combines
-        the intermediates, and returns a ready-to-plot plotter.
-        The intermediate is never exposed — use the standard
+        the pipe_delimited intermediates, and returns a ready-to-plot plotter.
+        The pipe_delimited intermediate is never exposed — use the standard
         constructor if you need to inspect or sort it first.
 
         Parameters
@@ -262,7 +262,7 @@ class StackedTimelinePlotter:
             Plot configuration. Uses defaults if not provided.
         sort_by : list[str] | None
             Column names to sort entities by before plotting.
-            Must exist in the intermediate after analyzers run.
+            Must exist in the pipe_delimited after analyzers run.
             Common values: 'active_days', 'inactive_days',
             'inactive_days_before_first_event', 'span_duration_days',
             'first_event_start', 'last_event_end'.
@@ -286,12 +286,12 @@ class StackedTimelinePlotter:
         ... )
         >>> plotter.plot("timeline.png")
         """
-        intermediate = PipeDelimitedIntermediate.from_objects(
+        pipe_delimited = PipeDelimitedFormat.from_objects(
             obs_period  = obs_period,
             events      = events,
             occurrences = occurrences,
         )
-        return cls(intermediate, config, sort_by=sort_by, ascending=ascending)
+        return cls(pipe_delimited, config, sort_by=sort_by, ascending=ascending)
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -308,8 +308,8 @@ class StackedTimelinePlotter:
 
         cfg  = self._config
         gcfg = cfg.general
-        ec   = self._intermediate.entity_col
-        data = self._intermediate.data.copy()
+        ec   = self._pipe_delimited.entity_col
+        data = self._pipe_delimited.data.copy()
         n    = len(data)
 
         if n > gcfg.max_entities:
@@ -340,7 +340,7 @@ class StackedTimelinePlotter:
             data         = data,
             entity_col   = ec,
             span_lookup  = span_lookup,
-            has_events   = self._intermediate.has_events,
+            has_events   = self._pipe_delimited.has_events,
             ev_color     = ev_cfg.color if ev_cfg else cfg.poi_settings.color_no_events,
             occ_cfg_map  = occ_map,
             poi          = cfg.poi_settings,
@@ -457,14 +457,14 @@ class StackedTimelinePlotter:
         """
         Return the first EventLayerConfig from config, or None if not
         configured. No auto-discovery — events must be explicitly configured.
-        If the intermediate has events but events_settings is empty,
+        If the pipe_delimited has events but events_settings is empty,
         only the POI bar is drawn.
         """
-        if not self._intermediate.has_events:
+        if not self._pipe_delimited.has_events:
             return None
         if not self._config.events_settings:
             warnings.warn(
-                "[StackedTimelinePlotter] Intermediate has event columns "
+                "[StackedTimelinePlotter] pipe_delimited has event columns "
                 "but no events_settings entry found in config. "
                 "Only the observation period bar will be drawn. "
                 "Add an events_settings entry to show event segments.",
@@ -478,16 +478,16 @@ class StackedTimelinePlotter:
         Return {col: OccurrenceLayerConfig} for configured identities only.
         No auto-discovery — occurrences must be explicitly configured.
         Warns if a configured identity has no matching column in the
-        intermediate. Silently ignores occ_ columns not in config.
+        pipe_delimited. Silently ignores occ_ columns not in config.
         """
         occ_map = {}
         for ocfg in self._config.occurrences_settings:
             col = f"occ_{ocfg.identity}"
-            if col not in self._intermediate.data.columns:
+            if col not in self._pipe_delimited.data.columns:
                 warnings.warn(
                     f"[StackedTimelinePlotter] occurrences_settings has "
                     f"identity '{ocfg.identity}' but column '{col}' was "
-                    f"not found in the intermediate — skipping.",
+                    f"not found in the pipe_delimited — skipping.",
                     UserWarning, stacklevel=3,
                 )
                 continue
@@ -545,9 +545,9 @@ class StackedTimelinePlotter:
     def __repr__(self) -> str:
         return (
             f"StackedTimelinePlotter(\n"
-            f"  entities    : {len(self._intermediate):,}\n"
-            f"  has_events  : {self._intermediate.has_events}\n"
-            f"  occ_columns : {self._intermediate.occurrence_cols}\n"
+            f"  entities    : {len(self._pipe_delimited):,}\n"
+            f"  has_events  : {self._pipe_delimited.has_events}\n"
+            f"  occ_columns : {self._pipe_delimited.occurrence_cols}\n"
             f"  x_axis      : '{self._config.general.x_axis}'\n"
             f")"
         )

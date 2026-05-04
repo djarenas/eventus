@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Load data
-df = pd.read_csv("hospitalizations.csv")
+df = pd.read_csv("vignette_01_A_hospitalizations.csv")
 
 # Drop rows with null patient_id, admit_date, or discharge_date
 df = df[df["patient_id"].notna()]

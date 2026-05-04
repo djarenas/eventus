@@ -1,0 +1,8 @@
+normalize_dates:  true    # Strip times — dates only
+coalesce_dates:   false   # Reject rows missing start OR end
+causality_check:  reject  # Reject rows where end < start
+drop_duplicates:  true    
+merge_overlapping: false
+date_floor:       "1920-01-01"  # Reject everything before this date
+date_ceiling:     "2100-01-01"  # Reject everything after this date
+  
