@@ -1,4 +1,17 @@
-# Ignore compiled Python files
-*.pyc
-# Ignore the __pycache__ directory
+# Python
+*.egg-info/
 __pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+dist/
+build/
+
+# Environment
+.env
+.venv
+env/
+
+# OS
+.DS_Store
+Thumbs.db
