@@ -1,6 +1,6 @@
 """
 occurrence_semantics.py
-Semantics for point-in-time occurrence data.
+'I am a description of what columns mean in occurrence data. I hold no data and do no computation.'
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -17,8 +17,8 @@ ALL_FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 @dataclass
 class OccurrenceSemantics:
     """
-    A description of what columns mean in occurrence data.
-
+    'I am a description of what columns mean in occurrence data. I hold no data and do no computation'
+    
     Maps generic concepts (entity, date) to specific column names in a
     DataFrame. The identity attribute names what kind of occurrences
     these are — e.g. 'hepatitis_b', 'ed_visit', 'index_diagnosis'.

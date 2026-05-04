@@ -24,7 +24,7 @@ works — regardless of what your columns are named.
 
 ### `EventSemantics`
 
-Maps column names to the event concept: entity, start, end.
+> *"I am a description of what columns mean in event data. I hold no data and do no computation."*
 
 ```python
 from eventus import EventSemantics
@@ -68,7 +68,7 @@ identity:       inpatient_hospitalization
 
 ### `OccurrenceSemantics`
 
-Maps column names to the occurrence concept: entity, date.
+> *"I am a description of what columns mean in occurrence data. I hold no data and do no computation."*
 
 ```python
 from eventus import OccurrenceSemantics
@@ -133,9 +133,9 @@ Once defined, a semantics object is passed into every downstream object
 that needs it:
 
 ```python
-events    = Events(df, sem)
-cleaner   = EventsCleaner(raw_df, sem, config)
-analyzer  = EventsWithinObsPeriodsAnalyzer(events, obs_period)
+events   = Events(df, sem)
+cleaner  = EventsCleaner(raw_df, sem, config)
+analyzer = EventsWithinObsPeriodsAnalyzer(events, obs_period)
 ```
 
 The semantics object travels with the data. Filter methods and copy
@@ -143,14 +143,19 @@ methods preserve it automatically — you never need to reattach it.
 
 ```python
 filtered = events.filter_by_entities(some_ids)
-filtered.semantics  # same EventSemantics object
+filtered.semantics  # same EventSemantics object, unchanged
 ```
 
 ---
 
 ## Design note
 
-Semantics objects are plain frozen dataclasses — no methods beyond
+Semantics objects are plain dataclasses — no methods beyond
 `build_from_yaml()` and `__repr__()`. They hold no data and do no
 computation. Their only job is to carry column name mappings and an
 identity label from construction through to visualization.
+
+This is intentional. Keeping semantics objects thin means they can be
+defined once at the top of an analysis script, saved to YAML for
+reproducibility, and shared across multiple data objects without any
+risk of side effects.

@@ -12,6 +12,8 @@ _ERROR_PREFIX = "[EventSemantics] Error"
 @dataclass
 class EventSemantics:
     """
+    'I am a description of what columns mean in event data. I hold no data and do no computation.'
+        
     Maps generic concepts to specific column names in a DataFrame.
  
     The identity attribute names what kind of events these are —
