@@ -1,5 +1,5 @@
 """
-pipe_delimited_intermediate_events_utils.py
+pipe_delimited_format_events_utils.py
 Utility functions for PipeDelimitedIntermediateEventAnalysis.
 """
 from __future__ import annotations
@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pandas as pd
 
-_ERROR_PREFIX = "[pipe_delimited_intermediate_events_utils] Error"
+_ERROR_PREFIX = "[pipe_delimited_format_events_utils] Error"
 
 
 # --------------------------------------------------------------------------- #

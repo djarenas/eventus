@@ -1,6 +1,6 @@
 """
 pipe_delimited_utils.py
-Content validation utilities for PipeDelimitedIntermediate and its subclasses.
+Content validation utilities for PipeDelimitedFormat and its subclasses.
 Validates pipe-delimited date columns row by row, collecting all bad rows.
 """
 from __future__ import annotations

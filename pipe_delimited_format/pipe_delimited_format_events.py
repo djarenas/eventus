@@ -1,15 +1,15 @@
-"""
-pipe_delimited_intermediate_events.py
-Child of PipeDelimitedIntermediate for events-within-span analysis results.
+annotations"""
+pipe_delimited_format_events.py
+Child of PipeDelimitedFormat for events-within-span analysis results.
 Produced by EventsWithinSpansAnalyzer.calc_active_vs_inactive().
 """
 from __future__ import annotations
 import pandas as pd
 import yaml
 
-from .pipe_delimited_intermediate import PipeDelimitedIntermediate
+from .pipe_delimited_format import PipeDelimitedFormat
 
-_ERROR_PREFIX = "[PipeDelimitedIntermediateEvents] Error"
+_ERROR_PREFIX = "[PipeDelimitedFormatEvents] Error"
 
 _ANALYSIS_COLS = {
     "span_duration_days",
@@ -23,16 +23,16 @@ _ANALYSIS_COLS = {
 }
 
 
-class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
+class PipeDelimitedFormatEvents(PipeDelimitedFormat):
     """
     Result of EventsWithinSpansAnalyzer.calc_active_vs_inactive().
 
-    Inherits from PipeDelimitedIntermediate — carries the standard
+    Inherits from PipeDelimitedFormat — carries the standard
     pipe-delimited columns plus event analysis metrics.
 
     One row per entity.
 
-    Additional columns beyond PipeDelimitedIntermediate
+    Additional columns beyond PipeDelimitedFormat
     ---------------------------------------------------
     span_duration_days                  : float
     active_days                         : float | NA
@@ -73,7 +73,7 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
         cls,
         data: pd.DataFrame,
         entity_col: str = "entity_id",
-    ) -> "PipeDelimitedIntermediateEvents":
+    ) -> "PipeDelimitedFormatEvents":
         """Build from an existing DataFrame (e.g. reloaded from to_csv())."""
         return cls(data, entity_col)
 
@@ -81,7 +81,7 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
     # Diagnostics — thin wrappers over utils
     # ------------------------------------------------------------------ #
 
-    def self_analyze(self) -> "PipeDelimitedIntermediateEvents":
+    def self_analyze(self) -> "PipeDelimitedFormatEvents":
         """
         Compute active/inactive day columns from event_starts/event_ends
         and span_start/span_end. Returns a new enriched instance.
@@ -90,32 +90,32 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
 
         Returns
         -------
-        PipeDelimitedIntermediateEvents
+        PipeDelimitedFormatEvents
             New instance with added columns:
             active_days, inactive_days, inactive_days_before_first_event,
             inactive_days_after_last_event, inactive_days_middle,
             span_duration_days, first_event_start, last_event_end.
         """
-        from .pipe_delimited_intermediate_events_utils import compute_from_pipe_delimited
+        from .pipe_delimited_format_events_utils import compute_from_pipe_delimited
         enriched_df = compute_from_pipe_delimited(self.data, self.entity_col)
-        return PipeDelimitedIntermediateEvents(enriched_df, self.entity_col)
+        return PipeDelimitedFormatEvents(enriched_df, self.entity_col)
 
     def tier1(self) -> dict:
         """Funnel — no coverage vs any coverage. Denominator: all entities."""
         self._require_analyzed("tier1")
-        from .pipe_delimited_intermediate_events_utils import calc_tier1
+        from .pipe_delimited_format_events_utils import calc_tier1
         return calc_tier1(self.data, self.entity_col)
 
     def tier2(self) -> dict:
         """Behavioral flags. Denominator: entities with any coverage."""
         self._require_analyzed("tier2")
-        from .pipe_delimited_intermediate_events_utils import calc_tier2
+        from .pipe_delimited_format_events_utils import calc_tier2
         return calc_tier2(self.data, self.entity_col)
 
     def tier3(self, percentiles: list[int] = [25, 50, 75]) -> dict:
         """Continuous stats on active/inactive days."""
         self._require_analyzed("tier3")
-        from .pipe_delimited_intermediate_events_utils import calc_tier3
+        from .pipe_delimited_format_events_utils import calc_tier3
         return calc_tier3(self.data, self.entity_col, percentiles)
 
     def full_summary(self, percentiles: list[int] = [25, 50, 75]) -> dict:
@@ -150,7 +150,7 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
         pd.DataFrame
             Columns: [date, n_total, n_active, pct_active, n_entered, n_exited]
         """
-        from .pipe_delimited_intermediate_events_utils import calc_activity_over_time
+        from .pipe_delimited_format_events_utils import calc_activity_over_time
         return calc_activity_over_time(self.data, self.entity_col, granularity)
 
     def _histogram_plotter(self, config_path: str):
@@ -211,7 +211,7 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
         self,
         by: list[str],
         ascending: bool | list[bool] = True,
-    ) -> "PipeDelimitedIntermediateEvents":
+    ) -> "PipeDelimitedFormatEvents":
         """
         Sort entities by one or more columns and return a new instance.
 
@@ -224,7 +224,7 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
 
         Returns
         -------
-        PipeDelimitedIntermediateEvents
+        PipeDelimitedFormatEvents
             A new sorted instance. Original is unchanged.
         """
         invalid = [c for c in by if c not in self.data.columns]
@@ -236,7 +236,7 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
         sorted_df = self.data.sort_values(
             by=by, ascending=ascending, na_position="last"
         ).reset_index(drop=True)
-        return PipeDelimitedIntermediateEvents(sorted_df, self.entity_col)
+        return PipeDelimitedFormatEvents(sorted_df, self.entity_col)
 
     # ------------------------------------------------------------------ #
     # Dunder
@@ -249,7 +249,7 @@ class PipeDelimitedIntermediateEvents(PipeDelimitedIntermediate):
         n_covered = int(self.data["active_days"].notna().sum())
         n_total   = len(self.data)
         return (
-            f"PipeDelimitedIntermediateEvents(\n"
+            f"PipeDelimitedFormatEvents(\n"
             f"  entities     : {n_total}\n"
             f"  with coverage: {n_covered}\n"
             f"  no coverage  : {n_total - n_covered}\n"

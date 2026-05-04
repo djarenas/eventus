@@ -1,6 +1,6 @@
 """
-pipe_delimited_intermediate_occurrences_utils.py
-Utility functions for PipeDelimitedIntermediateOccurrences.
+pipe_delimited_format_occurrences_utils.py
+Utility functions for PipeDelimitedFormatOccurrences.
 
 Note: per-occurrence statistics (burstiness, gap stats etc.) are computed
 by occurrences_self_analyze_utils.py via self_analyze().
@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-_ERROR_PREFIX = "[pipe_delimited_intermediate_occurrences_utils] Error"
+_ERROR_PREFIX = "[pipe_delimited_format_occurrences_utils] Error"
 
 # Column suffixes produced by self_analyze() defaults
 _DEFAULT_SUFFIXES = ("_n", "_first", "_last", "_time_to_first", "_recency_days")

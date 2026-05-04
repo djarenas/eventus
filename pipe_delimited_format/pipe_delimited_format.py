@@ -1,13 +1,13 @@
 """
-pipe_delimited_intermediate.py
-Base class for pipe-delimited intermediate DataFrames.
+pipe_delimited_format.py
+Base class for pipe-delimited format data.
 Universal handshake format between analysis classes and visualization classes.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
 import pandas as pd
 
-_ERROR_PREFIX = "[PipeDelimitedIntermediate] Error"
+_ERROR_PREFIX = "[PipeDelimitedFormat] Error"
 
 # Fixed column names
 ENTITY_ID_COL    = "entity_id"
@@ -20,7 +20,7 @@ _SPAN_PAIR   = {SPAN_START_COL, SPAN_END_COL}
 _EVENT_PAIR  = {EVENT_STARTS_COL, EVENT_ENDS_COL}
 
 
-class PipeDelimitedIntermediate:
+class PipeDelimitedFormat:
     """
     A validated DataFrame wrapper that serves as the universal handshake
     format between analysis classes and visualization classes.
@@ -130,9 +130,9 @@ class PipeDelimitedIntermediate:
         cls,
         data: pd.DataFrame,
         entity_col: str = ENTITY_ID_COL,
-    ) -> "PipeDelimitedIntermediate":
+    ) -> "PipeDelimitedFormat":
         """
-        Build a PipeDelimitedIntermediate from an existing DataFrame.
+        Build a PipeDelimitedFormat from an existing DataFrame.
 
         Parameters
         ----------
@@ -178,9 +178,9 @@ class PipeDelimitedIntermediate:
         return validate_content(self.data, self.entity_col)
 
     @classmethod
-    def combine(cls, *intermediates) -> "PipeDelimitedIntermediate":
+    def combine(cls, *intermediates) -> "PipeDelimitedFormat":
         """
-        Combine two or more PipeDelimitedIntermediate objects into one.
+        Combine two or more PipeDelimitedFormat objects into one.
 
         All intermediates must share the same entity_col and the same
         set of entities. Columns from each intermediate are merged — if
@@ -188,12 +188,12 @@ class PipeDelimitedIntermediate:
 
         Parameters
         ----------
-        *intermediates : PipeDelimitedIntermediate
+        *intermediates : PipeDelimitedFormat
             Two or more intermediate objects to combine.
 
         Returns
         -------
-        PipeDelimitedIntermediate
+        PipeDelimitedFormat
             A new base-class intermediate with all columns merged.
 
         Raises
@@ -203,15 +203,15 @@ class PipeDelimitedIntermediate:
         """
         if len(intermediates) < 2:
             raise ValueError(
-                "[PipeDelimitedIntermediate] combine() requires at least 2 intermediates"
+                "[PipeDelimitedFormat] combine() requires at least 2 intermediates"
             )
 
-        # Validate all inputs are PipeDelimitedIntermediate or subclasses
+        # Validate all inputs are PipeDelimitedFormat or subclasses
         for i, obj in enumerate(intermediates):
-            if not isinstance(obj, PipeDelimitedIntermediate):
+            if not isinstance(obj, PipeDelimitedFormat):
                 raise TypeError(
-                    f"[PipeDelimitedIntermediate] combine(): intermediates[{i}] "
-                    f"must be a PipeDelimitedIntermediate or subclass, "
+                    f"[PipeDelimitedFormat] combine(): intermediates[{i}] "
+                    f"must be a PipeDelimitedFormat or subclass, "
                     f"got {type(obj).__name__}"
                 )
 
@@ -219,7 +219,7 @@ class PipeDelimitedIntermediate:
         for i, obj in enumerate(intermediates[1:], 1):
             if obj.entity_col != entity_col:
                 raise ValueError(
-                    f"[PipeDelimitedIntermediate] combine(): entity_col mismatch — "
+                    f"[PipeDelimitedFormat] combine(): entity_col mismatch — "
                     f"intermediates[0] has '{entity_col}', "
                     f"intermediates[{i}] has '{obj.entity_col}'"
                 )
@@ -232,7 +232,7 @@ class PipeDelimitedIntermediate:
             only_in_other = other_entities - base_entities
             if only_in_base or only_in_other:
                 raise ValueError(
-                    f"[PipeDelimitedIntermediate] combine(): entity sets do not match. "
+                    f"[PipeDelimitedFormat] combine(): entity sets do not match. "
                     f"intermediates[0] has {len(only_in_base)} entities not in "
                     f"intermediates[{i}], and intermediates[{i}] has "
                     f"{len(only_in_other)} entities not in intermediates[0]. "
@@ -263,7 +263,7 @@ class PipeDelimitedIntermediate:
                 if not bad.empty:
                     examples = bad[entity_col].head(3).tolist()
                     raise ValueError(
-                        f"[PipeDelimitedIntermediate] combine(): span boundaries "
+                        f"[PipeDelimitedFormat] combine(): span boundaries "
                         f"do not match between intermediates[0] and "
                         f"intermediates[{i}] for {len(bad)} entities. "
                         f"Example entity IDs: {examples}. "
@@ -293,9 +293,9 @@ class PipeDelimitedIntermediate:
         obs_period,
         events      = None,
         occurrences = None,
-    ) -> "PipeDelimitedIntermediate":
+    ) -> "PipeDelimitedFormat":
         """
-        Build a PipeDelimitedIntermediate directly from data objects.
+        Build a PipeDelimitedFormat directly from data objects.
 
         Runs the appropriate analyzers internally and combines the
         results. At least one of events or occurrences must be provided.
@@ -314,12 +314,12 @@ class PipeDelimitedIntermediate:
 
         Returns
         -------
-        PipeDelimitedIntermediate
+        PipeDelimitedFormat
             Combined intermediate ready for visualization.
 
         Examples
         --------
-        >>> intermediate = PipeDelimitedIntermediate.from_objects(
+        >>> intermediate = PipeDelimitedFormat.from_objects(
         ...     obs_period  = obs,
         ...     events      = events,
         ...     occurrences = [ed_visits, vaccinations],
@@ -336,7 +336,7 @@ class PipeDelimitedIntermediate:
             OccurrencesWithinObsPeriodsAnalyzer
         )
 
-        _ERR = "[PipeDelimitedIntermediate.from_objects] Error"
+        _ERR = "[PipeDelimitedFormat.from_objects] Error"
 
         # ── Validate obs_period ───────────────────────────────────────
         if not isinstance(obs_period, ObsPeriodPerEntity):
@@ -424,12 +424,12 @@ class PipeDelimitedIntermediate:
 
         return cls.combine(*results)
 
-    def copy(self) -> "PipeDelimitedIntermediate":
-        """Return a copy of this PipeDelimitedIntermediate."""
+    def copy(self) -> "PipeDelimitedFormat":
+        """Return a copy of this PipeDelimitedFormat."""
         return self.__class__(self.data.copy(), self.entity_col)
 
-    def sample(self, n:int, random_state: int) -> "PipeDelimitedIntermediate":
-        """Return a subset of the data as a PipeDelimitedIntermediate object"""
+    def sample(self, n:int, random_state: int) -> "PipeDelimitedFormat":
+        """Return a subset of the data as a PipeDelimitedFormat object"""
         if not isinstance(n, int):
             raise TypeError(f"{_ERROR_PREFIX} in sample(): n must be an integer, got {type(n)}")
         if n <= 0:
@@ -452,7 +452,7 @@ class PipeDelimitedIntermediate:
         return len(self.data)
 
     def __repr__(self) -> str:
-        parts = [f"PipeDelimitedIntermediate({len(self)} entities"]
+        parts = [f"PipeDelimitedFormat({len(self)} entities"]
         if self.has_spans:
             parts.append("spans=yes")
         if self.has_events:

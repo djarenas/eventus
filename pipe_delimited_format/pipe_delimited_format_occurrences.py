@@ -1,15 +1,15 @@
 """
-pipe_delimited_intermediate_occurrences.py
-Child of PipeDelimitedIntermediate for occurrence analysis results.
+pipe_delimited_format_occurrences.py
+Child of PipeDelimitedFormat for occurrence analysis results.
 Produced by OccurrencesWithinObsPeriodsAnalyzer.calc().
 """
 from __future__ import annotations
 import pandas as pd
 import yaml
 
-from .pipe_delimited_intermediate import PipeDelimitedIntermediate
+from .pipe_delimited_format import PipeDelimitedFormat
 
-_ERROR_PREFIX = "[PipeDelimitedIntermediateOccurrences] Error"
+_ERROR_PREFIX = "[PipeDelimitedFormatOccurrences] Error"
 
 _ANALYZED_SUFFIXES = (
     "_n", "_first", "_last", "_time_to_first", "_recency_days",
@@ -18,10 +18,10 @@ _ANALYZED_SUFFIXES = (
 )
 
 
-class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
+class PipeDelimitedFormatOccurrences(PipeDelimitedFormat):
     """
     Result of OccurrencesWithinObsPeriodsAnalyzer.calc().
-    Inherits from PipeDelimitedIntermediate.
+    Inherits from PipeDelimitedFormat.
 
     Holds one row per entity with:
     - span_start, span_end (optional but typical)
@@ -55,7 +55,7 @@ class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
         cls,
         data: pd.DataFrame,
         entity_col: str = "entity_id",
-    ) -> "PipeDelimitedIntermediateOccurrences":
+    ) -> "PipeDelimitedFormatOccurrences":
         """Build from an existing DataFrame."""
         return cls(data, entity_col)
 
@@ -99,7 +99,7 @@ class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
     def self_analyze(
         self,
         extras = None,
-    ) -> "PipeDelimitedIntermediateOccurrences":
+    ) -> "PipeDelimitedFormatOccurrences":
         """
         Compute statistics for all occ_* columns.
         Returns a new enriched intermediate — original is unchanged.
@@ -129,7 +129,7 @@ class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
 
         Returns
         -------
-        PipeDelimitedIntermediateOccurrences
+        PipeDelimitedFormatOccurrences
             New enriched intermediate.
 
         Examples
@@ -141,7 +141,7 @@ class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
         from .occurrences_self_analyze_utils import (
             validate_extras, analyze_occurrence_column
         )
-        from .pipe_delimited_intermediate import SPAN_START_COL, SPAN_END_COL
+        from .pipe_delimited_format import SPAN_START_COL, SPAN_END_COL
 
         extras_list = validate_extras(extras)
 
@@ -162,7 +162,7 @@ class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
                 col_name = f"occ_{identity}_{stat_name}"
                 data[col_name] = stats_df[stat_name].values
 
-        return PipeDelimitedIntermediateOccurrences(data, self.entity_col)
+        return PipeDelimitedFormatOccurrences(data, self.entity_col)
 
     # ------------------------------------------------------------------ #
     # Diagnostics
@@ -171,7 +171,7 @@ class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
     def full_summary(self, percentiles: list[int] = [25, 50, 75]) -> dict:
         """Full summary dict for all occurrence identities."""
         self._require_analyzed("full_summary")
-        from .pipe_delimited_intermediate_occurrences_utils import calc_occ_summary
+        from .pipe_delimited_format_occurrences_utils import calc_occ_summary
         return calc_occ_summary(self.data, self.entity_col, percentiles)
 
     def print_summary(self, percentiles: list[int] = [25, 50, 75]) -> None:
@@ -196,7 +196,7 @@ class PipeDelimitedIntermediateOccurrences(PipeDelimitedIntermediate):
     def __repr__(self) -> str:
         analyzed = "analyzed" if self.is_analyzed else "not analyzed"
         return (
-            f"PipeDelimitedIntermediateOccurrences(\n"
+            f"PipeDelimitedFormatOccurrences(\n"
             f"  entities   : {len(self)}\n"
             f"  identities : {self.identities}\n"
             f"  status     : {analyzed}\n"
