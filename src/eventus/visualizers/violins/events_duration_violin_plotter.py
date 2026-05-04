@@ -7,10 +7,7 @@ This class is pure orchestration. All computation lives in
 events_duration_violin_plotter_utils.py.
 """
 from __future__ import annotations
-import warnings
 import pathlib
-import numpy as np
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -53,7 +50,7 @@ class EventsDurationViolinPlotter:
         events,
         config = None,
     ) -> None:
-        from data_objects.events import Events
+        from eventus.data_objects.events import Events
         from .event_duration_violin_config import EventDurationViolinConfig as ViolinConfig
 
         # ── Type checks ───────────────────────────────────────────────
@@ -149,7 +146,7 @@ class EventsDurationViolinPlotter:
         from .events_duration_violin_plotter_utils import (
             prepare_data, compute_widths, draw_violins,
         )
-        from analyzers.event_duration_analyzer import EventDurationAnalyzer
+        from eventus.analyzers.event_duration_analyzer import EventDurationAnalyzer
 
         self._validate_path(path)
 

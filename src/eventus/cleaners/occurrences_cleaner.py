@@ -6,7 +6,7 @@ Produces a validated Occurrences object with a full quality report.
 from __future__ import annotations
 import pandas as pd
 
-from semantics.occurrence_semantics import OccurrenceSemantics
+from eventus.semantics.occurrence_semantics import OccurrenceSemantics
 from .occurrences_cleaner_config import OccurrencesCleanerConfig
 
 _ERROR_PREFIX = "[OccurrencesCleaner] Error"
@@ -96,7 +96,7 @@ class OccurrencesCleaner:
         Occurrences
             A validated Occurrences object containing only clean rows.
         """
-        from data_objects.occurrences import Occurrences
+        from eventus.data_objects.occurrences import Occurrences
 
         df  = self._raw.copy()
         ec  = self._semantics.entity_id_col

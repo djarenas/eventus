@@ -6,7 +6,7 @@ one row per entity.
 from __future__ import annotations
 import pandas as pd
 from .events import Events
-from semantics.event_semantics import EventSemantics
+from eventus.semantics.event_semantics import EventSemantics
 
 _ERROR_PREFIX = "[EventsPerEntity] Error"
 

@@ -7,11 +7,9 @@ from __future__ import annotations
 import sys
 import pandas as pd
 
-# Add the inner package folder directly to sys.path  
-sys.path.append(r"C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")  
 from .events_within_obs_period_analyzer_utils import compute_activity_inactivity
 from .validation_utils import validate_shared_entity_col
-from pipe_delimited_format.pipe_delimited_format_events import PipeDelimitedFormatEvents
+from eventus.pipe_delimited_format.pipe_delimited_format_events import PipeDelimitedFormatEvents
 
 _ERROR = "[EventsWithinObsPeriodsAnalyzer] Error"
 
@@ -53,9 +51,9 @@ class EventsWithinObsPeriodsAnalyzer:
         *,
         meaningful_gap: int = 0,
     ) -> None:
-        from data_objects.events import Events
-        from data_objects.obs_period_per_entity import ObsPeriodPerEntity
-        from data_objects.events_utils import merge_overlapping_events as _merge
+        from eventus.data_objects.events import Events
+        from eventus.data_objects.obs_period_per_entity import ObsPeriodPerEntity
+        from eventus.data_objects.events_utils import merge_overlapping_events as _merge
 
         if not isinstance(events, Events):
             raise TypeError(

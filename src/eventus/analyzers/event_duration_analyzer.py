@@ -3,10 +3,9 @@ event_duration_analyzer.py
 EventDurationAnalyzer — computes event durations from a validated Events object.
 """
 from __future__ import annotations
-import sys
 import pandas as pd
 
-from data_objects.events import Events
+from eventus.data_objects.events import Events
 
 _ERROR_PREFIX = "[EventDurationAnalyzer] Error"
 

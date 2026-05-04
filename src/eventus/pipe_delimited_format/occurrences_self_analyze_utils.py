@@ -1,6 +1,6 @@
 """
 occurrences_self_analyze_utils.py
-Pure utility functions for PipeDelimitedIntermediateOccurrences.self_analyze().
+Pure utility functions for PipeDelimitedFormatOccurrences.self_analyze().
 No class state — only data inputs.
 """
 from __future__ import annotations

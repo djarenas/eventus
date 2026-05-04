@@ -2,7 +2,7 @@
 occurrences_within_obs_periods_analyzer.py
 OccurrencesWithinObsPeriodsAnalyzer — filters occurrences to within
 each entity's observation period and produces a
-PipeDelimitedIntermediateOccurrences.
+PipeDelimitedFormatOccurrences.
 """
 from __future__ import annotations
 import pandas as pd
@@ -15,7 +15,7 @@ class OccurrencesWithinObsPeriodsAnalyzer:
     Filters occurrences to within each entity's observation period.
 
     Accepts one or more Occurrences objects. Each produces its own
-    pipe-delimited column in the output intermediate, named
+    pipe-delimited column in the output pipe_delimited_format, named
     occ_{identity} — for example occ_ed_visit or occ_hepatitis_b.
 
     Parameters
@@ -49,8 +49,8 @@ class OccurrencesWithinObsPeriodsAnalyzer:
         obs_period,
         entity_col: str | None = None,
     ) -> None:
-        from data_objects.occurrences import Occurrences
-        from data_objects.obs_period_per_entity import ObsPeriodPerEntity
+        from eventus.data_objects.occurrences import Occurrences
+        from eventus.data_objects.obs_period_per_entity import ObsPeriodPerEntity
 
         # Normalize to list
         if isinstance(occurrences, Occurrences):
@@ -122,15 +122,15 @@ class OccurrencesWithinObsPeriodsAnalyzer:
 
         Returns
         -------
-        PipeDelimitedIntermediateOccurrences
+        PipeDelimitedFormatOccurrences
             One row per entity. Each occurrence type gets its own
             occ_{identity} column with pipe-delimited dates.
             Entities with no occurrences in period get NA.
         """
-        from intermediates.pipe_delimited_intermediate_occurrences import (
-            PipeDelimitedIntermediateOccurrences
+        from eventus.pipe_delimited_format.pipe_delimited_format_occurrences import (
+            PipeDelimitedFormatOccurrences
         )
-        from intermediates.pipe_delimited_intermediate import (
+        from eventus.pipe_delimited_format.pipe_delimited_format import (
             SPAN_START_COL, SPAN_END_COL
         )
 
@@ -202,7 +202,7 @@ class OccurrencesWithinObsPeriodsAnalyzer:
             else:
                 result[occ_col] = pd.NA
 
-        return PipeDelimitedIntermediateOccurrences(
+        return PipeDelimitedFormatOccurrences(
             result.reset_index(drop=True),
             entity_col,
         )

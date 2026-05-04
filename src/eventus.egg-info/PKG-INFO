@@ -1,3 +1,19 @@
+Metadata-Version: 2.4
+Name: eventus
+Version: 0.1.0
+Summary: A domain-agnostic Python framework for analyzing entities that experience events within defined observation periods.
+License: MIT
+Requires-Python: >=3.12.0
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.0
+Requires-Dist: numpy>=1.24
+Requires-Dist: matplotlib>=3.7
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: scipy>=1.10
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+
 # eventus
 
 A Python framework for analyzing entities that experience events and occurrences within defined observation periods — configuration-driven, auditable, and domain-agnostic.

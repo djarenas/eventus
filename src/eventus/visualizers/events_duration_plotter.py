@@ -6,11 +6,9 @@ Takes an Events object and produces duration plots.
 Currently supports histograms. Violin plots planned for future release.
 """
 from __future__ import annotations
-import sys
 import numpy as np
 import pandas as pd
 import pathlib
-import warnings
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -57,7 +55,7 @@ class EventsDurationPlotter:
         events,
         stratify_by: str | None = None,
     ) -> None:
-        from data_objects.events import Events
+        from eventus.data_objects.events import Events
 
         if not isinstance(events, Events):
             raise TypeError(
@@ -90,7 +88,7 @@ class EventsDurationPlotter:
             if not provided.
         """
         from .histogram_config import HistogramConfig
-        from analyzers.event_duration_analyzer import EventDurationAnalyzer
+        from eventus.analyzers.event_duration_analyzer import EventDurationAnalyzer
 
         self._validate_path(path)
 

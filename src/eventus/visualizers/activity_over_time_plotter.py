@@ -6,7 +6,7 @@ Two panels:
   Top    — line chart of fraction of entities active at each timepoint
   Bottom — diverging bar chart of entities entering and exiting
 
-Takes a PipeDelimitedIntermediateEvents object directly.
+Takes a PipeDelimitedFormatEvents object directly.
 Calls activity_over_time() internally.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ _ERROR_PREFIX = "[ActivityOverTimePlotter] Error"
 
 class ActivityOverTimePlotter:
     """
-    Visualize cohort activity over time from a PipeDelimitedIntermediateEvents.
+    Visualize cohort activity over time from a PipeDelimitedFormatEvents.
 
     Top panel shows what fraction of the cohort is active at each timepoint.
     Bottom panel shows a diverging bar chart of entries and exits — revealing
@@ -36,7 +36,7 @@ class ActivityOverTimePlotter:
 
     Parameters
     ----------
-    intermediate : PipeDelimitedIntermediateEvents
+    intermediate : PipeDelimitedFormatEvents
         Must have been produced by EventsWithinObsPeriodsAnalyzer.
     config : ActivityOverTimeConfig | None
         Plot configuration. Uses ActivityOverTimeConfig.build_with_defaults()
@@ -60,13 +60,13 @@ class ActivityOverTimePlotter:
         config       = None,
         granularity: str = "week",  # "day", "week", or "month"
     ) -> None:
-        from intermediates.pipe_delimited_intermediate_events import PipeDelimitedIntermediateEvents
+        from eventus.pipe_delimited_format.pipe_delimited_format_events import PipeDelimitedFormatEvents
         from .activity_over_time_config import ActivityOverTimeConfig
 
-        if not isinstance(intermediate, PipeDelimitedIntermediateEvents):
+        if not isinstance(intermediate, PipeDelimitedFormatEvents):
             raise TypeError(
                 f"{_ERROR_PREFIX}: intermediate must be a "
-                f"PipeDelimitedIntermediateEvents object, "
+                f"PipeDelimitedFormatEvents object, "
                 f"got {type(intermediate).__name__}"
             )
         if granularity not in {"day", "week", "month"}:

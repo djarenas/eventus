@@ -3,12 +3,9 @@ events_utils.py
 Utility functions used by the Events class.
 """
 from __future__ import annotations
-import sys
 import pandas as pd
 
-sys.path.append("C:/Users/DanielArenas/Desktop/Github_Local")
-from Python_Events_Classes.semantics.event_semantics import EventSemantics
-
+from eventus.semantics.event_semantics import EventSemantics
 
 
 def merge_overlapping_events(

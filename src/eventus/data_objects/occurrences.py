@@ -13,7 +13,7 @@ from __future__ import annotations
 import warnings
 import pandas as pd
 
-from semantics.occurrence_semantics import OccurrenceSemantics
+from eventus.semantics.occurrence_semantics import OccurrenceSemantics
 
 
 

@@ -43,7 +43,7 @@ class PipeDelimitedFormat:
     Attributes
     ----------
     data : pd.DataFrame
-        The validated intermediate DataFrame.
+        The validated DataFrame with pipe-delimited data.
     entity_col : str
         Name of the entity identifier column (always 'entity_id').
     """
@@ -178,71 +178,71 @@ class PipeDelimitedFormat:
         return validate_content(self.data, self.entity_col)
 
     @classmethod
-    def combine(cls, *intermediates) -> "PipeDelimitedFormat":
+    def combine(cls, *pipe_delimited_formats) -> "PipeDelimitedFormat":
         """
         Combine two or more PipeDelimitedFormat objects into one.
 
-        All intermediates must share the same entity_col and the same
-        set of entities. Columns from each intermediate are merged — if
-        a column exists in multiple intermediates the last one wins.
+        All pipe_delimited_formats must share the same entity_col and the same
+        set of entities. Columns from each pipe_delimited_format are merged — if
+        a column exists in multiple pipe_delimited_formats the last one wins.
 
         Parameters
         ----------
-        *intermediates : PipeDelimitedFormat
-            Two or more intermediate objects to combine.
+        *pipe_delimited_formats : PipeDelimitedFormat
+            Two or more pipe_delimited_format objects to combine.
 
         Returns
         -------
         PipeDelimitedFormat
-            A new base-class intermediate with all columns merged.
+            A new base-class pipe_delimited_format with all columns merged.
 
         Raises
         ------
         ValueError
             If entity_col values differ or entity sets differ.
         """
-        if len(intermediates) < 2:
+        if len(pipe_delimited_formats) < 2:
             raise ValueError(
-                "[PipeDelimitedFormat] combine() requires at least 2 intermediates"
+                "[PipeDelimitedFormat] combine() requires at least 2 pipe_delimited_formats"
             )
 
         # Validate all inputs are PipeDelimitedFormat or subclasses
-        for i, obj in enumerate(intermediates):
+        for i, obj in enumerate(pipe_delimited_formats):
             if not isinstance(obj, PipeDelimitedFormat):
                 raise TypeError(
-                    f"[PipeDelimitedFormat] combine(): intermediates[{i}] "
+                    f"[PipeDelimitedFormat] combine(): pipe_delimited_formats[{i}] "
                     f"must be a PipeDelimitedFormat or subclass, "
                     f"got {type(obj).__name__}"
                 )
 
-        entity_col = intermediates[0].entity_col
-        for i, obj in enumerate(intermediates[1:], 1):
+        entity_col = pipe_delimited_formats[0].entity_col
+        for i, obj in enumerate(pipe_delimited_formats[1:], 1):
             if obj.entity_col != entity_col:
                 raise ValueError(
                     f"[PipeDelimitedFormat] combine(): entity_col mismatch — "
-                    f"intermediates[0] has '{entity_col}', "
-                    f"intermediates[{i}] has '{obj.entity_col}'"
+                    f"pipe_delimited_formats[0] has '{entity_col}', "
+                    f"pipe_delimited_formats[{i}] has '{obj.entity_col}'"
                 )
 
         # Validate entity sets match
-        base_entities = set(intermediates[0].data[entity_col])
-        for i, obj in enumerate(intermediates[1:], 1):
+        base_entities = set(pipe_delimited_formats[0].data[entity_col])
+        for i, obj in enumerate(pipe_delimited_formats[1:], 1):
             other_entities = set(obj.data[entity_col])
             only_in_base  = base_entities - other_entities
             only_in_other = other_entities - base_entities
             if only_in_base or only_in_other:
                 raise ValueError(
                     f"[PipeDelimitedFormat] combine(): entity sets do not match. "
-                    f"intermediates[0] has {len(only_in_base)} entities not in "
-                    f"intermediates[{i}], and intermediates[{i}] has "
-                    f"{len(only_in_other)} entities not in intermediates[0]. "
+                    f"pipe_delimited_formats[0] has {len(only_in_base)} entities not in "
+                    f"pipe_delimited_formats[{i}], and pipe_delimited_formats[{i}] has "
+                    f"{len(only_in_other)} entities not in pipe_delimited_formats[0]. "
                     f"Make sure both analyzers used the same ObsPeriodPerEntity."
                 )
 
-        # Validate span boundaries match across all intermediates
-        base = intermediates[0].data
+        # Validate span boundaries match across all pipe_delimited_formats
+        base = pipe_delimited_formats[0].data
         if SPAN_START_COL in base.columns and SPAN_END_COL in base.columns:
-            for i, obj in enumerate(intermediates[1:], 1):
+            for i, obj in enumerate(pipe_delimited_formats[1:], 1):
                 if SPAN_START_COL not in obj.data.columns:
                     continue
                 # Align on entity_col and compare span boundaries
@@ -264,15 +264,15 @@ class PipeDelimitedFormat:
                     examples = bad[entity_col].head(3).tolist()
                     raise ValueError(
                         f"[PipeDelimitedFormat] combine(): span boundaries "
-                        f"do not match between intermediates[0] and "
-                        f"intermediates[{i}] for {len(bad)} entities. "
+                        f"do not match between pipe_delimited_formats[0] and "
+                        f"pipe_delimited_formats[{i}] for {len(bad)} entities. "
                         f"Example entity IDs: {examples}. "
                         f"Make sure both analyzers used the same ObsPeriodPerEntity."
                     )
 
-        # Start with first intermediate's data, merge rest in
-        combined = intermediates[0].data.copy()
-        for obj in intermediates[1:]:
+        # Start with first pipe_delimited_format's data, merge rest in
+        combined = pipe_delimited_formats[0].data.copy()
+        for obj in pipe_delimited_formats[1:]:
             new_cols = [c for c in obj.data.columns if c != entity_col]
             combined = combined.merge(
                 obj.data[[entity_col] + new_cols],
@@ -315,16 +315,16 @@ class PipeDelimitedFormat:
         Returns
         -------
         PipeDelimitedFormat
-            Combined intermediate ready for visualization.
+            Combined pipe_delimited_format ready for visualization.
 
         Examples
         --------
-        >>> intermediate = PipeDelimitedFormat.from_objects(
+        >>> pipe_delimited_format = PipeDelimitedFormat.from_objects(
         ...     obs_period  = obs,
         ...     events      = events,
         ...     occurrences = [ed_visits, vaccinations],
         ... )
-        >>> StackedTimelinePlotter(intermediate, config).plot("out.png")
+        >>> StackedTimelinePlotter(pipe_delimited_format, config).plot("out.png")
         """
         from data_objects.obs_period_per_entity import ObsPeriodPerEntity
         from data_objects.events import Events
@@ -440,7 +440,7 @@ class PipeDelimitedFormat:
         return self.__class__(data, self.entity_col)
 
     def to_csv(self, path: str) -> None:
-        """Save the intermediate DataFrame to CSV."""
+        """Save the pipe_delimited_format DataFrame to CSV."""
         self.data.to_csv(path, index=False)
         print(f"Saved: {path}")
 

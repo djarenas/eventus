@@ -18,7 +18,7 @@ from matplotlib.lines import Line2D
 from collections import defaultdict
 
 from .stacked_timeline_config import StackedTimelineConfig
-from pipe_delimited_format.pipe_delimited_format import (
+from eventus.pipe_delimited_format.pipe_delimited_format import (
     PipeDelimitedFormat,
     SPAN_START_COL,
     SPAN_END_COL,

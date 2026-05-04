@@ -21,11 +21,9 @@ from __future__ import annotations
 import pandas as pd
 
 # Add the inner package folder directly to sys.path  
-import sys
-sys.path.append(r"C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")  
 
-from data_objects.events_per_entity import EventsPerEntity
-from semantics.event_semantics import EventSemantics
+from eventus.data_objects.events_per_entity import EventsPerEntity
+from eventus.semantics.event_semantics import EventSemantics
 
 _ERROR_PREFIX = "[ObsPeriodPerEntity] Error"
 

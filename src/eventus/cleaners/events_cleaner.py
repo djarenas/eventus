@@ -4,12 +4,10 @@ EventsCleaner — transparent, auditable cleaning of raw event data.
 Produces a validated Events object with a full quality report.
 """
 from __future__ import annotations
-import sys
 import pandas as pd
-import yaml
 
 from .events_cleaner_config import EventsCleanerConfig
-from semantics.event_semantics import EventSemantics
+from eventus.semantics.event_semantics import EventSemantics
 
 _ERROR_PREFIX = "[EventsCleaner] Error"
 
@@ -108,8 +106,8 @@ class EventsCleaner:
         Events
             A validated Events object containing only clean rows.
         """
-        from data_objects.events import Events
-        from data_objects.events_utils import merge_overlapping_events
+        from eventus.data_objects.events import Events
+        from eventus.data_objects.events_utils import merge_overlapping_events
 
         df  = self._raw.copy()
         ec  = self._semantics.entity_id_col

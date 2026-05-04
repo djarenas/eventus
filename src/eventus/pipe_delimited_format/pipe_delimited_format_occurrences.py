@@ -78,7 +78,7 @@ class PipeDelimitedFormatOccurrences(PipeDelimitedFormat):
 
     @property
     def identities(self) -> list[str]:
-        """List of occurrence identities in this intermediate."""
+        """List of occurrence identities in this pipe-delimited."""
         return [
             c[4:] for c in self.data.columns
             if c.startswith("occ_") and
@@ -102,7 +102,7 @@ class PipeDelimitedFormatOccurrences(PipeDelimitedFormat):
     ) -> "PipeDelimitedFormatOccurrences":
         """
         Compute statistics for all occ_* columns.
-        Returns a new enriched intermediate — original is unchanged.
+        Returns a new enriched pipe_delimited — original is unchanged.
 
         Default statistics (always computed):
             occ_{identity}_n              count of occurrences in period
@@ -130,7 +130,7 @@ class PipeDelimitedFormatOccurrences(PipeDelimitedFormat):
         Returns
         -------
         PipeDelimitedFormatOccurrences
-            New enriched intermediate.
+            New enriched pipe-delimited.
 
         Examples
         --------

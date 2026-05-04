@@ -6,10 +6,8 @@ enforces one row per entity.
 from __future__ import annotations
 import pandas as pd
 
-import sys
-sys.path.append("C:/Users/DanielArenas/Desktop/Github_Local/Python_Events_Classes")
-from data_objects.occurrences import Occurrences
-from semantics.occurrence_semantics import OccurrenceSemantics
+from eventus.data_objects.occurrences import Occurrences
+from eventus.semantics.occurrence_semantics import OccurrenceSemantics
 
 _ERROR_PREFIX = "[OccurrencesPerEntity] Error"
 

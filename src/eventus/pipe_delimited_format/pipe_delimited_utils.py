@@ -66,7 +66,7 @@ def validate_content(
     Parameters
     ----------
     data : pd.DataFrame
-        The intermediate DataFrame to validate.
+        The DataFrame, in pipe delimited format, to validate.
     entity_col : str
         Name of the entity identifier column.
 

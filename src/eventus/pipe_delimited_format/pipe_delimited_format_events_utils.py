@@ -1,6 +1,6 @@
 """
 pipe_delimited_format_events_utils.py
-Utility functions for PipeDelimitedIntermediateEventAnalysis.
+Utility functions for PipeDelimitedFormatEventAnalysis.
 """
 from __future__ import annotations
 import math
@@ -111,7 +111,7 @@ def calc_activity_over_time(
     Parameters
     ----------
     data : pd.DataFrame
-        The intermediate DataFrame.
+        The pipe_delimited_format DataFrame.
     entity_col : str
         Column identifying the entity.
     granularity : str
@@ -272,7 +272,7 @@ def compute_from_pipe_delimited(
 ) -> pd.DataFrame:
     """
     Compute active/inactive day columns from pipe-delimited event columns.
-    Called by PipeDelimitedIntermediateEvents.self_analyze().
+    Called by PipeDelimitedFormatEvents.self_analyze().
 
     Requires columns: span_start, span_end, event_starts, event_ends.
 

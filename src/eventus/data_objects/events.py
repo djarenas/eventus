@@ -6,7 +6,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from semantics.event_semantics import EventSemantics
+from eventus.semantics.event_semantics import EventSemantics
 
 _ERROR_PREFIX = "[Events] Error"
 
