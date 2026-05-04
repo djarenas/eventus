@@ -16,7 +16,7 @@ _VALID_CAUSALITY = {"reject", "swap"}
 @dataclass
 class EventsCleanerConfig:
     """
-    Configuration for EventsCleaner — controls how raw event data is cleaned.
+    'I am a reproducible set of rules for what counts as a valid event row. I can be built from a YAML file and saved back to one'
 
     All parameters have sensible defaults suitable for most clinical and
     insurance datasets. Override via build_from_yaml() to make your

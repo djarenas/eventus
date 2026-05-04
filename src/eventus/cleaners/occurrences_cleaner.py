@@ -22,7 +22,7 @@ _REASON_DUPLICATE      = "duplicate_row"
 
 class OccurrencesCleaner:
     """
-    Transparent, auditable cleaning of raw occurrence data.
+    'I am a transparent, auditable pipeline that cleans raw occurrence data and records every decision I make.'
 
     Applies configurable cleaning rules to a raw DataFrame and produces
     a validated Occurrences object. Every rejected row is recorded with

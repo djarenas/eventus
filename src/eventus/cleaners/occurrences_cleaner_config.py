@@ -14,6 +14,8 @@ _ERROR_PREFIX = "[OccurrencesCleanerConfig] Error"
 @dataclass
 class OccurrencesCleanerConfig:
     """
+    'I am a reproducible set of rules for what counts as a valid occurrence row. I can be built from a YAML file and saved back to one.'
+
     Configuration for OccurrencesCleaner — controls how raw occurrence
     data is cleaned.
 

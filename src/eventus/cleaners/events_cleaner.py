@@ -28,7 +28,7 @@ _REASON_DUPLICATE          = "duplicate_row"
 
 class EventsCleaner:
     """
-    Transparent, auditable cleaning of raw event data.
+    'I am a transparent, auditable pipeline that cleans raw event data and records every decision I make.'
 
     Applies configurable cleaning rules to a raw DataFrame and produces
     a validated Events object. Every rejected or modified row is recorded
