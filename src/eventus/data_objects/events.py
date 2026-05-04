@@ -1,6 +1,6 @@
 """
 events.py
-Events — a boring, validated container for event data.
+Events — a boring, but validated, container for event data.
 """
 from __future__ import annotations
 import numpy as np

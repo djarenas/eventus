@@ -36,8 +36,17 @@ any interval.
 
 ### `Events`
 
-A validated collection of interval events. Each row has an entity ID,
-a start date, and an end date.
+A validated collection of interval events.
+Enforces the event concept. For each row to be an event, it must have
+an entity, a start, and an end — that is it. All downstream use of this
+object does not need to know if it was a hospitalization, insurance
+coverage, or anything else.
+
+A pandas DataFrame does not know what data it holds, it just knows how
+to hold it. The semantics attribute tells the object how to handle the
+data. Furthermore, the events object may still carry other data like
+"BMI during the event". All the object cares about is that the DataFrame
+has sufficient information to be called an event.
 
 **Construction**
 ```python
@@ -53,6 +62,8 @@ events = Events(df, sem)
 ```
 
 Raises on: missing columns, null entity IDs, null or unparseable dates.
+Why? Because an event cannot exist if there is no entity, start, or end.
+
 Does not raise on: causality violations, overlaps, duplicates — those
 are cleaner responsibilities.
 
@@ -162,6 +173,12 @@ obs.summary()                       # prints to stdout
 
 A validated collection of point-in-time occurrences. Each row has an
 entity ID and a date — no end date, no duration.
+
+An occurrence has no duration — it happened, at a point in time, to an
+entity. The semantics attribute tells the object which columns carry
+those concepts. Everything else in the DataFrame is carried through
+untouched. All downstream use of this object does not need to know if
+it was an ED visit, a vaccination, or a diagnosis date.
 
 ```python
 from eventus import OccurrenceSemantics, Occurrences
