@@ -35,13 +35,11 @@ from eventus.cleaners.occurrences_cleaner_config import OccurrencesCleanerConfig
 
 # Analyzers
 from eventus.analyzers.event_duration_analyzer import EventDurationAnalyzer
-from eventus.analyzers.events_within_obs_periods_analyzer import EventsWithinObsPeriodsAnalyzer
-from eventus.analyzers.occurrences_within_obs_periods_analyzer import OccurrencesWithinObsPeriodsAnalyzer
+from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
+from eventus.analyzers.cohort_timeline_occurrence_analyzer import CohortTimelineOccurrenceAnalyzer
 
-# Pipe-delimited format (intermediate results)
-from eventus.pipe_delimited_format.pipe_delimited_format import PipeDelimitedFormat
-from eventus.pipe_delimited_format.pipe_delimited_format_events import PipeDelimitedFormatEvents
-from eventus.pipe_delimited_format.pipe_delimited_format_occurrences import PipeDelimitedFormatOccurrences
+# Cohort Timeline
+from eventus.cohort_timeline.cohort_timeline import CohortTimeline
 
 # Visualizers
 from eventus.visualizers.activity_over_time_config import ActivityOverTimeConfig
@@ -55,8 +53,8 @@ from eventus.visualizers.stacked_timeline_plotter import StackedTimelinePlotter
 from eventus.visualizers.violins.base_violin_config import BaseViolinConfig
 from eventus.visualizers.violins.event_duration_violin_config import EventDurationViolinConfig
 from eventus.visualizers.violins.events_duration_violin_plotter import EventsDurationViolinPlotter
-from eventus.visualizers.violins.events_within_obs_period_violin_config import EventsWithinObsPeriodViolinConfig
-from eventus.visualizers.violins.events_within_obs_period_violin_plotter import EventsWithinObsPeriodViolinPlotter
+from eventus.visualizers.violins.event_coverage_violin_config import EventCoverageViolinConfig
+from eventus.visualizers.violins.event_coverage_violin_plotter import EventCoverageViolinPlotter
 
 __version__ = "0.1.0"
 
@@ -94,6 +92,7 @@ __all__ = [
     "BaseViolinConfig",
     "EventDurationViolinConfig",
     "EventsDurationViolinPlotter",
-    "EventsWithinObsPeriodViolinConfig",
-    "EventsWithinObsPeriodViolinPlotter",
+    "EventCoverageViolinConfig",
+    "EventCoverageViolinPlotter",
+
 ]

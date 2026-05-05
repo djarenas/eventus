@@ -1,0 +1,89 @@
+"""
+cohort_timeline_event_analyzer.py
+CohortTimelineEventAnalyzer — event coverage analytics for one identity
+within a CohortTimeline.
+"""
+from __future__ import annotations
+import pandas as pd
+
+from eventus.cohort_timeline.cohort_timeline import CohortTimeline
+from . import cohort_timeline_event_analyzer_utils as utils
+
+_ERROR = "[CohortTimelineEventAnalyzer] Error"
+
+
+class CohortTimelineEventAnalyzer:
+    """
+    I compute event coverage analytics for one event identity within a CohortTimeline.
+
+    Raises at construction if:
+    - no obs period on the CohortTimeline
+    - identity not in ct.event_identities
+    - evt_{identity}_active_days already exists (already analyzed)
+    """
+
+    _ct: CohortTimeline
+    _identity: str
+
+    def __init__(self, cohort_timeline: CohortTimeline, identity: str) -> None:        
+        if not isinstance(cohort_timeline, CohortTimeline):
+            raise TypeError(
+                f"{_ERROR} cohort_timeline must be a CohortTimeline, "
+                f"got {type(cohort_timeline).__name__}"
+            )
+        if not isinstance(identity, str) or not identity.strip():
+            raise TypeError(
+                f"{_ERROR} identity must be a non-empty string, "
+                f"got {identity!r}"
+            )
+
+        utils.require_obs_period(cohort_timeline.has_obs_period)
+        utils.require_identity_present(identity, cohort_timeline.event_identities)
+        utils.require_not_already_analyzed(identity, cohort_timeline.data.columns.tolist())
+
+        # Prevent changes to original
+        cohort_timeline_copy = cohort_timeline.copy() 
+
+        # Initialize attributes
+        self._ct       = cohort_timeline_copy
+        self._identity = identity
+
+    @property
+    def identity(self) -> str:
+        return self._identity
+
+    def compute_coverage(self) -> CohortTimeline:
+        enriched = utils.compute_coverage(self._ct.data, self._ct.entity_col, self._identity)
+        new_object = CohortTimeline(enriched, self._ct.entity_col)
+        self._ct = new_object
+        return new_object
+
+    def compute_activity_over_time(self, granularity: str = "month") -> pd.DataFrame:
+        utils.require_coverage_exists(
+            self._identity, self._ct.data.columns.tolist(), "activity_over_time"
+        )
+        return utils.calc_activity_over_time(
+            self._ct.data, self._ct.entity_col, self._identity, granularity
+        )
+
+    def get_summary(self, percentiles: list[int] = [25, 50, 75]) -> dict:
+        utils.require_coverage_exists(
+            self._identity, self._ct.data.columns.tolist(), "summary"
+        )
+        return {
+            "tier1": utils.calc_tier1(self._ct.data, self._ct.entity_col, self._identity),
+            "tier2": utils.calc_tier2(self._ct.data, self._ct.entity_col, self._identity),
+            "tier3": utils.calc_tier3(self._ct.data, self._ct.entity_col, self._identity, percentiles),
+        }
+
+    def __len__(self) -> int:
+        return len(self._ct)
+
+    def __repr__(self) -> str:
+        return (
+            f"CohortTimelineEventAnalyzer(\n"
+            f"  identity     : '{self._identity}'\n"
+            f"  entities     : {len(self._ct):,}\n"
+            f"  has_coverage : {utils.active_col(self._identity) in self._ct.data.columns}\n"
+            f")"
+        )

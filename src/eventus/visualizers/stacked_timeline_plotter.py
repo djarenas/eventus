@@ -1,7 +1,7 @@
 """
 stacked_timeline_plotter.py
 StackedTimelinePlotter — visualize entities' timelines within their
-period of interest, with event segments and occurrence markers.
+observation period, with event segments and occurrence markers.
 
 This class is pure orchestration. All computation lives in
 stacked_timeline_plotter_utils.py.
@@ -18,11 +18,8 @@ from matplotlib.lines import Line2D
 from collections import defaultdict
 
 from .stacked_timeline_config import StackedTimelineConfig
-from eventus.pipe_delimited_format.pipe_delimited_format import (
-    PipeDelimitedFormat,
-    SPAN_START_COL,
-    SPAN_END_COL,
-)
+from eventus.cohort_timeline.cohort_timeline import CohortTimeline
+from eventus.cohort_timeline.cohort_timeline_utils import OBS_START_COL, OBS_END_COL
 
 _ERROR_PREFIX = "[StackedTimelinePlotter] Error"
 
@@ -34,82 +31,59 @@ _MARKER_MAP = {
     "star":     "*",
 }
 
-# Valid sort columns and their types for correct pre-sort casting
-_SORT_NUMERIC = {
-    "active_days",
-    "inactive_days",
-    "inactive_days_before_first_event",
-    "inactive_days_after_last_event",
-    "inactive_days_middle",
-    "span_duration_days",
-}
+# Valid sort columns — identity-independent ones only.
+# Identity-prefixed columns (evt_{identity}_active_days etc.) are
+# accepted dynamically in _validate_sort_args.
 _SORT_DATE = {
-    "first_event_start",
-    "last_event_end",
-    "span_start",
-    "span_end",
+    "obs_start",
+    "obs_end",
 }
-_VALID_SORT_COLS = _SORT_NUMERIC | _SORT_DATE
+_SORT_NUMERIC_STATIC = {
+    "obs_duration_days",
+}
 
 
 class StackedTimelinePlotter:
     """
-    Visualize entities' timelines within their period of interest.
+    Visualize entities' timelines within their observation period.
 
     One horizontal bar per entity. The bar spans their observation period.
-    Event segments and occurrence markers are overlaid from a
-    PipeDelimitedFormat.
+    Event segments and occurrence markers are overlaid from a CohortTimeline.
 
     Parameters
     ----------
-    pipe_delimited : PipeDelimitedFormat
-        Must contain span_start and span_end columns.
+    cohort_timeline : CohortTimeline
+        Must contain obs_start and obs_end columns.
     config : StackedTimelineConfig | None
         Plot configuration. Uses StackedTimelineConfig.build_with_defaults()
         if not provided.
     sort_by : list[str] | None
         Column names to sort entities by before plotting. Must exist in
-        pipe_delimited.data. Common values: 'active_days', 'inactive_days',
-        'inactive_days_before_first_event', 'span_duration_days',
-        'first_event_start', 'last_event_end'.
-        Default None — entities appear in pipe_delimited order.
+        cohort_timeline.data. Common values:
+        'obs_duration_days', 'obs_start', 'obs_end',
+        or identity-prefixed columns like
+        'evt_inpatient_hospitalization_active_days'.
+        Default None — entities appear in cohort_timeline order.
     ascending : bool | list[bool]
-        Sort direction. A single bool applies to all columns. A list must
-        match the length of sort_by. Default True.
-
-    Examples
-    --------
-    >>> plotter = StackedTimelinePlotter(pipe_delimited)
-    >>> plotter.plot("output.png")
-
-    >>> config  = StackedTimelineConfig.build_from_yaml("config.yaml")
-    >>> plotter = StackedTimelinePlotter(
-    ...     pipe_delimited,
-    ...     config    = config,
-    ...     sort_by   = ["active_days"],
-    ...     ascending = [False],
-    ... )
-    >>> plotter.plot("output.png")
+        Sort direction. Default True.
     """
 
     def __init__(
         self,
-        pipe_delimited: PipeDelimitedFormat,
+        cohort_timeline: CohortTimeline,
         config:    StackedTimelineConfig | None = None,
         sort_by:   list[str] | None            = None,
         ascending: bool | list[bool]           = True,
     ) -> None:
-        if not isinstance(pipe_delimited, PipeDelimitedFormat):
+        if not isinstance(cohort_timeline, CohortTimeline):
             raise TypeError(
-                f"{_ERROR_PREFIX}: pipe_delimited must be a "
-                f"PipeDelimitedFormat object, "
-                f"got {type(pipe_delimited).__name__}"
+                f"{_ERROR_PREFIX}: cohort_timeline must be a CohortTimeline "
+                f"object, got {type(cohort_timeline).__name__}"
             )
-        if (SPAN_START_COL not in pipe_delimited.data.columns or
-                SPAN_END_COL not in pipe_delimited.data.columns):
+        if not cohort_timeline.has_obs_period:
             raise ValueError(
-                f"{_ERROR_PREFIX}: pipe_delimited must contain "
-                f"'span_start' and 'span_end' columns."
+                f"{_ERROR_PREFIX}: cohort_timeline must contain an observation "
+                f"period. '{OBS_START_COL}' and '{OBS_END_COL}' columns are required."
             )
         if config is None:
             config = StackedTimelineConfig.build_with_defaults()
@@ -120,16 +94,15 @@ class StackedTimelinePlotter:
             )
 
         if sort_by is not None:
-            self._validate_sort_args(sort_by, ascending, pipe_delimited.data)
-            # Cast columns to correct types before sorting
-            sorted_data = self._prepare_for_sort(pipe_delimited.data, sort_by)
+            self._validate_sort_args(sort_by, ascending, cohort_timeline.data)
+            sorted_data = self._prepare_for_sort(cohort_timeline.data, sort_by)
             sorted_data = sorted_data.sort_values(
                 by=sort_by, ascending=ascending, na_position="last"
             ).reset_index(drop=True)
-            pipe_delimited = pipe_delimited.__class__(sorted_data, pipe_delimited.entity_col)
+            cohort_timeline = CohortTimeline(sorted_data, cohort_timeline.entity_col)
 
-        self._pipe_delimited = pipe_delimited
-        self._config       = config
+        self._cohort_timeline = cohort_timeline
+        self._config          = config
 
     # ------------------------------------------------------------------ #
     # Validation helpers
@@ -141,19 +114,6 @@ class StackedTimelinePlotter:
         ascending: bool | list[bool],
         data:      pd.DataFrame,
     ) -> None:
-        """
-        Validate sort_by and ascending before sorting.
-
-        Raises
-        ------
-        TypeError
-            If sort_by is not a list of strings, or ascending is not
-            a bool or list of bools.
-        ValueError
-            If any sort_by column is not in _VALID_SORT_COLS, does not
-            exist in data, or if ascending list length does not match
-            sort_by.
-        """
         if not isinstance(sort_by, list) or not sort_by:
             raise TypeError(
                 f"{_ERROR_PREFIX}: sort_by must be a non-empty list of "
@@ -165,17 +125,12 @@ class StackedTimelinePlotter:
                 f"{_ERROR_PREFIX}: all sort_by entries must be strings, "
                 f"got non-string values: {bad}"
             )
-        invalid = [c for c in sort_by if c not in _VALID_SORT_COLS]
-        if invalid:
-            raise ValueError(
-                f"{_ERROR_PREFIX}: invalid sort_by column(s): {invalid}. "
-                f"Valid sort columns: {sorted(_VALID_SORT_COLS)}"
-            )
+        # Any column that exists in the data is valid
         missing = [c for c in sort_by if c not in data.columns]
         if missing:
             raise ValueError(
                 f"{_ERROR_PREFIX}: sort_by column(s) not found in "
-                f"pipe_delimited.data: {missing}. "
+                f"cohort_timeline.data: {missing}. "
                 f"Available columns: {sorted(data.columns.tolist())}"
             )
         if isinstance(ascending, list):
@@ -201,31 +156,14 @@ class StackedTimelinePlotter:
         data:    pd.DataFrame,
         sort_by: list[str],
     ) -> pd.DataFrame:
-        """
-        Cast sort columns to their correct types before sorting.
-
-        Numeric columns are cast to float — avoids lexicographic sort
-        of string-encoded numbers. Date columns are cast to datetime.
-        Returns a copy with only the sort columns recast.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            pipe_delimited data. Modified copy is returned.
-        sort_by : list[str]
-            Columns to prepare. Must all be in _VALID_SORT_COLS.
-
-        Returns
-        -------
-        pd.DataFrame
-            Copy of data with sort columns correctly typed.
-        """
+        """Cast sort columns to correct types before sorting."""
         data = data.copy()
         for col in sort_by:
-            if col in _SORT_NUMERIC:
-                data[col] = pd.to_numeric(data[col], errors="coerce").astype(float)
-            elif col in _SORT_DATE:
+            if col in _SORT_DATE:
                 data[col] = pd.to_datetime(data[col], errors="coerce")
+            else:
+                # Try numeric for everything else (evt_*_active_days etc.)
+                data[col] = pd.to_numeric(data[col], errors="coerce").astype(float)
         return data
 
     # ------------------------------------------------------------------ #
@@ -233,7 +171,7 @@ class StackedTimelinePlotter:
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def from_objects(
+    def from_components(
         cls,
         obs_period,
         events:      object | None                = None,
@@ -245,53 +183,15 @@ class StackedTimelinePlotter:
         """
         Build a StackedTimelinePlotter directly from data objects.
 
-        Convenience classmethod that runs the analyzers, combines
-        the pipe_delimited intermediates, and returns a ready-to-plot plotter.
-        The pipe_delimited intermediate is never exposed — use the standard
-        constructor if you need to inspect or sort it first.
-
-        Parameters
-        ----------
-        obs_period : ObsPeriodPerEntity
-            The observation window for each entity. Required.
-        events : Events | None
-            A validated Events object.
-        occurrences : Occurrences | list[Occurrences] | None
-            One or more validated Occurrences objects.
-        config : StackedTimelineConfig | None
-            Plot configuration. Uses defaults if not provided.
-        sort_by : list[str] | None
-            Column names to sort entities by before plotting.
-            Must exist in the pipe_delimited after analyzers run.
-            Common values: 'active_days', 'inactive_days',
-            'inactive_days_before_first_event', 'span_duration_days',
-            'first_event_start', 'last_event_end'.
-            Default None — entities appear in obs_period order.
-        ascending : bool | list[bool]
-            Sort direction. A single bool applies to all columns. A list
-            must match the length of sort_by. Default True.
-
-        Returns
-        -------
-        StackedTimelinePlotter
-
-        Examples
-        --------
-        >>> plotter = StackedTimelinePlotter.from_objects(
-        ...     obs_period = obs,
-        ...     events     = events,
-        ...     sort_by    = ["active_days"],
-        ...     ascending  = [False],
-        ...     config     = StackedTimelineConfig.build_from_yaml("config.yaml"),
-        ... )
-        >>> plotter.plot("timeline.png")
+        Assembles a CohortTimeline via build_from_components() and returns
+        a ready-to-plot plotter.
         """
-        pipe_delimited = PipeDelimitedFormat.from_objects(
+        cohort_timeline = CohortTimeline.build_from_components(
             obs_period  = obs_period,
             events      = events,
             occurrences = occurrences,
         )
-        return cls(pipe_delimited, config, sort_by=sort_by, ascending=ascending)
+        return cls(cohort_timeline, config, sort_by=sort_by, ascending=ascending)
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -300,7 +200,7 @@ class StackedTimelinePlotter:
     def plot(self, path: str) -> None:
         """Save the stacked timeline plot to a file (.png, .jpg, .jpeg)."""
         from .stacked_timeline_plotter_utils import (
-            resolve_x_mode, build_span_lookup,
+            resolve_x_mode, build_obs_lookup,
             precompute, format_xaxis, compute_figsize,
         )
 
@@ -308,8 +208,8 @@ class StackedTimelinePlotter:
 
         cfg  = self._config
         gcfg = cfg.general
-        ec   = self._pipe_delimited.entity_col
-        data = self._pipe_delimited.data.copy()
+        ec   = self._cohort_timeline.entity_col
+        data = self._cohort_timeline.data.copy()
         n    = len(data)
 
         if n > gcfg.max_entities:
@@ -320,33 +220,38 @@ class StackedTimelinePlotter:
                 UserWarning, stacklevel=2,
             )
 
-        # ── Parse dates ───────────────────────────────────────────────
-        data["span_start"] = pd.to_datetime(data["span_start"]).dt.normalize()
-        data["span_end"]   = pd.to_datetime(data["span_end"]).dt.normalize()
+        # ── Parse obs period dates ────────────────────────────────────
+        data[OBS_START_COL] = pd.to_datetime(data[OBS_START_COL]).dt.normalize()
+        data[OBS_END_COL]   = pd.to_datetime(data[OBS_END_COL]).dt.normalize()
 
         # ── Build lookups ─────────────────────────────────────────────
-        span_lookup = build_span_lookup(data, ec)
-        entities    = list(span_lookup.keys())
-        max_days    = max(d for _, _, d in span_lookup.values())
+        obs_lookup = build_obs_lookup(data, ec)
+        entities   = list(obs_lookup.keys())
+        max_days   = max(d for _, _, d in obs_lookup.values())
 
         # ── Resolve layer configs ─────────────────────────────────────
         ev_cfg  = self._resolve_event_config()
         occ_map = self._resolve_occ_configs()
 
+        # ── Resolve event identity for column lookup ──────────────────
+        event_identity = None
+        if ev_cfg is not None:
+            event_identity = ev_cfg.identity
+
         # ── Precompute segments and markers ───────────────────────────
         bar_h = gcfg.bar_height_ratio
         color_segments, marker_groups = precompute(
-            entities     = entities,
-            data         = data,
-            entity_col   = ec,
-            span_lookup  = span_lookup,
-            has_events   = self._pipe_delimited.has_events,
-            ev_color     = ev_cfg.color if ev_cfg else cfg.poi_settings.color_no_events,
-            occ_cfg_map  = occ_map,
-            poi          = cfg.poi_settings,
-            bar_h        = bar_h,
-            jitter       = gcfg.jitter,
-            jitter_ratio = gcfg.jitter_ratio,
+            entities       = entities,
+            data           = data,
+            entity_col     = ec,
+            obs_lookup     = obs_lookup,
+            event_identity = event_identity,
+            ev_color       = ev_cfg.color if ev_cfg else cfg.poi_settings.color_no_events,
+            occ_cfg_map    = occ_map,
+            poi            = cfg.poi_settings,
+            bar_h          = bar_h,
+            jitter         = gcfg.jitter,
+            jitter_ratio   = gcfg.jitter_ratio,
         )
 
         # ── Figure ────────────────────────────────────────────────────
@@ -355,7 +260,9 @@ class StackedTimelinePlotter:
         except Exception:
             pass
 
-        fig, ax = plt.subplots(figsize=compute_figsize(n, gcfg.row_height, gcfg.figsize))
+        fig, ax = plt.subplots(
+            figsize=compute_figsize(n, gcfg.row_height, gcfg.figsize)
+        )
 
         # ── Draw segments — one broken_barh call per color ────────────
         for color, segs in color_segments.items():
@@ -389,7 +296,7 @@ class StackedTimelinePlotter:
                     ymax       = ymaxs,
                     colors     = color,
                     linewidths = size / 10,
-                    zorder     = 5,  # always above event segments (zorder=2)
+                    zorder     = 5,
                 )
             else:
                 y_centers = [(mn + mx) / 2 for mn, mx in zip(ymins, ymaxs)]
@@ -399,7 +306,7 @@ class StackedTimelinePlotter:
                     color      = color,
                     marker     = mk,
                     alpha      = alpha,
-                    zorder     = 5,  # always above event segments (zorder=2)
+                    zorder     = 5,
                     linewidths = 0,
                 )
 
@@ -415,20 +322,24 @@ class StackedTimelinePlotter:
         ax.set_xlim(0, max_days)
 
         # ── X axis ────────────────────────────────────────────────────
-        x_mode         = resolve_x_mode(data, gcfg.x_axis)
-        span_start_ref = data["span_start"].iloc[0] if x_mode == "calendar" else None
+        x_mode        = resolve_x_mode(data, gcfg.x_axis)
+        obs_start_ref = (
+            data[OBS_START_COL].iloc[0] if x_mode == "calendar" else None
+        )
 
         format_xaxis(
             ax             = ax,
             x_mode         = x_mode,
             max_days       = max_days,
-            span_start_ref = span_start_ref,
+            span_start_ref = obs_start_ref,
             font_size      = gcfg.font_size,
             x_cfg          = cfg.x_axis_labels,
         )
 
         # ── Title and legend ──────────────────────────────────────────
-        ax.set_title(gcfg.title or f"Timeline — {ec}", fontsize=gcfg.title_font_size)
+        ax.set_title(
+            gcfg.title or f"Timeline — {ec}", fontsize=gcfg.title_font_size
+        )
 
         if cfg.legend.show:
             legend_kwargs = dict(
@@ -454,17 +365,12 @@ class StackedTimelinePlotter:
     # ------------------------------------------------------------------ #
 
     def _resolve_event_config(self):
-        """
-        Return the first EventLayerConfig from config, or None if not
-        configured. No auto-discovery — events must be explicitly configured.
-        If the pipe_delimited has events but events_settings is empty,
-        only the POI bar is drawn.
-        """
-        if not self._pipe_delimited.has_events:
+        """Return the first EventLayerConfig from config, or None."""
+        if not self._cohort_timeline.event_identities:
             return None
         if not self._config.events_settings:
             warnings.warn(
-                "[StackedTimelinePlotter] pipe_delimited has event columns "
+                "[StackedTimelinePlotter] cohort_timeline has event columns "
                 "but no events_settings entry found in config. "
                 "Only the observation period bar will be drawn. "
                 "Add an events_settings entry to show event segments.",
@@ -474,20 +380,15 @@ class StackedTimelinePlotter:
         return self._config.events_settings[0]
 
     def _resolve_occ_configs(self):
-        """
-        Return {col: OccurrenceLayerConfig} for configured identities only.
-        No auto-discovery — occurrences must be explicitly configured.
-        Warns if a configured identity has no matching column in the
-        pipe_delimited. Silently ignores occ_ columns not in config.
-        """
+        """Return {col: OccurrenceLayerConfig} for configured identities."""
         occ_map = {}
         for ocfg in self._config.occurrences_settings:
             col = f"occ_{ocfg.identity}"
-            if col not in self._pipe_delimited.data.columns:
+            if col not in self._cohort_timeline.data.columns:
                 warnings.warn(
                     f"[StackedTimelinePlotter] occurrences_settings has "
                     f"identity '{ocfg.identity}' but column '{col}' was "
-                    f"not found in the pipe_delimited — skipping.",
+                    f"not found in cohort_timeline — skipping.",
                     UserWarning, stacklevel=3,
                 )
                 continue
@@ -545,9 +446,9 @@ class StackedTimelinePlotter:
     def __repr__(self) -> str:
         return (
             f"StackedTimelinePlotter(\n"
-            f"  entities    : {len(self._pipe_delimited):,}\n"
-            f"  has_events  : {self._pipe_delimited.has_events}\n"
-            f"  occ_columns : {self._pipe_delimited.occurrence_cols}\n"
-            f"  x_axis      : '{self._config.general.x_axis}'\n"
+            f"  entities             : {len(self._cohort_timeline):,}\n"
+            f"  event_identities     : {self._cohort_timeline.event_identities}\n"
+            f"  occurrence_identities: {self._cohort_timeline.occurrence_identities}\n"
+            f"  x_axis               : '{self._config.general.x_axis}'\n"
             f")"
         )

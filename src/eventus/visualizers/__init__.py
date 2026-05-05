@@ -9,8 +9,8 @@ from eventus.visualizers.stacked_timeline_plotter import StackedTimelinePlotter
 from eventus.visualizers.violins.base_violin_config import BaseViolinConfig
 from eventus.visualizers.violins.event_duration_violin_config import EventDurationViolinConfig
 from eventus.visualizers.violins.events_duration_violin_plotter import EventsDurationViolinPlotter
-from eventus.visualizers.violins.events_within_obs_period_violin_config import EventsWithinObsPeriodViolinConfig
-from eventus.visualizers.violins.events_within_obs_period_violin_plotter import EventsWithinObsPeriodViolinPlotter
+from eventus.visualizers.violins.event_coverage_violin_config import EventCoverageViolinConfig
+from eventus.visualizers.violins.event_coverage_violin_plotter import EventCoverageViolinPlotter
 
 __all__ = [
     "ActivityOverTimeConfig",
@@ -23,6 +23,6 @@ __all__ = [
     "BaseViolinConfig",
     "EventDurationViolinConfig",
     "EventsDurationViolinPlotter",
-    "EventsWithinObsPeriodViolinConfig",
-    "EventsWithinObsPeriodViolinPlotter",
+    "EventCoverageViolinConfig",
+    "EventCoverageViolinPlotter",
 ]

@@ -9,6 +9,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
+def _require_columns(ts: pd.DataFrame, required: set[str], context: str = "") -> None:  
+    missing = sorted(required - set(ts.columns))  
+    if missing:  
+        where = f" in {context}" if context else ""  
+        raise ValueError(  
+            f"Missing required columns{where}: {missing}. "  
+            f"Available columns: {list(ts.columns)}"  
+        )  
 
 # ── X-axis formatting ─────────────────────────────────────────────────────
 

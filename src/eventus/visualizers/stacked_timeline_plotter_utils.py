@@ -8,11 +8,12 @@ import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+import matplotlib.ticker as ticker
 from collections import defaultdict
 
+from eventus.cohort_timeline.cohort_timeline_utils import OBS_START_COL, OBS_END_COL
+
 _WARN_PREFIX = "[StackedTimelinePlotter]"
-_VALID_X_UNITS = {"days", "months", "years"}
 
 
 # ── X-axis resolution ─────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ def resolve_x_mode(data: pd.DataFrame, x_axis: str) -> str:
     Parameters
     ----------
     data : pd.DataFrame
-        Must contain span_start and span_end columns (parsed as dates).
+        Must contain obs_start and obs_end columns (parsed as dates).
     x_axis : str
         "auto", "calendar", or "normalized".
 
@@ -37,8 +38,8 @@ def resolve_x_mode(data: pd.DataFrame, x_axis: str) -> str:
         return "normalized"
 
     uniform = (
-        data["span_start"].nunique() == 1 and
-        data["span_end"].nunique() == 1
+        data[OBS_START_COL].nunique() == 1 and
+        data[OBS_END_COL].nunique() == 1
     )
 
     if x_axis == "calendar":
@@ -46,7 +47,7 @@ def resolve_x_mode(data: pd.DataFrame, x_axis: str) -> str:
             raise ValueError(
                 f"[StackedTimelinePlotter] Error: x_axis='calendar' requires "
                 f"all entities to have the same observation period. Found "
-                f"{data['span_start'].nunique()} different span_start values. "
+                f"{data[OBS_START_COL].nunique()} different obs_start values. "
                 f"Use x_axis='auto' or x_axis='normalized' instead."
             )
         return "calendar"
@@ -64,19 +65,19 @@ def resolve_x_mode(data: pd.DataFrame, x_axis: str) -> str:
     return "calendar"
 
 
-# ── Span lookup ───────────────────────────────────────────────────────────
+# ── Obs period lookup ─────────────────────────────────────────────────────
 
-def build_span_lookup(
+def build_obs_lookup(
     data:       pd.DataFrame,
     entity_col: str,
 ) -> dict:
     """
-    Build {entity: (span_start, span_end, span_days)} lookup.
+    Build {entity: (obs_start, obs_end, obs_days)} lookup.
 
     Parameters
     ----------
     data : pd.DataFrame
-        Must have span_start and span_end columns already parsed as dates.
+        Must have obs_start and obs_end columns already parsed as dates.
     entity_col : str
         Entity identifier column name.
 
@@ -87,9 +88,9 @@ def build_span_lookup(
     """
     return {
         row[entity_col]: (
-            row["span_start"],
-            row["span_end"],
-            (row["span_end"] - row["span_start"]).days,
+            row[OBS_START_COL],
+            row[OBS_END_COL],
+            (row[OBS_END_COL] - row[OBS_START_COL]).days,
         )
         for _, row in data.iterrows()
     }
@@ -98,35 +99,33 @@ def build_span_lookup(
 # ── Segment parsing ───────────────────────────────────────────────────────
 
 def parse_segments(
-    row:        pd.Series,
-    span_start: pd.Timestamp,
-    span_end:   pd.Timestamp,
-    span_days:  int,
-    has_events: bool,
-    ev_color:   str,
-    poi,                    # POIConfig
+    row:            pd.Series,
+    obs_start:      pd.Timestamp,
+    obs_end:        pd.Timestamp,
+    obs_days:       int,
+    event_identity: str | None,
+    ev_color:       str,
+    poi,
 ) -> list[tuple[float, float, str]]:
     """
     Parse pipe-delimited event strings into (left, width, color) tuples
     in day-offset coordinates.
 
-    Segments cover the full span width:
-      color_before    — inactive before first event
-      ev_color        — active event intervals
-      color_middle    — gaps between events
-      color_after     — inactive after last event
-      color_no_events — full bar when entity has no events
+    Uses evt_{identity}_starts and evt_{identity}_ends columns if
+    event_identity is provided. Falls back to color_no_events if no
+    events are found.
 
     Parameters
     ----------
     row : pd.Series
         One row from the intermediate DataFrame.
-    span_start, span_end : pd.Timestamp
+    obs_start, obs_end : pd.Timestamp
         Observation period boundaries.
-    span_days : int
+    obs_days : int
         Length of observation period in days.
-    has_events : bool
-        Whether the intermediate has event columns at all.
+    event_identity : str | None
+        Identity of the event layer. Used to locate evt_{identity}_starts
+        and evt_{identity}_ends columns. None means no event layer.
     ev_color : str
         Color for active event segments.
     poi : POIConfig
@@ -136,11 +135,20 @@ def parse_segments(
     -------
     list of (left_days, width_days, color)
     """
-    if not has_events or pd.isna(row.get("event_starts")):
-        return [(0, span_days, poi.color_no_events)]
+    starts_col = f"evt_{event_identity}_starts" if event_identity else None
+    ends_col   = f"evt_{event_identity}_ends"   if event_identity else None
 
-    starts_raw = str(row["event_starts"]).split(" | ")
-    ends_raw   = str(row["event_ends"]).split(" | ")
+    has_events = (
+        event_identity is not None and
+        starts_col in row.index and
+        not pd.isna(row.get(starts_col))
+    )
+
+    if not has_events:
+        return [(0, obs_days, poi.color_no_events)]
+
+    starts_raw = str(row[starts_col]).split(" | ")
+    ends_raw   = str(row[ends_col]).split(" | ")
 
     intervals = []
     for s, e in zip(starts_raw, ends_raw):
@@ -149,14 +157,14 @@ def parse_segments(
             ev_end   = pd.Timestamp(e.strip()).normalize()
         except Exception:
             continue
-        if ev_start < span_end and ev_end > span_start:
+        if ev_start < obs_end and ev_end > obs_start:
             intervals.append((
-                max(ev_start, span_start),
-                min(ev_end,   span_end),
+                max(ev_start, obs_start),
+                min(ev_end,   obs_end),
             ))
 
     if not intervals:
-        return [(0, span_days, poi.color_no_events)]
+        return [(0, obs_days, poi.color_no_events)]
 
     intervals.sort(key=lambda x: x[0])
     segments      = []
@@ -164,8 +172,8 @@ def parse_segments(
     is_first      = True
 
     for ev_start, ev_end in intervals:
-        left  = (ev_start - span_start).days
-        right = (ev_end   - span_start).days
+        left  = (ev_start - obs_start).days
+        right = (ev_end   - obs_start).days
         width = right - left
 
         if left > prev_end_days:
@@ -179,8 +187,8 @@ def parse_segments(
         prev_end_days = max(prev_end_days, right)
         is_first      = False
 
-    if prev_end_days < span_days:
-        segments.append((prev_end_days, span_days - prev_end_days, poi.color_after))
+    if prev_end_days < obs_days:
+        segments.append((prev_end_days, obs_days - prev_end_days, poi.color_after))
 
     return segments
 
@@ -188,31 +196,31 @@ def parse_segments(
 # ── Precomputation ────────────────────────────────────────────────────────
 
 def precompute(
-    entities:     list,
-    data:         pd.DataFrame,
-    entity_col:   str,
-    span_lookup:  dict,
-    has_events:   bool,
-    ev_color:     str,
-    occ_cfg_map:  dict,
-    poi,                      # POIConfig
-    bar_h:        float,
-    jitter:       bool  = False,
-    jitter_ratio: float = 0.01,
+    entities:       list,
+    data:           pd.DataFrame,
+    entity_col:     str,
+    obs_lookup:     dict,
+    event_identity: str | None,
+    ev_color:       str,
+    occ_cfg_map:    dict,
+    poi,
+    bar_h:          float,
+    jitter:         bool  = False,
+    jitter_ratio:   float = 0.01,
 ) -> tuple[dict, dict]:
     """
     Pre-compute all segment and marker data for all entities.
 
     Parameters
     ----------
+    obs_lookup : dict
+        {entity: (obs_start, obs_end, obs_days)}
+    event_identity : str | None
+        Identity for evt_{identity}_starts/ends columns. None = no events.
     jitter : bool
-        If True, apply horizontal jitter to occurrence markers so
-        that overlapping occurrences on the same day are visible.
-        Default False.
+        Apply horizontal jitter to occurrence markers. Default False.
     jitter_ratio : float
-        Jitter magnitude as a ratio of each entity's span_days.
-        e.g. 0.01 = 1% of the observation period. Default 0.01.
-        Jittered positions are clipped to [0, span_days].
+        Jitter as fraction of obs_days. Default 0.01.
 
     Returns
     -------
@@ -221,11 +229,8 @@ def precompute(
     marker_groups : dict
         {(color, marker, size, alpha): [(x, y_min, y_max), ...]}
     """
-    import numpy as np
-
     rng = np.random.default_rng(42)
 
-    # Pre-index rows by entity for O(1) lookup
     entity_index = {
         entity: data[data[entity_col] == entity].iloc[0]
         for entity in entities
@@ -236,18 +241,18 @@ def precompute(
     marker_groups:  dict[tuple, list] = defaultdict(list)
 
     for i, entity in enumerate(entities):
-        span_start, span_end, span_days = span_lookup[entity]
+        obs_start, obs_end, obs_days = obs_lookup[entity]
         row = entity_index.get(entity)
 
         # ── Segments ─────────────────────────────────────────────────
         segs = parse_segments(
-            row        = row if row is not None else pd.Series(),
-            span_start = span_start,
-            span_end   = span_end,
-            span_days  = span_days,
-            has_events = has_events and row is not None,
-            ev_color   = ev_color,
-            poi        = poi,
+            row            = row if row is not None else pd.Series(),
+            obs_start      = obs_start,
+            obs_end        = obs_end,
+            obs_days       = obs_days,
+            event_identity = event_identity,
+            ev_color       = ev_color,
+            poi            = poi,
         )
         for left, width, color in segs:
             if width > 0:
@@ -257,7 +262,7 @@ def precompute(
         if row is None:
             continue
 
-        jitter_magnitude = span_days * jitter_ratio if jitter else 0.0
+        jitter_magnitude = obs_days * jitter_ratio if jitter else 0.0
 
         for col, ocfg in occ_cfg_map.items():
             val = row.get(col)
@@ -268,12 +273,12 @@ def precompute(
                     d = pd.Timestamp(token.strip()).normalize()
                 except Exception:
                     continue
-                if span_start <= d <= span_end:
-                    x_pos = (d - span_start).days
+                if obs_start <= d <= obs_end:
+                    x_pos = (d - obs_start).days
                     if jitter_magnitude > 0:
                         x_pos = float(np.clip(
                             x_pos + rng.uniform(-jitter_magnitude, jitter_magnitude),
-                            0, span_days,
+                            0, obs_days,
                         ))
                     key = (ocfg.color, ocfg.marker, ocfg.size, ocfg.alpha)
                     marker_groups[key].append((
@@ -288,7 +293,6 @@ def precompute(
 # ── X-axis formatting ─────────────────────────────────────────────────────
 
 def _advance_months(dt: pd.Timestamp, n: int) -> pd.Timestamp:
-    """Advance a Timestamp by exactly n calendar months, anchored to day 1."""
     month = dt.month - 1 + n
     year  = dt.year + month // 12
     month = month % 12 + 1
@@ -296,7 +300,6 @@ def _advance_months(dt: pd.Timestamp, n: int) -> pd.Timestamp:
 
 
 def _advance_years(dt: pd.Timestamp, n: int) -> pd.Timestamp:
-    """Advance a Timestamp by exactly n calendar years."""
     return dt.replace(year=dt.year + n, month=1, day=1)
 
 
@@ -306,39 +309,26 @@ def format_xaxis(
     max_days:       int,
     span_start_ref: pd.Timestamp | None,
     font_size:      int,
-    x_cfg,          # XAxisConfig
+    x_cfg,
 ) -> None:
-    """
-    Apply x-axis ticks and labels.
-
-    In calendar mode:  ticks at actual calendar boundaries (months or years),
-                       labelled with strftime format from config.
-    In normalized mode: ticks labelled as Nd, Nm, or Ny.
-
-    For months and years, ticks are generated by advancing actual calendar
-    boundaries — not by multiplying by 30 or 365 — so labels never drift
-    or duplicate.
-    """
+    """Apply x-axis ticks and labels."""
     unit     = x_cfg.unit
     interval = x_cfg.interval
 
     if x_mode == "calendar" and span_start_ref is not None:
-        # ── Calendar mode — generate real calendar boundaries ─────────
         if unit == "months":
             tick_dates = []
-            d = span_start_ref.replace(day=1)  # anchor to first of month
+            d = span_start_ref.replace(day=1)
             while (d - span_start_ref).days <= max_days:
                 tick_dates.append(d)
                 d = _advance_months(d, interval)
-
         elif unit == "years":
             tick_dates = []
-            d = span_start_ref.replace(month=1, day=1)  # anchor to Jan 1
+            d = span_start_ref.replace(month=1, day=1)
             while (d - span_start_ref).days <= max_days:
                 tick_dates.append(d)
                 d = _advance_years(d, interval)
-
-        else:  # days
+        else:
             tick_offsets = range(0, max_days + 1, interval)
             tick_dates   = [
                 span_start_ref + pd.Timedelta(days=t) for t in tick_offsets
@@ -349,7 +339,6 @@ def format_xaxis(
         ax.set_xlabel("Date", fontsize=font_size)
 
     else:
-        # ── Normalized mode — label as offset from day 0 ──────────────
         if unit == "years":
             step = interval * 365
             def fmt(t): return f"{t // 365}y"

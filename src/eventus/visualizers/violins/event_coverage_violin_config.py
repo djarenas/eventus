@@ -1,10 +1,11 @@
 """
-events_within_obs_period_violin_config.py
-EventsWithinObsPeriodViolinConfig — violin plot config for IntermediateViolinPlotter.
+event_coverage_violin_config.py
+EventCoverageViolinConfig — violin plot config for EventCoverageViolinPlotter.
 
-Metrics keys are fixed column names from PipeDelimitedIntermediateEvents.
-Requires an identity field so the plotter knows which events the
-intermediate was built from.
+Metrics keys are short names corresponding to evt_{identity}_* analysis
+columns produced by CohortTimelineEventAnalyzer.compute_coverage().
+Requires an identity field so the plotter knows which event identity's
+columns to look for in the CohortTimeline.
 """
 from __future__ import annotations
 import yaml
@@ -17,7 +18,7 @@ from .base_violin_config import (
     LabelsConfig,
 )
 
-_ERROR_PREFIX = "[EventsWithinObsPeriodViolinConfig] Error"
+_ERROR_PREFIX = "[EventCoverageViolinConfig] Error"
 
 _VALID_METRICS = {
     "active_days",
@@ -28,13 +29,13 @@ _VALID_METRICS = {
 }
 
 
-class EventsWithinObsPeriodViolinConfig(BaseViolinConfig):
+class EventCoverageViolinConfig(BaseViolinConfig):
     """
-    Violin plot configuration for IntermediateViolinPlotter.
+    Violin plot configuration for EventCoverageViolinPlotter.
 
-    Metrics keys are fixed column names from PipeDelimitedIntermediateEvents.
-    The identity field must match the EventSemantics.identity used when
-    building the intermediate.
+    Metrics keys are short names that map to evt_{identity}_* analysis
+    columns in a CohortTimeline. The identity field must match the identity
+    passed to CohortTimelineEventAnalyzer when compute_coverage() was called.
 
     Two plot methods:
     - plot_total()              — active_days vs inactive_days, full cohort
@@ -47,8 +48,8 @@ class EventsWithinObsPeriodViolinConfig(BaseViolinConfig):
 
     Examples
     --------
-    >>> config = EventsWithinObsPeriodViolinConfig.build_from_yaml("config.yaml")
-    >>> config = EventsWithinObsPeriodViolinConfig.build_with_defaults("inpatient_hospitalization")
+    >>> config = EventCoverageViolinConfig.build_from_yaml("config.yaml")
+    >>> config = EventCoverageViolinConfig.build_with_defaults("inpatient_hospitalization")
 
     Example YAML
     ------------
@@ -170,7 +171,7 @@ class EventsWithinObsPeriodViolinConfig(BaseViolinConfig):
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def build_with_defaults(cls, identity: str) -> "EventsWithinObsPeriodViolinConfig":
+    def build_with_defaults(cls, identity: str) -> "EventCoverageViolinConfig":
         """Return a config with all five metrics and sensible defaults."""
         return cls(
             identity = identity,
@@ -195,15 +196,15 @@ class EventsWithinObsPeriodViolinConfig(BaseViolinConfig):
         )
 
     @classmethod
-    def build_from_yaml(cls, path: str) -> "EventsWithinObsPeriodViolinConfig":
-        """Build an EventsWithinObsPeriodViolinConfig from a YAML file."""
+    def build_from_yaml(cls, path: str) -> "EventCoverageViolinConfig":
+        """Build an EventCoverageViolinConfig from a YAML file."""
         raw = cls._parse_yaml(path)
 
         if "identity" not in raw:
             raise ValueError(
                 f"{_ERROR_PREFIX}: YAML must contain 'identity' — "
-                f"must match EventSemantics.identity used to build "
-                f"the intermediate."
+                f"must match the identity passed to "
+                f"CohortTimelineEventAnalyzer when compute_coverage() was called."
             )
 
         metrics = {}
@@ -255,7 +256,7 @@ class EventsWithinObsPeriodViolinConfig(BaseViolinConfig):
 
     def __repr__(self) -> str:
         return (
-            f"EventsWithinObsPeriodViolinConfig(\n"
+            f"EventCoverageViolinConfig(\n"
             f"  identity    : {self.identity!r}\n"
             f"  metrics     : {list(self.stratify.keys())}\n"
             f"  show_box    : {self.style.show_box}\n"
