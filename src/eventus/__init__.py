@@ -38,23 +38,33 @@ from eventus.analyzers.event_duration_analyzer import EventDurationAnalyzer
 from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
 from eventus.analyzers.cohort_timeline_occurrence_analyzer import CohortTimelineOccurrenceAnalyzer
 
-# Cohort Timeline
-from eventus.cohort_timeline.cohort_timeline import CohortTimeline
+# Intermediates
+from eventus.intermediates.cohort_timeline import CohortTimeline
 
 # Visualizers
-from eventus.visualizers.activity_over_time_config import ActivityOverTimeConfig
 from eventus.visualizers.activity_over_time_plotter import ActivityOverTimePlotter
 from eventus.visualizers.events_duration_plotter import EventsDurationPlotter
-from eventus.visualizers.histogram_config import HistogramConfig
-from eventus.visualizers.stacked_timeline_config import StackedTimelineConfig
 from eventus.visualizers.stacked_timeline_plotter import StackedTimelinePlotter
 
-# Violin visualizers
-from eventus.visualizers.violins.base_violin_config import BaseViolinConfig
-from eventus.visualizers.violins.event_duration_violin_config import EventDurationViolinConfig
-from eventus.visualizers.violins.events_duration_violin_plotter import EventsDurationViolinPlotter
-from eventus.visualizers.violins.event_coverage_violin_config import EventCoverageViolinConfig
-from eventus.visualizers.violins.event_coverage_violin_plotter import EventCoverageViolinPlotter
+# Configuration objects for visualizers
+from eventus.visualizers.configs.arrays_violin_config import ArraysViolinConfig
+from eventus.visualizers.configs.stacked_timeline_config import StackedTimelineConfig
+from eventus.visualizers.configs.activity_over_time_config import ActivityOverTimeConfig
+
+# Violins
+from eventus.visualizers.violins.arrays_violin_plotter import ArraysViolinPlotter
+from eventus.visualizers.violins.event_coverage_violin_plotter import EventCoverageViolinPlotter 
+
+
+# # Occurrences result visualizers
+# from eventus.visualizers.occurrences.occurrence_result_plotter_config import (
+#     OccurrenceResultVolumeConfig, 
+#     OccurrenceResultTimingConfig, 
+#     OccurrenceResultShapeConfig)
+# from eventus.visualizers.occurrences.occurrence_result_shape_plotter import OccurrenceResultShapePlotter
+# from eventus.visualizers.occurrences.occurrence_result_timing_plotter import OccurrenceResultTimingPlotter
+# from eventus.visualizers.occurrences.occurrence_result_volume_plotter import OccurrenceResultVolumePlotter
+
 
 __version__ = "0.1.0"
 
@@ -77,22 +87,33 @@ __all__ = [
     "EventDurationAnalyzer",
     "EventsWithinObsPeriodsAnalyzer",
     "OccurrencesWithinObsPeriodsAnalyzer",
-    # Pipe-delimited format
-    "PipeDelimitedFormat",
-    "PipeDelimitedFormatEvents",
-    "PipeDelimitedFormatOccurrences",
+    # Intermediates
+    "CohortTimeline",
+    "EventActivityOverTime",
+    
     # Visualizers
-    "ActivityOverTimeConfig",
+    
     "ActivityOverTimePlotter",
     "EventsDurationPlotter",
-    "HistogramConfig",
     "StackedTimelineConfig",
     "StackedTimelinePlotter",
+    
+    # Visualizer Configs
+    "ArraysViolinConfig",
+    "StackedTimelineConfig",
+    "ActivityOverTimeConfig",
+    
     # Violin visualizers
-    "BaseViolinConfig",
-    "EventDurationViolinConfig",
-    "EventsDurationViolinPlotter",
-    "EventCoverageViolinConfig",
-    "EventCoverageViolinPlotter",
+    "ArraysViolinPlotter",
+    "EventCoverageViolinPlotter"
 
+    # # OccurrenceResults visualizers
+    # "OccurrenceResultPlotterConfig",
+    # "OccurrenceResultPlotterConfig", 
+    # "OccurrenceResultVolumeConfig", 
+    # "OccurrenceResultTimingConfig", 
+    # "OccurrenceResultShapeConfig",
+    # "OccurrenceResultShapePlotter",
+    # "OccurrenceResultTimingPlotter",
+    # "OccurrenceResultVolumePlotter"
 ]

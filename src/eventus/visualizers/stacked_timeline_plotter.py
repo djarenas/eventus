@@ -17,9 +17,9 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 from collections import defaultdict
 
-from .stacked_timeline_config import StackedTimelineConfig
-from eventus.cohort_timeline.cohort_timeline import CohortTimeline
-from eventus.cohort_timeline.cohort_timeline_utils import OBS_START_COL, OBS_END_COL
+from eventus.visualizers.configs.stacked_timeline_config import StackedTimelineConfig
+from eventus.intermediates.cohort_timeline import CohortTimeline
+from eventus.intermediates.cohort_timeline_utils import OBS_START_COL, OBS_END_COL
 
 _ERROR_PREFIX = "[StackedTimelinePlotter] Error"
 
@@ -207,15 +207,14 @@ class StackedTimelinePlotter:
         self._validate_path(path)
 
         cfg  = self._config
-        gcfg = cfg.general
         ec   = self._cohort_timeline.entity_col
         data = self._cohort_timeline.data.copy()
         n    = len(data)
 
-        if n > gcfg.max_entities:
+        if n > cfg.layout.max_entities:
             warnings.warn(
                 f"{_ERROR_PREFIX}: {n} entities exceed "
-                f"max_entities={gcfg.max_entities}. "
+                f"max_entities={cfg.layout.max_entities}. "
                 f"Plot may be unreadable. Consider filtering.",
                 UserWarning, stacklevel=2,
             )
@@ -239,29 +238,29 @@ class StackedTimelinePlotter:
             event_identity = ev_cfg.identity
 
         # ── Precompute segments and markers ───────────────────────────
-        bar_h = gcfg.bar_height_ratio
+        bar_h = cfg.layout.bar_height_ratio
         color_segments, marker_groups = precompute(
             entities       = entities,
             data           = data,
             entity_col     = ec,
             obs_lookup     = obs_lookup,
             event_identity = event_identity,
-            ev_color       = ev_cfg.color if ev_cfg else cfg.poi_settings.color_no_events,
+            ev_color       = ev_cfg.color if ev_cfg else cfg.poi.color_no_events,
             occ_cfg_map    = occ_map,
-            poi            = cfg.poi_settings,
+            poi            = cfg.poi,
             bar_h          = bar_h,
-            jitter         = gcfg.jitter,
-            jitter_ratio   = gcfg.jitter_ratio,
+            jitter         = cfg.layout.jitter,
+            jitter_ratio   = cfg.layout.jitter_ratio,
         )
 
         # ── Figure ────────────────────────────────────────────────────
         try:
-            plt.style.use(gcfg.style)
+            plt.style.use(cfg.layout.style)
         except Exception:
             pass
 
         fig, ax = plt.subplots(
-            figsize=compute_figsize(n, gcfg.row_height, gcfg.figsize)
+            figsize=compute_figsize(n, cfg.layout.row_height, cfg.canvas.figsize)
         )
 
         # ── Draw segments — one broken_barh call per color ────────────
@@ -270,10 +269,10 @@ class StackedTimelinePlotter:
             for left, width, y in segs:
                 by_y[y].append((left, width))
             poi_colors = {
-                cfg.poi_settings.color_before,
-                cfg.poi_settings.color_middle,
-                cfg.poi_settings.color_after,
-                cfg.poi_settings.color_no_events,
+                cfg.poi.color_before,
+                cfg.poi.color_middle,
+                cfg.poi.color_after,
+                cfg.poi.color_no_events,
             }
             for y, xranges in by_y.items():
                 ax.broken_barh(
@@ -312,8 +311,8 @@ class StackedTimelinePlotter:
 
         # ── Axes ──────────────────────────────────────────────────────
         ax.set_yticks(range(n))
-        if gcfg.show_entity_labels:
-            ax.set_yticklabels(entities, fontsize=gcfg.font_size - 2)
+        if cfg.layout.show_entity_labels:
+            ax.set_yticklabels(entities, fontsize=cfg.canvas.font_size - 2)
         else:
             ax.set_yticklabels([])
             ax.tick_params(axis="y", left=False)
@@ -322,7 +321,7 @@ class StackedTimelinePlotter:
         ax.set_xlim(0, max_days)
 
         # ── X axis ────────────────────────────────────────────────────
-        x_mode        = resolve_x_mode(data, gcfg.x_axis)
+        x_mode        = resolve_x_mode(data, cfg.x_axis.mode)
         obs_start_ref = (
             data[OBS_START_COL].iloc[0] if x_mode == "calendar" else None
         )
@@ -332,13 +331,16 @@ class StackedTimelinePlotter:
             x_mode         = x_mode,
             max_days       = max_days,
             span_start_ref = obs_start_ref,
-            font_size      = gcfg.font_size,
-            x_cfg          = cfg.x_axis_labels,
+            font_size      = cfg.canvas.font_size,
+            x_cfg          = cfg.x_axis
         )
+
+        ax.tick_params(axis="x", labelsize=cfg.x_axis.tick_font_size)  
+        ax.tick_params(axis="y", left=False, labelleft=False)  
 
         # ── Title and legend ──────────────────────────────────────────
         ax.set_title(
-            gcfg.title or f"Timeline — {ec}", fontsize=gcfg.title_font_size
+            cfg.labels.title or f"Timeline — {ec}", fontsize=cfg.labels.title_font_size
         )
 
         if cfg.legend.show:
@@ -356,7 +358,7 @@ class StackedTimelinePlotter:
             ax.legend(**legend_kwargs)
 
         fig.tight_layout()
-        fig.savefig(path, dpi=gcfg.dpi, bbox_inches="tight")
+        fig.savefig(path, dpi=cfg.canvas.dpi, bbox_inches="tight")
         plt.close(fig)
         print(f"Saved: {path}")
 
@@ -368,25 +370,25 @@ class StackedTimelinePlotter:
         """Return the first EventLayerConfig from config, or None."""
         if not self._cohort_timeline.event_identities:
             return None
-        if not self._config.events_settings:
+        if not self._config.events:
             warnings.warn(
                 "[StackedTimelinePlotter] cohort_timeline has event columns "
-                "but no events_settings entry found in config. "
+                "but no events entry found in config. "
                 "Only the observation period bar will be drawn. "
-                "Add an events_settings entry to show event segments.",
+                "Add an events entry to show event segments.",
                 UserWarning, stacklevel=3,
             )
             return None
-        return self._config.events_settings[0]
+        return self._config.events[0]
 
     def _resolve_occ_configs(self):
         """Return {col: OccurrenceLayerConfig} for configured identities."""
         occ_map = {}
-        for ocfg in self._config.occurrences_settings:
+        for ocfg in self._config.occurrences:
             col = f"occ_{ocfg.identity}"
             if col not in self._cohort_timeline.data.columns:
                 warnings.warn(
-                    f"[StackedTimelinePlotter] occurrences_settings has "
+                    f"[StackedTimelinePlotter] occurrences has "
                     f"identity '{ocfg.identity}' but column '{col}' was "
                     f"not found in cohort_timeline — skipping.",
                     UserWarning, stacklevel=3,
@@ -398,7 +400,7 @@ class StackedTimelinePlotter:
     def _build_legend_handles(self, ev_cfg, occ_cfg_map) -> list:
         """Build legend handle list from resolved layer configs."""
         cfg     = self._config
-        poi     = cfg.poi_settings
+        poi     = cfg.poi
         handles = []
 
         if cfg.legend.show_poi_in_legend:
@@ -449,6 +451,6 @@ class StackedTimelinePlotter:
             f"  entities             : {len(self._cohort_timeline):,}\n"
             f"  event_identities     : {self._cohort_timeline.event_identities}\n"
             f"  occurrence_identities: {self._cohort_timeline.occurrence_identities}\n"
-            f"  x_axis               : '{self._config.general.x_axis}'\n"
+            f"  x_axis               : '{self._config.canvas.x_axis}'\n"
             f")"
         )

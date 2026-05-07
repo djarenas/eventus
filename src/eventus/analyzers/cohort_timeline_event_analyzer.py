@@ -6,9 +6,10 @@ within a CohortTimeline.
 from __future__ import annotations
 import pandas as pd
 
-from eventus.cohort_timeline.cohort_timeline import CohortTimeline
+from eventus.intermediates.cohort_timeline import CohortTimeline
 from . import cohort_timeline_event_analyzer_utils as utils
 
+_WARNING = "[CohortTimelineEventAnalyzer] Warning"
 _ERROR = "[CohortTimelineEventAnalyzer] Error"
 
 
@@ -39,7 +40,6 @@ class CohortTimelineEventAnalyzer:
 
         utils.require_obs_period(cohort_timeline.has_obs_period)
         utils.require_identity_present(identity, cohort_timeline.event_identities)
-        utils.require_not_already_analyzed(identity, cohort_timeline.data.columns.tolist())
 
         # Prevent changes to original
         cohort_timeline_copy = cohort_timeline.copy() 
@@ -52,18 +52,43 @@ class CohortTimelineEventAnalyzer:
     def identity(self) -> str:
         return self._identity
 
-    def compute_coverage(self) -> CohortTimeline:
+    def enrich_with_event_coverage(self) -> CohortTimeline:
+        # Return the same cohort timeline object if that event identity was already enriched
+        if utils.is_coverage_already_analyzed(self._identity, self._ct.data.columns.tolist()):
+            print(f"{_WARNING} enrich_with_event_coverage was called but the analysis already existed")
+            return self._ct
+
         enriched = utils.compute_coverage(self._ct.data, self._ct.entity_col, self._identity)
         new_object = CohortTimeline(enriched, self._ct.entity_col)
         self._ct = new_object
         return new_object
 
-    def compute_activity_over_time(self, granularity: str = "month") -> pd.DataFrame:
+    def compute_activity_over_time(
+        self,
+        granularity: str = "month",
+        mode:        str = "normalized",
+    ):
+        """
+        Compute per-timepoint activity statistics.
+
+        Parameters
+        ----------
+        granularity : str
+            Time resolution — 'day', 'week', or 'month'.
+        mode : str
+            'normalized' — day offsets relative to each entity's own obs_start.
+            'calendar'   — day offsets relative to the shared cohort obs_start.
+                           Raises if obs_start is not uniform across entities.
+
+        Returns
+        -------
+        EventActivityOverTime
+        """
         utils.require_coverage_exists(
-            self._identity, self._ct.data.columns.tolist(), "activity_over_time"
+            self._identity, self._ct.data.columns.tolist(), "compute_activity_over_time"
         )
         return utils.calc_activity_over_time(
-            self._ct.data, self._ct.entity_col, self._identity, granularity
+            self._ct.data, self._ct.entity_col, self._identity, granularity, mode
         )
 
     def get_summary(self, percentiles: list[int] = [25, 50, 75]) -> dict:

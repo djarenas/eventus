@@ -6,22 +6,41 @@ event coverage analysis columns.
 Two plot methods:
   plot_total()              — evt_{identity}_active_days vs inactive_days
   plot_inactive_breakdown() — inactive metrics, filtered to > 0
+
+Drawing is delegated entirely to ArraysViolinPlotter.
+This class is responsible for:
+  - validating the CohortTimeline has the required columns
+  - building the short-keyed arrays from evt_{identity}_* columns
+  - applying unit conversion
+  - passing clean arrays + config to ArraysViolinPlotter
 """
 from __future__ import annotations
+
 import pathlib
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from eventus.cohort_timeline.cohort_timeline import CohortTimeline
-from .event_coverage_violin_config import EventCoverageViolinConfig
+from eventus.intermediates.cohort_timeline import CohortTimeline
+from eventus.visualizers.configs.arrays_violin_config import ArraysViolinConfig
+from eventus.visualizers.violins.arrays_violin_plotter import ArraysViolinPlotter
 
 _ERROR_PREFIX = "[EventCoverageViolinPlotter] Error"
 
+# Short metric names used in plot_total
+_TOTAL_METRICS = {"active_days", "inactive_days"}
 
-def _required_analysis_cols(identity: str) -> set[str]:
-    """Return the set of required analysis column names for a given identity."""
+# Short metric names used in plot_inactive_breakdown, in fixed display order
+_BREAKDOWN_METRICS = [
+    "inactive_days_before_first_event",
+    "inactive_days_after_last_event",
+    "inactive_days_middle",
+]
+
+
+def _required_cols(identity: str) -> set[str]:
+    """Return all required evt_{identity}_* column names."""
     p = f"evt_{identity}_"
     return {
         "obs_duration_days",
@@ -42,54 +61,71 @@ class EventCoverageViolinPlotter:
     The CohortTimeline must already have analysis columns for the given
     identity — produced by CohortTimelineEventAnalyzer.compute_coverage().
 
+    Drawing is handled by ArraysViolinPlotter. Pass an ArraysViolinConfig
+    to control colors, labels, style, and percentile lines. If config has
+    no categories defined, colors are auto-assigned from the default palette.
+
     Parameters
     ----------
     cohort_timeline : CohortTimeline
-        Must have evt_{identity}_active_days and related analysis columns
-        present. Call CohortTimelineEventAnalyzer(ct, identity).compute_coverage()
-        first if they are not yet present.
-    config : EventCoverageViolinConfig
-        Plot configuration. config.identity determines which event identity's
-        analysis columns are expected in the CohortTimeline.
+        Must have evt_{identity}_* analysis columns present.
+        Call CohortTimelineEventAnalyzer(ct, identity).compute_coverage() first.
+    identity : str
+        Event identity whose columns to plot.
+    config : ArraysViolinConfig | None
+        Plot configuration. Uses ArraysViolinConfig() defaults if not provided.
 
     Examples
     --------
-    >>> ct = CohortTimelineEventAnalyzer(ct, "inpatient_hospitalization").compute_coverage()
-    >>> config  = EventCoverageViolinConfig.build_with_defaults("inpatient_hospitalization")
-    >>> plotter = EventCoverageViolinPlotter(ct, config)
-    >>> plotter.plot_total("active_vs_inactive.png")
-    >>> plotter.plot_inactive_breakdown("inactive_breakdown.png")
+    >>> ct      = CohortTimelineEventAnalyzer(ct, "inpatient").compute_coverage()
+    >>> config  = ArraysViolinConfig.build_from_yaml("coverage_violin.yaml")
+    >>> plotter = EventCoverageViolinPlotter(ct, identity="inpatient", config=config)
+    >>> plotter.plot_total("total.png")
+    >>> plotter.plot_inactive_breakdown("breakdown.png")
     """
 
     def __init__(
         self,
         cohort_timeline: CohortTimeline,
-        config:          EventCoverageViolinConfig,
+        identity:        str,
+        config:          ArraysViolinConfig | None = None,
     ) -> None:
-        if not isinstance(config, EventCoverageViolinConfig):
-            raise TypeError(
-                f"{_ERROR_PREFIX}: config must be an EventCoverageViolinConfig, "
-                f"got {type(config).__name__}"
-            )
+
+        # ── Type checks ───────────────────────────────────────────────
         if not isinstance(cohort_timeline, CohortTimeline):
             raise TypeError(
-                f"{_ERROR_PREFIX}: cohort_timeline must be a CohortTimeline "
-                f"object, got {type(cohort_timeline).__name__}"
+                f"{_ERROR_PREFIX}: cohort_timeline must be a CohortTimeline, "
+                f"got {type(cohort_timeline).__name__}"
             )
 
-        identity = config.identity
-        required = _required_analysis_cols(identity)
+        if not isinstance(identity, str) or not identity.strip():
+            raise ValueError(
+                f"{_ERROR_PREFIX}: identity must be a non-empty string, "
+                f"got {identity!r}"
+            )
+
+        if config is None:
+            config = ArraysViolinConfig()
+        if not isinstance(config, ArraysViolinConfig):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: config must be an ArraysViolinConfig, "
+                f"got {type(config).__name__}"
+            )
+
+        # ── Validate required columns exist ───────────────────────────
+        required = _required_cols(identity)
         missing  = required - set(cohort_timeline.data.columns)
         if missing:
             raise ValueError(
-                f"{_ERROR_PREFIX}: cohort_timeline is missing analysis columns "
-                f"for identity '{identity}': {sorted(missing)}. "
-                f"Call CohortTimelineEventAnalyzer(ct, '{identity}').compute_coverage() first."
+                f"{_ERROR_PREFIX}: cohort_timeline is missing required columns "
+                f"for identity {identity!r}: {sorted(missing)}. "
+                f"Call CohortTimelineEventAnalyzer(ct, {identity!r})"
+                f".compute_coverage() first."
             )
 
         self._cohort_timeline = cohort_timeline
-        self._config          = config
         self._identity        = identity
+        self._config          = config
         self._n_total         = len(cohort_timeline)
 
     # ------------------------------------------------------------------ #
@@ -98,8 +134,8 @@ class EventCoverageViolinPlotter:
 
     def plot_total(self, path: str) -> None:
         """
-        Two-violin plot: evt_{identity}_active_days vs
-        evt_{identity}_inactive_days. Both include ALL entities.
+        Two-violin plot: active_days vs inactive_days.
+        Both include ALL entities — zero is valid and meaningful.
 
         Parameters
         ----------
@@ -108,17 +144,19 @@ class EventCoverageViolinPlotter:
         """
         self._validate_path(path)
 
-        if not self._config.can_plot_total():
-            raise ValueError(
-                f"{_ERROR_PREFIX}: plot_total() requires both 'active_days' "
-                f"and 'inactive_days' in the metrics config."
-            )
-
-        from .event_coverage_violin_plotter_utils import build_total_arrays
+        from eventus.visualizers.violins.event_coverage_violin_plotter_utils import (
+            build_total_arrays,
+            apply_unit_conversion,
+            resolve_divisor,
+            build_tick_labels,
+        )
 
         plot_order, arrays = build_total_arrays(
             self._cohort_timeline.data, self._identity
         )
+
+        divisor = resolve_divisor(self._config.labels.units)
+        arrays  = apply_unit_conversion(arrays, divisor)
 
         self._draw(
             path       = path,
@@ -129,7 +167,8 @@ class EventCoverageViolinPlotter:
 
     def plot_inactive_breakdown(self, path: str) -> None:
         """
-        Up to four violin plots showing the inactive day breakdown.
+        Up to three violin plots: inactive_days_before_first_event,
+        inactive_days_after_last_event, inactive_days_middle.
         Each violin filtered to entities where that metric > 0.
 
         Parameters
@@ -139,21 +178,30 @@ class EventCoverageViolinPlotter:
         """
         self._validate_path(path)
 
-        if not self._config.can_plot_breakdown():
-            raise ValueError(
-                f"{_ERROR_PREFIX}: plot_inactive_breakdown() requires at "
-                f"least one of: inactive_days_before_first_event, "
-                f"inactive_days_after_last_event, inactive_days_middle "
-                f"in the metrics config."
-            )
-
-        from .event_coverage_violin_plotter_utils import build_breakdown_arrays
+        from eventus.visualizers.violins.event_coverage_violin_plotter_utils import (
+            build_breakdown_arrays,
+            apply_unit_conversion,
+            resolve_divisor,
+        )
 
         plot_order, arrays = build_breakdown_arrays(
             data           = self._cohort_timeline.data,
             identity       = self._identity,
-            breakdown_cols = self._config.breakdown_cols,
+            breakdown_cols = _BREAKDOWN_METRICS,
         )
+
+        # Drop any metrics that came back empty (column missing in data)
+        plot_order = [k for k in plot_order if len(arrays[k]) > 0]
+        arrays     = {k: arrays[k] for k in plot_order}
+
+        if not plot_order:
+            raise ValueError(
+                f"{_ERROR_PREFIX}: no breakdown metrics had any data > 0. "
+                f"Cannot draw plot_inactive_breakdown()."
+            )
+
+        divisor = resolve_divisor(self._config.labels.units)
+        arrays  = apply_unit_conversion(arrays, divisor)
 
         self._draw(
             path       = path,
@@ -173,76 +221,115 @@ class EventCoverageViolinPlotter:
         plot_order: list[str],
         title:      str,
     ) -> None:
-        from .event_coverage_violin_plotter_utils import (
-            compute_widths, draw_violins,
-            build_tick_labels, apply_unit_conversion,
+        from eventus.visualizers.violins.event_coverage_violin_plotter_utils import (
+            build_tick_labels,
         )
 
-        cfg  = self._config
-        scfg = cfg.style
-        pcfg = cfg.percentiles
-        lcfg = cfg.labels
+        cfg      = self._config
+        resolved = cfg.resolve(plot_order)
 
-        # plot_order and arrays are keyed by short metric names —
-        # direct lookup into cfg.metrics with no string manipulation needed.
-        arrays = apply_unit_conversion(arrays, lcfg.divisor)
-        widths = compute_widths(arrays, plot_order)
-        colors = {key: cfg.metrics[key].color for key in plot_order}
+        # Override title if not set in config labels
+        if not cfg.labels.title:
+            import copy
+            cfg = copy.copy(cfg)
+            object.__setattr__(cfg, "labels", copy.copy(cfg.labels))
+            cfg.labels.title = title
 
-        fig, ax = plt.subplots(figsize=scfg.figsize)
+        # Build plotter — validation and drawing handled entirely there
+        plotter = ArraysViolinPlotter(arrays, cfg)
 
-        draw_violins(
-            ax          = ax,
-            plot_order  = plot_order,
-            arrays      = arrays,
-            widths      = widths,
-            colors      = colors,
-            show_box    = scfg.show_box,
-            show_points = scfg.show_points,
-            point_alpha = scfg.point_alpha,
-            point_size  = scfg.point_size,
-            pcfg        = pcfg,
+        # Swap in coverage-specific tick labels (adds % of cohort)
+        # by monkey-patching plot_order-aware labels after construction
+        # We draw manually to inject custom tick labels
+        import matplotlib.pyplot as plt
+
+        canvas = cfg.canvas
+        scfg   = cfg.style
+        pcfg   = cfg.percentiles
+        lcfg   = cfg.labels
+        axcfg  = cfg.axes
+
+        configured = [k for k in cfg.plot_order if k in arrays]
+        extras     = [k for k in arrays if k not in cfg.plot_order]
+        final_order = configured + extras
+
+        from eventus.visualizers.violins.arrays_violin_plotter_utils import (
+            apply_y_bounds,
+            compute_widths,
+            draw_box,
+            draw_percentile_lines,
+            draw_points,
+            draw_violin_body,
         )
 
-        tick_labels = build_tick_labels(
-            plot_order = plot_order,
-            arrays     = arrays,
-            n_total    = self._n_total,
-            config     = cfg,
-        )
-        ax.set_xticks(range(len(plot_order)))
-        ax.set_xticklabels(tick_labels, fontsize=9)
-        ax.set_xlim(-0.5, len(plot_order) - 0.5)
+        widths = compute_widths(arrays, final_order)
+        sizes  = {k: len(arrays[k]) for k in final_order}
 
-        ax.set_title(lcfg.title or title, fontsize=12)
-        ax.set_ylabel(lcfg.resolved_ylabel, fontsize=10)
-        ax.tick_params(axis="y", labelsize=9)
+        fig, ax = plt.subplots(figsize=canvas.figsize)
 
-        if scfg.y_min is not None or scfg.y_max is not None:
-            ax.set_ylim(bottom=scfg.y_min, top=scfg.y_max)
+        for i, key in enumerate(final_order):
+            arr   = arrays[key]
+            color = resolved[key].color
+            width = widths[key]
+
+            draw_violin_body(ax, arr, i, width, color, scfg.bandwidth)
+            if scfg.show_box:
+                draw_box(ax, arr, i, color)
+            if scfg.show_points:
+                draw_points(ax, arr, i, width, color, scfg.point_alpha, scfg.point_size)
+            if pcfg.show:
+                draw_percentile_lines(ax, arr, i, width, pcfg, canvas.font_size)
+
+        apply_y_bounds(ax, axcfg)
+
+        # Coverage-specific tick labels: label + n + % of cohort
+        tick_labels = build_tick_labels(final_order, arrays, self._n_total, resolved)
+        ax.set_xticks(range(len(final_order)))
+        ax.set_xticklabels(tick_labels, fontsize=canvas.font_size - 1)
+        ax.set_xlim(-0.5, len(final_order) - 0.5)
+
+        if lcfg.title:
+            ax.set_title(lcfg.title, fontsize=canvas.font_size + 1)
+        if lcfg.ylabel:
+            ax.set_ylabel(lcfg.ylabel, fontsize=canvas.font_size)
+        elif lcfg.units:
+            ax.set_ylabel(lcfg.units, fontsize=canvas.font_size)
+        if lcfg.xlabel:
+            ax.set_xlabel(lcfg.xlabel, fontsize=canvas.font_size)
+
+        ax.tick_params(axis="y", labelsize=canvas.font_size - 1)
 
         fig.tight_layout()
-        fig.savefig(path, dpi=scfg.dpi, bbox_inches="tight")
+        fig.savefig(path, dpi=canvas.dpi, bbox_inches="tight")
         plt.close(fig)
         print(f"Saved: {path}")
 
     # ------------------------------------------------------------------ #
-    # Validation and dunder
+    # Private helpers
     # ------------------------------------------------------------------ #
 
     def _validate_path(self, path: str) -> None:
-        ext = pathlib.Path(path).suffix.lower()
-        if ext not in {".png", ".jpg", ".jpeg"}:
+        p = pathlib.Path(path)
+        if p.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
             raise ValueError(
-                f"{_ERROR_PREFIX}: unsupported file extension '{ext}'. "
+                f"{_ERROR_PREFIX}: unsupported file extension '{p.suffix}'. "
                 f"Use .png, .jpg, or .jpeg"
             )
+        if not p.parent.exists():
+            raise ValueError(
+                f"{_ERROR_PREFIX}: output directory does not exist: "
+                f"'{p.parent}'. Create it before calling plot()."
+            )
+
+    # ------------------------------------------------------------------ #
+    # Dunder
+    # ------------------------------------------------------------------ #
 
     def __repr__(self) -> str:
         return (
             f"EventCoverageViolinPlotter(\n"
-            f"  identity    : {self._identity!r}\n"
-            f"  entities    : {self._n_total:,}\n"
-            f"  metrics     : {list(self._config.metrics.keys())}\n"
+            f"  identity  : {self._identity!r}\n"
+            f"  entities  : {self._n_total:,}\n"
+            f"  units     : {self._config.labels.units!r}\n"
             f")"
         )

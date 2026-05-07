@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from collections import defaultdict
 
-from eventus.cohort_timeline.cohort_timeline_utils import OBS_START_COL, OBS_END_COL
+from eventus.intermediates.cohort_timeline_utils import OBS_START_COL, OBS_END_COL
 
 _WARN_PREFIX = "[StackedTimelinePlotter]"
 

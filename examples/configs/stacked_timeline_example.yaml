@@ -1,0 +1,97 @@
+# stacked_timeline_example.yaml
+# Full annotated example for StackedTimelineConfig.
+# Every section is optional — omit any section to use its defaults.
+
+# ── Canvas ────────────────────────────────────────────────────────────────────
+# Inherited by all plot configs. Controls the physical figure.
+general:
+  figsize:   [18, 10]   # [width, height] in inches
+  dpi:       150
+  font_size: 11         # base font size for axis ticks and labels
+
+# ── Labels ────────────────────────────────────────────────────────────────────
+labels:
+  title:           "Patient Care Timelines"
+  subtitle:        "Cohort A — 2020 to 2023"   # optional, shown below title
+  title_font_size: 14
+
+# ── Layout ────────────────────────────────────────────────────────────────────
+# Timeline-specific geometry and display settings.
+layout:
+  row_height:         0.5     # height of each entity row in inches
+  bar_height_ratio:   0.84    # bar height as a fraction of row_height (0–1]
+  style:              "seaborn-v0_8-whitegrid"
+  show_entity_labels: true    # show entity IDs on the y-axis
+  max_entities:       50      # cap rows to avoid unreadable plots
+  jitter:             false   # add vertical jitter to overlapping markers
+  jitter_ratio:       0.01    # jitter magnitude as fraction of row_height (0–0.5]
+
+# ── X-axis ────────────────────────────────────────────────────────────────────
+# mode: auto       — infer from data
+#       calendar   — real dates on the x-axis
+#       normalized — day 0 = each entity's start date
+# unit/interval control tick spacing; format is strftime (calendar mode only).
+x_axis:
+  mode:             calendar
+  unit:             months    # days | months | years
+  interval:         3         # tick every 3 months
+  format:           "%Y-%m"   # strftime string, calendar mode only
+  x_tick_rotation:  45        # inherited from AxisConfig
+
+# ── Period of interest bar ────────────────────────────────────────────────────
+# The POI bar is drawn behind each row and segmented by event coverage.
+#   color_before    — days before the first event
+#   color_active    — days covered by events (color comes from events list)
+#   color_middle    — inactive gaps between events
+#   color_after     — days after the last event
+#   color_no_events — full bar when the entity has no events at all
+poi:
+  color:           "#D6E0EA"
+  color_before:    "#9E9E9E"
+  color_middle:    "#F44336"
+  color_after:     "#BDBDBD"
+  color_no_events: "#EEEEEE"
+  alpha:            0.6
+  show_boundaries:  true
+  boundary_color:  "#6B7C93"
+  boundary_style:   dashed    # dashed | dotted | solid
+
+# ── Event layers ──────────────────────────────────────────────────────────────
+# One entry per event identity. Order does not matter.
+# Omit an identity to use default color and alpha.
+events:
+  - identity: inpatient_hospitalization
+    color:    "#028090"
+    alpha:    0.85
+    label:    "Inpatient Stay"      # label shown in legend; defaults to identity
+
+  - identity: outpatient_visit
+    color:    "#2C7BB6"
+    alpha:    0.75
+    label:    "Outpatient Visit"
+
+# ── Occurrence layers ─────────────────────────────────────────────────────────
+# One entry per occurrence identity. Occurrences are rendered as point markers.
+# marker options: circle | triangle | square | diamond | star
+occurrences:
+  - identity: ed_visit
+    color:    "#E05C40"
+    marker:   circle
+    size:     6
+    alpha:    0.9
+    label:    "ED Visit"
+
+  - identity: readmission
+    color:    "#6B4FA0"
+    marker:   diamond
+    size:     8
+    alpha:    0.95
+    label:    "Readmission"
+
+# ── Legend ────────────────────────────────────────────────────────────────────
+legend:
+  show:               true
+  outside:            true        # place legend outside the plot area
+  location:           upper right # ignored when outside=true
+  font_size:          9
+  show_poi_in_legend: false       # include POI color segments in the legend

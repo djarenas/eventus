@@ -32,20 +32,20 @@ class EventsDurationPlotter:
     stratify_by : str | None
         Column in events.data to stratify by. Must exist in events.data.
         Nulls filled with 'missing'. Max categories controlled by
-        HistogramConfig.stratification.max_categories. Default None.
+        HistogramPlotConfig.stratification.max_categories. Default None.
 
     Examples
     --------
     >>> plotter = EventsDurationPlotter(events)
     >>> plotter.plot_histogram(
-    ...     config = HistogramConfig.build_with_defaults(),
+    ...     config = HistogramPlotConfig.build_with_defaults(),
     ...     path   = "duration.png"
     ... )
 
     >>> # Stratified
     >>> plotter = EventsDurationPlotter(events, stratify_by="hospital_id")
     >>> plotter.plot_histogram(
-    ...     config = HistogramConfig.build_from_yaml("hist_config.yaml"),
+    ...     config = HistogramPlotConfig.build_from_yaml("hist_config.yaml"),
     ...     path   = "duration_by_hospital.png"
     ... )
     """
@@ -83,20 +83,20 @@ class EventsDurationPlotter:
         ----------
         path : str
             Output file path. Must end in .png, .jpg, or .jpeg.
-        config : HistogramConfig | None
-            Histogram configuration. Uses HistogramConfig.build_with_defaults()
+        config : HistogramPlotConfig | None
+            Histogram configuration. Uses HistogramPlotConfig.build_with_defaults()
             if not provided.
         """
-        from .histogram_config import HistogramConfig
+        from .histogram_plot_config import HistogramPlotConfig
         from eventus.analyzers.event_duration_analyzer import EventDurationAnalyzer
 
         self._validate_path(path)
 
         if config is None:
-            config = HistogramConfig.build_with_defaults()
-        if not isinstance(config, HistogramConfig):
+            config = HistogramPlotConfig.build_with_defaults()
+        if not isinstance(config, HistogramPlotConfig):
             raise TypeError(
-                f"{_ERROR_PREFIX}: config must be a HistogramConfig object, "
+                f"{_ERROR_PREFIX}: config must be a HistogramPlotConfig object, "
                 f"got {type(config).__name__}"
             )
 

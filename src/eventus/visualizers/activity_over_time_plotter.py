@@ -6,108 +6,68 @@ Two panels:
   Top    — line chart of fraction of entities active at each timepoint
   Bottom — diverging bar chart of entities entering and exiting
 
-Takes a CohortTimeline object and an event identity.
-Delegates timeseries computation to CohortTimelineEventAnalyzer.activity_over_time().
+Takes an EventActivityOverTime result object produced by
+CohortTimelineEventAnalyzer.compute_activity_over_time().
 """
 from __future__ import annotations
 import pathlib
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from .activity_over_time_config import ActivityOverTimeConfig
-from eventus.cohort_timeline.cohort_timeline import CohortTimeline
-from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
+from eventus.visualizers.configs.activity_over_time_config import ActivityOverTimeConfig
+from eventus.intermediates.event_activity_over_time import EventActivityOverTime
 
 _ERROR_PREFIX = "[ActivityOverTimePlotter] Error"
 
 
 class ActivityOverTimePlotter:
     """
-    I can visualize event-activity of a cohort over an observation period.
+    I visualize event-activity of a cohort over an observation period.
 
-    Takes a CohortTimeline and an event identity. The CohortTimeline must
-    have an observation period and the named event identity.
+    Takes an EventActivityOverTime result object — produced by
+    CohortTimelineEventAnalyzer.compute_activity_over_time() — and
+    renders it as a two-panel plot.
 
     Top panel shows what fraction of the cohort is active at each timepoint.
-    Bottom panel shows a diverging bar chart of entries and exits — revealing
-    the flow behind the activity curve. A flat activity line with large bars
-    in both directions tells a different story than a flat line with no movement.
+    Bottom panel shows a diverging bar chart of entries and exits.
 
     Parameters
     ----------
-    cohort_timeline : CohortTimeline
-    identity : str
-        The event identity to visualize. Must be present in
-        cohort_timeline.event_identities.
+    activity : EventActivityOverTime
+        Validated timeseries result from compute_activity_over_time().
     config : ActivityOverTimeConfig | None
-        Plot configuration. Uses ActivityOverTimeConfig.build_with_defaults()
+        Plot configuration. Uses ActivityOverTimeConfig() defaults
         if not provided.
-    granularity : str
-        Time resolution — "day", "week", or "month". Default "week".
 
     Examples
     --------
-    >>> plotter = ActivityOverTimePlotter(ct, identity="treatment")
-    >>> plotter.plot("activity.png")
-
-    >>> config  = ActivityOverTimeConfig.build_from_yaml("config.yaml")
-    >>> plotter = ActivityOverTimePlotter(ct, "treatment", config, granularity="month")
+    >>> ct       = CohortTimelineEventAnalyzer(ct, "insurance_coverage").compute_coverage()
+    >>> activity = analyzer.compute_activity_over_time(granularity="month", mode="calendar")
+    >>> plotter  = ActivityOverTimePlotter(activity)
     >>> plotter.plot("activity.png")
     """
 
     def __init__(
         self,
-        cohort_timeline: CohortTimeline,
-        identity:        str,
-        config           = None,
-        granularity: str = "week",
+        activity: EventActivityOverTime,
+        config    = None,
     ) -> None:
-
-        if not isinstance(cohort_timeline, CohortTimeline):
+        if not isinstance(activity, EventActivityOverTime):
             raise TypeError(
-                f"{_ERROR_PREFIX}: cohort_timeline must be a CohortTimeline "
-                f"object, got {type(cohort_timeline).__name__}"
+                f"{_ERROR_PREFIX}: activity must be an EventActivityOverTime "
+                f"object, got {type(activity).__name__}"
             )
-
-        if not isinstance(identity, str) or not identity.strip():
-            raise TypeError(
-                f"{_ERROR_PREFIX}: identity must be a non-empty string, "
-                f"got {identity!r}"
-            )
-
-        if not cohort_timeline.has_obs_period:
-            raise ValueError(
-                f"{_ERROR_PREFIX}: cohort_timeline has no observation period. "
-                f"ActivityOverTimePlotter requires obs_start and obs_end columns."
-            )
-
-        if identity not in cohort_timeline.event_identities:
-            raise ValueError(
-                f"{_ERROR_PREFIX}: identity '{identity}' not found in "
-                f"cohort_timeline. "
-                f"Available event identities: {cohort_timeline.event_identities}"
-            )
-
-        if granularity not in {"day", "week", "month"}:
-            raise ValueError(
-                f"{_ERROR_PREFIX}: granularity must be 'day', 'week', or 'month', "
-                f"got {granularity!r}"
-            )
-
         if config is None:
-            config = ActivityOverTimeConfig.build_with_defaults()
+            config = ActivityOverTimeConfig()
         if not isinstance(config, ActivityOverTimeConfig):
             raise TypeError(
                 f"{_ERROR_PREFIX}: config must be an ActivityOverTimeConfig "
                 f"object, got {type(config).__name__}"
             )
 
-        self._cohort_timeline = cohort_timeline
-        self._identity        = identity
-        self._config          = config
-        self._granularity     = granularity
+        self._activity = activity
+        self._config   = config
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -128,27 +88,23 @@ class ActivityOverTimePlotter:
 
         self._validate_path(path)
 
-        cfg  = self._config
-        gcfg = cfg.general
+        cfg      = self._config
+        canvas   = cfg.canvas
+        ts       = self._activity.data
+        max_days = self._activity.max_days
 
-        # Compute timeseries via CohortTimelineEventAnalyzer.activity_over_time(),
-        # which owns all column logic for this identity.
-        # Returns a DataFrame with 'day', 'pct_active', 'n_entered', 'n_exited'.
-        analyzer = CohortTimelineEventAnalyzer(self._cohort_timeline, self._identity)
-        ts       = analyzer.activity_over_time(granularity=self._granularity)
-        max_days = int(ts["day"].max())
+        if cfg.time.mpl_style is not None:
+            try:
+                plt.style.use(cfg.time.mpl_style)
+            except Exception:
+                pass
 
-        try:
-            plt.style.use(gcfg.style)
-        except Exception:
-            pass
+        show_flow = cfg.flow_style.enabled
 
-        show_arrows = cfg.arrows.show
-
-        if show_arrows:
+        if show_flow:
             fig, axes = plt.subplots(
                 2, 1,
-                figsize     = gcfg.figsize,
+                figsize     = canvas.figsize,
                 sharex      = True,
                 gridspec_kw = {
                     "height_ratios": [
@@ -160,16 +116,30 @@ class ActivityOverTimePlotter:
             ax_line  = axes[0]
             ax_arrow = axes[1]
         else:
-            fig, ax_line = plt.subplots(figsize=gcfg.figsize)
+            fig, ax_line = plt.subplots(figsize=canvas.figsize)
             ax_arrow = None
 
-        render_line_panel(ax_line, ts, cfg, max_days)
+        render_line_panel(
+            ax           = ax_line,
+            ts           = ts,
+            cfg          = cfg,
+            max_days     = max_days,
+            mode         = self._activity.mode,
+            cohort_start = self._activity.cohort_start,
+        )
 
-        if show_arrows and ax_arrow is not None:
-            render_arrow_panel(ax_arrow, ts, cfg, max_days)
+        if show_flow and ax_arrow is not None:
+            render_arrow_panel(
+                ax           = ax_arrow,
+                ts           = ts,
+                cfg          = cfg,
+                max_days     = max_days,
+                mode         = self._activity.mode,
+                cohort_start = self._activity.cohort_start,
+            )
 
         fig.tight_layout()
-        fig.savefig(path, dpi=gcfg.dpi, bbox_inches="tight")
+        fig.savefig(path, dpi=canvas.dpi, bbox_inches="tight")
         plt.close(fig)
         print(f"Saved: {path}")
 
@@ -192,11 +162,11 @@ class ActivityOverTimePlotter:
     def __repr__(self) -> str:
         return (
             f"ActivityOverTimePlotter(\n"
-            f"  identity    : '{self._identity}'\n"
-            f"  entities    : {len(self._cohort_timeline):,}\n"
-            f"  granularity : '{self._granularity}'\n"
-            f"  x_unit      : '{self._config.general.x_unit}'\n"
-            f"  arrows      : show={self._config.arrows.show} "
-            f"style={self._config.arrows.style!r}\n"
+            f"  mode         : '{self._activity.mode}'\n"
+            f"  cohort_start : {self._activity.cohort_start}\n"
+            f"  timepoints   : {len(self._activity):,}\n"
+            f"  n_entities   : {self._activity.n_entities:,}\n"
+            f"  flow_style   : enabled={self._config.flow_style.enabled} "
+            f"mode={self._config.flow_style.mode!r}\n"
             f")"
         )

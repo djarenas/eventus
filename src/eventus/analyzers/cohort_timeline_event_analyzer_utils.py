@@ -7,7 +7,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from eventus.intermediates.event_activity_over_time import EventActivityOverTime
+
 _ERROR = "[CohortTimelineEventAnalyzer] Error"
+_WARNING = "[CohortTimelineEventAnalyzer] Warning"
+_OBS_START_TOLERANCE_FOR_CALENDAR_MODE = 2
 
 # ------------------------------------------------------------------ #
 # Column name helpers
@@ -41,14 +45,11 @@ def require_identity_present(identity: str, event_identities: list[str]) -> None
             f"event_identities: {event_identities}"
         )
 
-def require_not_already_analyzed(identity: str, columns: list[str]) -> None:
+def is_coverage_already_analyzed(identity: str, columns: list[str]) -> bool:
     col = active_col(identity)
     if col in columns:
-        raise ValueError(
-            f"{_ERROR} '{col}' already exists. "
-            f"compute_coverage() has already been run for identity "
-            f"'{identity}'. Each identity is analyzed once."
-        )
+        return True
+    return False
 
 def require_coverage_exists(identity: str, columns: list[str], method: str) -> None:
     col = active_col(identity)
@@ -212,7 +213,7 @@ def _validate_obs_durations(data: pd.DataFrame, entity_col: str) -> int:
         most_common_count = int(counts.iloc[0])
         others = {int(k): int(v) for k, v in counts.iloc[1:].items()}
         print(
-            f"Warning: obs durations are not equal across entities.\n"
+            f"{_WARNING}: obs durations are not equal across entities.\n"
             f"  Most common: {most_common_dur} days ({most_common_count} entities)\n"
             f"  Others: {others}\n"
             f"  Proceeding with full grid (0 to {max_dur} days)."
@@ -262,6 +263,37 @@ def _active_at_day(intervals: pd.DataFrame, entity_col: str, day: int) -> set:
         return set()
     mask = (intervals["start_day"] <= day) & (intervals["end_day"] > day)
     return set(intervals.loc[mask, entity_col].unique())
+  
+def _return_shared_obs_start(data: pd.DataFrame, tolerance_days: int) -> pd.Timestamp:  
+    """  
+    Raise if obs_start differs by more than `tolerance_days` across entities.  
+    Returns a shared obs_start as a normalized Timestamp (earliest date).  
+    """  
+    starts = pd.to_datetime(data["obs_start"]).dt.normalize()  
+    min_start = starts.min()  
+    max_start = starts.max()  
+  
+    # Calculate difference in days  
+    max_diff = (max_start - min_start).days  
+  
+    if max_diff > tolerance_days:  
+        # Find which obs_start values are outside the tolerance  
+        too_early = starts[starts < min_start + pd.Timedelta(days=tolerance_days)]  
+        too_late  = starts[starts > max_start - pd.Timedelta(days=tolerance_days)]  
+  
+        # Prepare examples (convert to strings for printing)  
+        unique_starts = starts.unique()  
+        example_values = sorted(str(s.date()) for s in unique_starts)  
+        example_preview = ", ".join(example_values[:5])  # limit to first 5 for brevity  
+  
+        raise ValueError(  
+            f"mode='calendar' requires obs_start within {tolerance_days} days. "  
+            f"Found a range of {max_diff} days between earliest ({min_start.date()}) "  
+            f"and latest ({max_start.date()}). "  
+            f"Example differing values: {example_preview}"  
+        )  
+  
+    return min_start  
 
 
 def calc_activity_over_time(
@@ -269,12 +301,46 @@ def calc_activity_over_time(
     entity_col:  str,
     identity:    str,
     granularity: str = "month",
-) -> pd.DataFrame:
+    mode:        str = "normalized",
+) -> EventActivityOverTime:
+    """
+    Compute per-timepoint activity statistics and return an
+    EventActivityOverTime result object.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        CohortTimeline data with coverage analysis columns present.
+    entity_col : str
+        Entity identifier column name.
+    identity : str
+        Event identity.
+    granularity : str
+        Time resolution — 'day', 'week', or 'month'.
+    mode : str
+        'normalized' — day offsets relative to each entity's own obs_start.
+        'calendar'   — day offsets relative to the shared cohort obs_start.
+                       Raises if obs_start is not uniform across entities.
+
+    Returns
+    -------
+    EventActivityOverTime
+    """
     if granularity not in {"day", "week", "month"}:
         raise ValueError(
             f"{_ERROR} granularity must be 'day', 'week', or 'month', "
             f"got '{granularity}'"
         )
+    if mode not in {"normalized", "calendar"}:
+        raise ValueError(
+            f"{_ERROR} mode must be 'normalized' or 'calendar', "
+            f"got '{mode}'"
+        )
+
+    cohort_start = None
+    if mode == "calendar":
+        cohort_start = _return_shared_obs_start(data, _OBS_START_TOLERANCE_FOR_CALENDAR_MODE)
+
     max_dur   = _validate_obs_durations(data, entity_col)
     n_total   = len(data)
     step      = {"day": 1, "week": 7, "month": 30}[granularity]
@@ -296,7 +362,8 @@ def calc_activity_over_time(
         })
         prev_active = active_set
 
-    return pd.DataFrame(rows).reset_index(drop=True)
+    ts = pd.DataFrame(rows).reset_index(drop=True)
+    return EventActivityOverTime(data=ts, mode=mode, cohort_start=cohort_start)
 
 # ------------------------------------------------------------------ #
 # Tier summaries
