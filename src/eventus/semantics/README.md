@@ -133,9 +133,33 @@ Once defined, a semantics object is passed into every downstream object
 that needs it:
 
 ```python
-events   = Events(df, sem)
-cleaner  = EventsCleaner(raw_df, sem, config)
-analyzer = EventsWithinObsPeriodsAnalyzer(events, obs_period)
+from eventus import EventSemantics, OccurrenceSemantics, Events, Occurrences
+from eventus.cleaners import EventsCleaner, EventsCleanerConfig
+from eventus.intermediates import CohortTimeline
+
+event_sem = EventSemantics(
+    entity_id_col  = "patient_id",
+    start_time_col = "admit_date",
+    end_time_col   = "discharge_date",
+    identity       = "inpatient_hospitalization",
+)
+
+occ_sem = OccurrenceSemantics(
+    entity_id_col = "patient_id",
+    date_col      = "ed_visit_date",
+    identity      = "ed_visit",
+)
+
+# Semantics flow into data objects and cleaners
+events    = EventsCleaner(raw_df, event_sem, config).clean()
+ed_visits = Events(df, event_sem)
+
+# And from there into CohortTimeline
+timeline = CohortTimeline.build_from_components(
+    obs_period  = obs,
+    events      = events,
+    occurrences = ed_visits,
+)
 ```
 
 The semantics object travels with the data. Filter methods and copy

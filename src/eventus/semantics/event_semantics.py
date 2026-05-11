@@ -4,9 +4,14 @@ EventSemantics — maps generic concepts to specific column names.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
+import re
 import yaml
 
 _ERROR_PREFIX = "[EventSemantics] Error"
+
+REQUIRED_FIELDS = {"entity_id_col", "start_time_col", "end_time_col"}
+OPTIONAL_FIELDS = {"identity", "event_id_col", "event_type_col", "metadata_cols"}
+ALL_FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 
 
 @dataclass
@@ -48,7 +53,6 @@ class EventSemantics:
  
     def __post_init__(self) -> None:
         if self.identity is not None:
-            import re
             if not re.match(r'^[a-zA-Z0-9_]+$', self.identity):
                 raise ValueError(
                     f"{_ERROR_PREFIX}: identity {self.identity!r} contains "
@@ -71,20 +75,33 @@ class EventSemantics:
         """
         with open(path, "r") as f:
             cfg = yaml.safe_load(f)
-        if not isinstance(cfg, dict):
+        cls._validate_yaml(cfg, path)
+        return cls(**cfg)
+
+    @staticmethod
+    def _validate_yaml(config: dict, path: str) -> None:
+        if not isinstance(config, dict):
             raise ValueError(
-                f"{_ERROR_PREFIX}: YAML must be a mapping, "
-                f"got {type(cfg).__name__}"
+                f"{_ERROR_PREFIX}: YAML at '{path}' must be a mapping, "
+                f"got {type(config).__name__}"
             )
-        valid_keys = set(cls.__dataclass_fields__.keys())
-        unknown = set(cfg.keys()) - valid_keys
+        missing = REQUIRED_FIELDS - config.keys()
+        if missing:
+            raise ValueError(
+                f"{_ERROR_PREFIX}: missing required fields in '{path}': {missing}"
+            )
+        unknown = config.keys() - ALL_FIELDS
         if unknown:
             raise ValueError(
-                f"{_ERROR_PREFIX}: unknown keys in YAML: {sorted(unknown)}. "
-                f"Valid keys: {sorted(valid_keys)}"
+                f"{_ERROR_PREFIX}: unrecognized fields in '{path}': {unknown}"
             )
-        return cls(**cfg)
- 
+        for field_name in REQUIRED_FIELDS:
+            if field_name in config and not isinstance(config[field_name], str):
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: field '{field_name}' in '{path}' "
+                    f"must be a string, got {type(config[field_name]).__name__}"
+                )
+
     def __repr__(self) -> str:
         return (
             f"EventSemantics(\n"
