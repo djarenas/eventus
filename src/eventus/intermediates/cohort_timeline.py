@@ -1,140 +1,253 @@
-"""cohort_timeline.py  
-CohortTimeline — per-entity table of events, occurrences, and observation  
-periods. One row per entity. Multi-value columns stored as pipe-delimited  
-strings.  
-"""  
-from __future__ import annotations  
-import pandas as pd  
-from typing import Optional  
-  
-from eventus.data_objects.events import Events  
-from eventus.data_objects.occurrences import Occurrences  
+"""
+cohort_timeline.py
+CohortTimeline — per-entity table of events, occurrences, and observation
+periods. One row per entity. Multi-value columns stored as pipe-delimited
+strings.
+"""
+from __future__ import annotations
+import pandas as pd
+from typing import Optional
+
+from eventus.data_objects.events import Events
+from eventus.data_objects.occurrences import Occurrences
 from eventus.data_objects.obs_period_per_entity import ObsPeriodPerEntity
-  
-from . import cohort_timeline_utils as utils  
-  
-_ERROR = "[CohortTimeline] Error"  
-    
-class CohortTimeline:  
-    """  
-    I am a per-entity table of events, occurrences, and observation periods.  
-    One row per entity. Multi-value columns are stored as pipe-delimited strings.  
-  
-    Structural invariants  
-    ---------------------  
-    - Exactly zero or one observation period layer  
-    - Zero or more event layers, each with a unique identity  
-    - Zero or more occurrence layers, each with a unique identity  
-    - At least one layer must be present  
-    - One row per entity -- entity_col must be unique and non-null  
-    """  
-  
-    # C++-style attribute declarations  
-    _data: pd.DataFrame                # validated DataFrame, one row per entity  
-    _entity_col: str                   # entity identifier column name  
-    _has_obs_period: bool              # whether observation period layer exists  
-    _event_identities: list[str]       # list of event identity strings present  
-    _occurrence_identities: list[str]  # list of occurrence identity strings present  
-  
-    def __init__(self, data: pd.DataFrame, entity_col: str) -> None:  
-        if not isinstance(data, pd.DataFrame):  
-            raise TypeError(  
-                f"{_ERROR} data must be a pandas DataFrame, "  
-                f"got {type(data).__name__}"  
-            )  
-        if not isinstance(entity_col, str) or not entity_col.strip():  
-            raise TypeError(  
-                f"{_ERROR} entity_col must be a non-empty string, "  
-                f"got {entity_col!r}"  
-            )  
-  
-        columns = data.columns.tolist()  
-        utils.validate_entity_col(data, entity_col)  
-        utils.validate_obs_period_cols(columns)  
-        utils.validate_event_cols(columns)  
-  
-        event_identities = utils.infer_event_identities(columns)  
-        occurrence_identities = utils.infer_occurrence_identities(columns)  
-        has_obs_period = utils.OBS_START_COL in columns and utils.OBS_END_COL in columns  
-  
-        utils.validate_no_duplicate_identities(event_identities, occurrence_identities)  
-        utils.validate_at_least_one_layer(has_obs_period, event_identities, occurrence_identities)  
-  
-        self._data = data.reset_index(drop=True).copy()  
-        self._entity_col = entity_col  
-        self._has_obs_period = has_obs_period  
-        self._event_identities = event_identities  
-        self._occurrence_identities = occurrence_identities  
-  
+
+from . import cohort_timeline_utils as utils
+
+_ERROR = "[CohortTimeline] Error"
+
+class CohortTimeline:
+    """
+    I am a per-entity table of events, occurrences, and observation periods.
+    One row per entity. Multi-value columns are stored as pipe-delimited strings.
+
+    Structural invariants
+    ---------------------
+    - Exactly zero or one observation period layer
+    - Zero or more event layers, each with a unique identity
+    - Zero or more occurrence layers, each with a unique identity
+    - Zero or more computed occurrence layers (occ_comp_{identity}_{stat})
+    - At least one layer must be present
+    - One row per entity -- entity_col must be unique and non-null
+
+    Column taxonomy
+    ---------------
+    {entity_col}                          — entity spine
+    obs_start, obs_end, obs_duration_days — observation period
+    evt_{identity}_starts/ends            — raw events (pipe-delimited)
+    occ_{identity}                        — raw occurrences (pipe-delimited)
+    occ_comp_{identity}_{stat}            — computed occurrence stats
+    """
+
+    _data:                          pd.DataFrame
+    _entity_col:                    str
+    _has_obs_period:                bool
+    _event_identities:              list[str]
+    _occurrence_identities:         list[str]
+    _computed_occurrence_identities: list[str]
+
+    def __init__(self, data: pd.DataFrame, entity_col: str) -> None:
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError(
+                f"{_ERROR} data must be a pandas DataFrame, "
+                f"got {type(data).__name__}"
+            )
+        if not isinstance(entity_col, str) or not entity_col.strip():
+            raise TypeError(
+                f"{_ERROR} entity_col must be a non-empty string, "
+                f"got {entity_col!r}"
+            )
+
+        columns = data.columns.tolist()
+        utils.validate_entity_col(data, entity_col)
+        utils.validate_obs_period_cols(columns)
+        utils.validate_event_cols(columns)
+
+        event_identities      = utils.infer_event_identities(columns)
+        occurrence_identities = utils.infer_occurrence_identities(columns)
+        computed_occ_identities = utils.infer_computed_occurrence_identities(columns)
+        has_obs_period        = utils.OBS_START_COL in columns and utils.OBS_END_COL in columns
+
+        utils.validate_no_duplicate_identities(event_identities, occurrence_identities)
+        utils.validate_at_least_one_layer(has_obs_period, event_identities, occurrence_identities)
+
+        self._data                           = data.reset_index(drop=True).copy()
+        self._entity_col                     = entity_col
+        self._has_obs_period                 = has_obs_period
+        self._event_identities               = event_identities
+        self._occurrence_identities          = occurrence_identities
+        self._computed_occurrence_identities = computed_occ_identities
+
     def copy(self) -> "CohortTimeline":
         return CohortTimeline(self._data.copy(), self._entity_col)
 
-    @property  
-    def data(self) -> pd.DataFrame:  
+    @property
+    def data(self) -> pd.DataFrame:
         return self._data.copy()
-  
-    @property  
-    def entity_col(self) -> str:  
-        return self._entity_col  
-  
-    @property  
-    def has_obs_period(self) -> bool:  
-        return self._has_obs_period  
-  
-    @property  
-    def event_identities(self) -> list[str]:  
-        return list(self._event_identities)  
-  
-    @property  
-    def occurrence_identities(self) -> list[str]:  
-        return list(self._occurrence_identities)  
-  
-    @classmethod  
-    def build_from_components(  
-        cls,  
-        obs_period: Optional[ObsPeriodPerEntity] = None,  
-        events: Optional[Events | list[Events]] = None,  
-        occurrences: Optional[Occurrences | list[Occurrences]] = None,  
-    ) -> "CohortTimeline":  
-        """  
-        Assemble a CohortTimeline from data objects.  
-        Dumb assembler -- no analysis performed.  
-        """  
-        if obs_period is None and events is None and occurrences is None:  
-            raise ValueError(  
-                f"{_ERROR} build_from_components() requires at least one of "  
-                f"obs_period, events, or occurrences."  
-            )  
-  
-        events_list = utils.normalize_to_list(events, Events, "events")  
-        occ_list = utils.normalize_to_list(occurrences, Occurrences, "occurrences")  
-  
-        utils.validate_components(obs_period, events_list, occ_list)  
-        entity_col = utils.resolve_entity_col(obs_period, events_list, occ_list)  
-  
-        result = (  
-            utils.build_obs_period_df(obs_period, entity_col)  
-            if obs_period is not None  
-            else utils.build_entity_spine(events_list, occ_list, entity_col)  
-        )  
-  
-        for evt in events_list:  
-            result = utils.attach_event_columns(result, evt, entity_col)  
-        for occ in occ_list:  
-            result = utils.attach_occurrence_columns(result, occ, entity_col)  
-  
-        return cls(result.reset_index(drop=True), entity_col)  
-  
-    def __len__(self) -> int:  
-        return len(self._data)  
-  
-    def __repr__(self) -> str:  
-        return (  
-            f"CohortTimeline(\n"  
-            f"  entities             : {len(self):,}\n"  
-            f"  entity_col           : '{self._entity_col}'\n"  
-            f"  has_obs_period       : {self._has_obs_period}\n"  
-            f"  event_identities     : {self._event_identities}\n"  
-            f"  occurrence_identities: {self._occurrence_identities}\n"  
-            f")"  
-        )  
+
+    @property
+    def entity_col(self) -> str:
+        return self._entity_col
+
+    @property
+    def has_obs_period(self) -> bool:
+        return self._has_obs_period
+
+    @property
+    def event_identities(self) -> list[str]:
+        return list(self._event_identities)
+
+    @property
+    def occurrence_identities(self) -> list[str]:
+        return list(self._occurrence_identities)
+
+    @property
+    def computed_occurrence_identities(self) -> list[str]:
+        return list(self._computed_occurrence_identities)
+
+    @classmethod
+    def build_from_components(
+        cls,
+        obs_period:  Optional[ObsPeriodPerEntity] = None,
+        events:      Optional[Events | list[Events]] = None,
+        occurrences: Optional[Occurrences | list[Occurrences]] = None,
+    ) -> "CohortTimeline":
+        """
+        Assemble a CohortTimeline from data objects.
+        Dumb assembler -- no analysis performed.
+        """
+        if obs_period is None and events is None and occurrences is None:
+            raise ValueError(
+                f"{_ERROR} build_from_components() requires at least one of "
+                f"obs_period, events, or occurrences."
+            )
+
+        events_list = utils.normalize_to_list(events, Events, "events")
+        occ_list    = utils.normalize_to_list(occurrences, Occurrences, "occurrences")
+
+        utils.validate_components(obs_period, events_list, occ_list)
+        entity_col = utils.resolve_entity_col(obs_period, events_list, occ_list)
+
+        result = (
+            utils.build_obs_period_df(obs_period, entity_col)
+            if obs_period is not None
+            else utils.build_entity_spine(events_list, occ_list, entity_col)
+        )
+
+        for evt in events_list:
+            result = utils.attach_event_columns(result, evt, entity_col)
+        for occ in occ_list:
+            result = utils.attach_occurrence_columns(result, occ, entity_col)
+
+        return cls(result.reset_index(drop=True), entity_col)
+
+    def sample_subset(self, n: int, random_seed: int = 42) -> "CohortTimeline":
+        """
+        Return a new CohortTimeline with a random subset of n entities.
+
+        Raises
+        ------
+        ValueError
+            If n exceeds the number of entities in the CohortTimeline.
+        """
+        if n > len(self):
+            raise ValueError(
+                f"{_ERROR} n={n} exceeds the number of entities ({len(self):,}). "
+                f"Cannot sample more entities than are present."
+            )
+        sampled = self._data.sample(n=n, random_state=random_seed).reset_index(drop=True)
+        return CohortTimeline(sampled, self._entity_col)
+
+    def enrich_with_event_analysis(self, event_identity: str) -> "CohortTimeline":
+        """
+        Return a new CohortTimeline enriched with evt_comp_{event_identity}_*
+        coverage columns. Always overwrites existing columns.
+
+        Raises
+        ------
+        TypeError / ValueError
+            Forwarded from CohortTimelineEventAnalyzer, prefixed with
+            [CohortTimeline] Error.
+        """
+        from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
+        try:
+            analyzer = CohortTimelineEventAnalyzer(self, event_identity)
+            return analyzer.enrich_with_event_coverage()
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"{_ERROR}: {exc}") from exc
+
+    def enrich_with_occurrence_volume_analysis(self, occurrence_identity: str) -> "CohortTimeline":
+        """
+        Return a new CohortTimeline enriched with occ_comp_{occurrence_identity}_n.
+        Always overwrites existing columns.
+
+        Raises
+        ------
+        TypeError / ValueError
+            Forwarded from CohortTimelineOccurrenceAnalyzer, prefixed with
+            [CohortTimeline] Error.
+        """
+        from eventus.analyzers.cohort_timeline_occurrence_analyzer import CohortTimelineOccurrenceAnalyzer
+        try:
+            analyzer = CohortTimelineOccurrenceAnalyzer(self, occurrence_identity)
+            return analyzer.enrich_with_volume()
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"{_ERROR}: {exc}") from exc
+
+    def enrich_with_occurrence_timing_analysis(self, occurrence_identity: str, max_n: int) -> "CohortTimeline":
+        """
+        Return a new CohortTimeline enriched with
+        occ_comp_{occurrence_identity}_time_to_1 ... time_to_{max_n} and recency_days.
+        Always overwrites existing columns.
+
+        Parameters
+        ----------
+        max_n : int
+            Maximum nth occurrence to compute timing for. Must be >= 1.
+
+        Raises
+        ------
+        TypeError / ValueError
+            Forwarded from CohortTimelineOccurrenceAnalyzer, prefixed with
+            [CohortTimeline] Error.
+        """
+        from eventus.intermediates.cohort_timeline_occurrence_analyzer import CohortTimelineOccurrenceAnalyzer
+        try:
+            analyzer = CohortTimelineOccurrenceAnalyzer(self, occurrence_identity)
+            return analyzer.enrich_with_timing(max_n)
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"{_ERROR}: {exc}") from exc
+
+    def enrich_with_occurrence_shape_analysis(self, occurrence_identity: str) -> "CohortTimeline":
+        """
+        Return a new CohortTimeline enriched with occ_comp_{occurrence_identity}_mean_gap,
+        std_gap, cv_gap, min_gap, max_gap, burstiness, memory, density, center_of_mass.
+        Always overwrites existing columns.
+
+        Raises
+        ------
+        TypeError / ValueError
+            Forwarded from CohortTimelineOccurrenceAnalyzer, prefixed with
+            [CohortTimeline] Error.
+        """
+        from eventus.intermediates.cohort_timeline_occurrence_analyzer import CohortTimelineOccurrenceAnalyzer
+        try:
+            analyzer = CohortTimelineOccurrenceAnalyzer(self, occurrence_identity)
+            return analyzer.enrich_with_shape()
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"{_ERROR}: {exc}") from exc
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __repr__(self) -> str:
+        return (
+            f"CohortTimeline(\n"
+            f"  entities                    : {len(self):,}\n"
+            f"  entity_col                  : '{self._entity_col}'\n"
+            f"  has_obs_period              : {self._has_obs_period}\n"
+            f"  event_identities            : {self._event_identities}\n"
+            f"  occurrence_identities       : {self._occurrence_identities}\n"
+            f"  computed_occurrence_identities: {self._computed_occurrence_identities}\n"
+            f")"
+        )

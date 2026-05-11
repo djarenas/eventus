@@ -26,9 +26,9 @@ from eventus.visualizers.configs.plot_config_utils import (
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_PREFIX = "ActivityOverTimeConfig"
+_PREFIX = "activity over time config"
 
-_VALID_X_UNITS   = {"days", "months", "years"}
+_VALID_X_UNITS    = {"days", "months", "years"}
 _VALID_FLOW_MODES = {"bar", "scatter"}
 
 
@@ -38,14 +38,14 @@ _VALID_FLOW_MODES = {"bar", "scatter"}
 class TimeConfig:
     """Time axis/tick behavior and optional matplotlib style."""
 
-    x_unit:     str       = "months"
-    x_interval: int       = 1
+    x_unit:     str        = "months"
+    x_interval: int        = 1
     mpl_style:  str | None = "seaborn-v0_8-whitegrid"
 
-    _PREFIX: ClassVar[str] = "ActivityOverTimeConfig TimeConfig"
+    _PREFIX: ClassVar[str] = "activity time"
 
     def __post_init__(self) -> None:
-        validate_choice(self.x_unit, _VALID_X_UNITS, "time.x_unit", self._PREFIX)
+        validate_choice(self.x_unit, _VALID_X_UNITS, "x_unit", self._PREFIX)
         self.x_interval = validate_positive_integer(self.x_interval, self._PREFIX, "x_interval")
 
 
@@ -59,7 +59,7 @@ class ActivityLineStyleConfig(AxisStyleConfig):
     linewidth:  float = 1.5
     fill_alpha: float = 0.15
 
-    _PREFIX: ClassVar[str] = "ActivityOverTimeConfig ActivityLineStyleConfig"
+    _PREFIX: ClassVar[str] = "activity line style"
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -81,19 +81,19 @@ class FlowStyleConfig:
     max_size:        int   = 200
     min_size:        int   = 20
 
-    _PREFIX: ClassVar[str] = "ActivityOverTimeConfig FlowStyleConfig"
+    _PREFIX: ClassVar[str] = "activity flow style"
 
     def __post_init__(self) -> None:
-        validate_choice(self.mode, _VALID_FLOW_MODES, "flow_style.mode", self._PREFIX)
-        validate_hex(self.entered_color,   "flow_style.entered_color",   self._PREFIX)
-        validate_hex(self.exited_color,    "flow_style.exited_color",    self._PREFIX)
-        validate_hex(self.zero_line_color, "flow_style.zero_line_color", self._PREFIX)
+        validate_choice(self.mode, _VALID_FLOW_MODES, "mode", self._PREFIX)
+        validate_hex(self.entered_color,   "entered_color",   self._PREFIX)
+        validate_hex(self.exited_color,    "exited_color",    self._PREFIX)
+        validate_hex(self.zero_line_color, "zero_line_color", self._PREFIX)
         if not (0.0 < float(self.bar_width) <= 1.0):
-            raise err(self._PREFIX, f"flow_style.bar_width must be in (0, 1], got {self.bar_width}")
+            raise err(self._PREFIX, f"bar_width must be in (0, 1], got {self.bar_width}")
         self.max_size = validate_positive_integer(self.max_size, self._PREFIX, "max_size")
         self.min_size = validate_positive_integer(self.min_size, self._PREFIX, "min_size")
         if self.min_size > self.max_size:
-            raise err(self._PREFIX, "flow_style.min_size cannot exceed flow_style.max_size")
+            raise err(self._PREFIX, "min_size cannot exceed max_size")
 
 
 @dataclass
@@ -103,11 +103,11 @@ class ActivityLayoutConfig:
     top_height_ratio:    int = 4
     bottom_height_ratio: int = 1
 
-    _PREFIX: ClassVar[str] = "ActivityOverTimeConfig ActivityLayoutConfig"
+    _PREFIX: ClassVar[str] = "activity layout"
 
     def __post_init__(self) -> None:
-        self.top_height_ratio    = validate_positive_integer(self.top_height_ratio,    self._PREFIX, "layout.top_height_ratio")
-        self.bottom_height_ratio = validate_positive_integer(self.bottom_height_ratio, self._PREFIX, "layout.bottom_height_ratio")
+        self.top_height_ratio    = validate_positive_integer(self.top_height_ratio,    self._PREFIX, "top_height_ratio")
+        self.bottom_height_ratio = validate_positive_integer(self.bottom_height_ratio, self._PREFIX, "bottom_height_ratio")
 
 
 # ── Concrete config ───────────────────────────────────────────────────────────

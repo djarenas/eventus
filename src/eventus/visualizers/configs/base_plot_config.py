@@ -44,7 +44,7 @@ class CanvasConfig:
     dpi:       int                 = 120
     font_size: int                 = 12
 
-    _PREFIX: ClassVar[str] = "CanvasConfig"
+    _PREFIX: ClassVar[str] = "canvas"
 
     def __post_init__(self) -> None:
         self.figsize   = validate_figsize(self.figsize, self._PREFIX)
@@ -90,11 +90,11 @@ class AxisConfig:
     y_tick_format:   str | None         = None
     tick_font_size:  int | None         = None
 
-    _PREFIX: ClassVar[str] = "AxisConfig"
+    _PREFIX: ClassVar[str] = "axis"
 
     def __post_init__(self) -> None:
-        self.x_tick_rotation = validate_rotation(self.x_tick_rotation, self._PREFIX)
-        self.y_tick_rotation = validate_rotation(self.y_tick_rotation, self._PREFIX)
+        self.x_tick_rotation = validate_rotation(self.x_tick_rotation, self._PREFIX, "x_tick_rotation")
+        self.y_tick_rotation = validate_rotation(self.y_tick_rotation, self._PREFIX, "y_tick_rotation")
         self.tick_font_size  = validate_font_size(self.tick_font_size,  self._PREFIX)
         self.x_ticks         = validate_ticks(self.x_ticks,            self._PREFIX)
         self.y_ticks         = validate_ticks(self.y_ticks,            self._PREFIX)
@@ -107,7 +107,7 @@ class BaseStyleConfig:
     """Alpha — the only truly universal style field."""
     alpha: float = 0.85
 
-    _PREFIX: ClassVar[str] = "BaseStyleConfig"
+    _PREFIX: ClassVar[str] = "style"
 
     def __post_init__(self) -> None:
         self.alpha = validate_alpha(self.alpha, self._PREFIX)
@@ -124,7 +124,7 @@ class AxisStyleConfig(BaseStyleConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        validate_hex(self.color, self._PREFIX, "style.color")
+        validate_hex(self.color, "color", self._PREFIX)
 
 
 @dataclass
@@ -139,7 +139,7 @@ class EdgeStyleConfig(AxisStyleConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        validate_hex(self.edgecolor, self._PREFIX, "style.edgecolor")
+        validate_hex(self.edgecolor, "edgecolor", self._PREFIX)
 
 
 # ── Base plot config ──────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ class BasePlotConfig:
     """
     canvas: CanvasConfig = field(default_factory=CanvasConfig)
 
-    _PREFIX:   ClassVar[str]      = "BasePlotConfig"
+    _PREFIX:   ClassVar[str]      = "plot config"
     _SECTIONS: ClassVar[set[str]] = set()
 
     def __post_init__(self) -> None:

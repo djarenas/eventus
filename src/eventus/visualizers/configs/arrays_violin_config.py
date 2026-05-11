@@ -44,7 +44,7 @@ from eventus.visualizers.configs.violin_style_config import (
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_PREFIX = "ArraysViolinConfig"
+_PREFIX = "arrays violin config"
 
 
 # ── Concrete config ───────────────────────────────────────────────────────────
@@ -139,9 +139,9 @@ class ArraysViolinConfig(BasePlotConfig):
     ) -> "ArraysViolinConfig":
         return cls(
             canvas      = canvas,
-            labels      = build_section(AxisLabels,       data.get("labels"),      _PREFIX),
-            axes        = build_section(ViolinAxisConfig, data.get("axes"),        _PREFIX),
-            style       = build_section(ViolinStyleConfig, data.get("style"),      _PREFIX),
+            labels      = build_section(AxisLabels,        data.get("labels"),      _PREFIX),
+            axes        = build_section(ViolinAxisConfig,  data.get("axes"),        _PREFIX),
+            style       = build_section(ViolinStyleConfig, data.get("style"),       _PREFIX),
             percentiles = build_section(PercentilesConfig, data.get("percentiles"), _PREFIX),
             categories  = parse_categories(data.get("categories")),
         )

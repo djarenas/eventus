@@ -7,9 +7,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from eventus.intermediates.event_activity_over_time import EventActivityOverTime
+from eventus.intermediates.event_activity_over_time  import EventActivityOverTime
+from eventus.intermediates.event_coverage_summary    import EventCoverageSummary
 
-_ERROR = "[CohortTimelineEventAnalyzer] Error"
+_ERROR   = "[CohortTimelineEventAnalyzer] Error"
 _WARNING = "[CohortTimelineEventAnalyzer] Warning"
 _OBS_START_TOLERANCE_FOR_CALENDAR_MODE = 2
 
@@ -19,13 +20,16 @@ _OBS_START_TOLERANCE_FOR_CALENDAR_MODE = 2
 
 def evt_starts_col(identity: str) -> str:  return f"evt_{identity}_starts"
 def evt_ends_col(identity: str) -> str:    return f"evt_{identity}_ends"
-def active_col(identity: str) -> str:      return f"evt_{identity}_active_days"
-def inactive_col(identity: str) -> str:    return f"evt_{identity}_inactive_days"
-def before_col(identity: str) -> str:      return f"evt_{identity}_inactive_days_before_first_event"
-def after_col(identity: str) -> str:       return f"evt_{identity}_inactive_days_after_last_event"
-def middle_col(identity: str) -> str:      return f"evt_{identity}_inactive_days_middle"
-def first_col(identity: str) -> str:       return f"evt_{identity}_first_start"
-def last_col(identity: str) -> str:        return f"evt_{identity}_last_end"
+def evt_comp_col(identity: str, stat: str) -> str: return f"evt_comp_{identity}_{stat}"
+
+# Computed coverage column helpers
+def active_col(identity: str) -> str:  return evt_comp_col(identity, "active_days")
+def inactive_col(identity: str) -> str: return evt_comp_col(identity, "inactive_days")
+def before_col(identity: str) -> str:  return evt_comp_col(identity, "inactive_days_before_first_event")
+def after_col(identity: str) -> str:   return evt_comp_col(identity, "inactive_days_after_last_event")
+def middle_col(identity: str) -> str:  return evt_comp_col(identity, "inactive_days_middle")
+def first_col(identity: str) -> str:   return evt_comp_col(identity, "first_start")
+def last_col(identity: str) -> str:    return evt_comp_col(identity, "last_end")
 
 # ------------------------------------------------------------------ #
 # Guards
@@ -45,18 +49,14 @@ def require_identity_present(identity: str, event_identities: list[str]) -> None
             f"event_identities: {event_identities}"
         )
 
-def is_coverage_already_analyzed(identity: str, columns: list[str]) -> bool:
-    col = active_col(identity)
-    if col in columns:
-        return True
-    return False
+def is_coverage_computed(identity: str, columns: list[str]) -> bool:
+    return active_col(identity) in columns
 
 def require_coverage_exists(identity: str, columns: list[str], method: str) -> None:
-    col = active_col(identity)
-    if col not in columns:
+    if not is_coverage_computed(identity, columns):
         raise ValueError(
-            f"{_ERROR} .{method}() requires '{col}'. "
-            f"Call compute_coverage() first."
+            f"{_ERROR} .{method}() requires '{active_col(identity)}'. "
+            f"Call enrich_with_event_coverage() first."
         )
 
 # ------------------------------------------------------------------ #
@@ -136,8 +136,6 @@ def _compute_entity_coverage(
 
     before_days = (first_start - obs_start).days
     after_days  = (obs_end     - last_end).days
-
-    # Middle gaps — inactive days between first and last event
     middle_days = (
         (last_end - first_start).days
         - sum((e - s).days for s, e in intervals)
@@ -161,11 +159,12 @@ def compute_coverage(
 ) -> pd.DataFrame:
     """
     Compute active/inactive day columns for evt_{identity} within each
-    entity's observation period. Works directly on the CohortTimeline
-    DataFrame — no intermediate objects.
+    entity's observation period. Always overwrites existing evt_comp_
+    columns for this identity.
 
-    Returns the input DataFrame with analysis columns appended.
-    All columns are NA for entities with no events in their obs period.
+    Returns the input DataFrame with evt_comp_{identity}_* columns
+    appended or overwritten. All columns are NA for entities with no
+    events in their obs period.
     """
     out = data.copy()
 
@@ -263,37 +262,30 @@ def _active_at_day(intervals: pd.DataFrame, entity_col: str, day: int) -> set:
         return set()
     mask = (intervals["start_day"] <= day) & (intervals["end_day"] > day)
     return set(intervals.loc[mask, entity_col].unique())
-  
-def _return_shared_obs_start(data: pd.DataFrame, tolerance_days: int) -> pd.Timestamp:  
-    """  
-    Raise if obs_start differs by more than `tolerance_days` across entities.  
-    Returns a shared obs_start as a normalized Timestamp (earliest date).  
-    """  
-    starts = pd.to_datetime(data["obs_start"]).dt.normalize()  
-    min_start = starts.min()  
-    max_start = starts.max()  
-  
-    # Calculate difference in days  
-    max_diff = (max_start - min_start).days  
-  
-    if max_diff > tolerance_days:  
-        # Find which obs_start values are outside the tolerance  
-        too_early = starts[starts < min_start + pd.Timedelta(days=tolerance_days)]  
-        too_late  = starts[starts > max_start - pd.Timedelta(days=tolerance_days)]  
-  
-        # Prepare examples (convert to strings for printing)  
-        unique_starts = starts.unique()  
-        example_values = sorted(str(s.date()) for s in unique_starts)  
-        example_preview = ", ".join(example_values[:5])  # limit to first 5 for brevity  
-  
-        raise ValueError(  
-            f"mode='calendar' requires obs_start within {tolerance_days} days. "  
-            f"Found a range of {max_diff} days between earliest ({min_start.date()}) "  
-            f"and latest ({max_start.date()}). "  
-            f"Example differing values: {example_preview}"  
-        )  
-  
-    return min_start  
+
+
+def _return_shared_obs_start(data: pd.DataFrame, tolerance_days: int) -> pd.Timestamp:
+    """
+    Raise if obs_start differs by more than `tolerance_days` across entities.
+    Returns a shared obs_start as a normalized Timestamp (earliest date).
+    """
+    starts    = pd.to_datetime(data["obs_start"]).dt.normalize()
+    min_start = starts.min()
+    max_start = starts.max()
+    max_diff  = (max_start - min_start).days
+
+    if max_diff > tolerance_days:
+        unique_starts  = starts.unique()
+        example_values = sorted(str(s.date()) for s in unique_starts)
+        example_preview = ", ".join(example_values[:5])
+        raise ValueError(
+            f"mode='calendar' requires obs_start within {tolerance_days} days. "
+            f"Found a range of {max_diff} days between earliest ({min_start.date()}) "
+            f"and latest ({max_start.date()}). "
+            f"Example differing values: {example_preview}"
+        )
+
+    return min_start
 
 
 def calc_activity_over_time(
@@ -306,25 +298,6 @@ def calc_activity_over_time(
     """
     Compute per-timepoint activity statistics and return an
     EventActivityOverTime result object.
-
-    Parameters
-    ----------
-    data : pd.DataFrame
-        CohortTimeline data with coverage analysis columns present.
-    entity_col : str
-        Entity identifier column name.
-    identity : str
-        Event identity.
-    granularity : str
-        Time resolution — 'day', 'week', or 'month'.
-    mode : str
-        'normalized' — day offsets relative to each entity's own obs_start.
-        'calendar'   — day offsets relative to the shared cohort obs_start.
-                       Raises if obs_start is not uniform across entities.
-
-    Returns
-    -------
-    EventActivityOverTime
     """
     if granularity not in {"day", "week", "month"}:
         raise ValueError(
@@ -452,3 +425,21 @@ def calc_tier3(
         f"t3_inactive_days_middle (n={len(middle_pos)})":
             _stats(middle_pos[middle_col(identity)], percentiles),
     }
+
+
+def calc_summary(
+    data:        pd.DataFrame,
+    entity_col:  str,
+    identity:    str,
+    percentiles: list[int] = [25, 50, 75],
+) -> EventCoverageSummary:
+    """
+    Compute all three summary tiers and return an EventCoverageSummary.
+    Requires coverage columns to already exist on data.
+    """
+    return EventCoverageSummary(
+        identity = identity,
+        tier1    = calc_tier1(data, entity_col, identity),
+        tier2    = calc_tier2(data, entity_col, identity),
+        tier3    = calc_tier3(data, entity_col, identity, percentiles),
+    )

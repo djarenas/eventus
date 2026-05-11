@@ -4,21 +4,21 @@ OccurrenceResultTimingPlotter — plots for OccurrenceResultTiming.
 
 Plot methods
 ------------
-plot_histogram(path)            — faceted nth-occurrence timing histograms
-plot_survival(path, survival)   — KM survival curve
+plot_histogram(path) — faceted nth-occurrence timing histograms, one per nth,
+                       all sharing the same x-axis scale
 """
 from __future__ import annotations
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from eventus.intermediates.occurrence_result_timing import OccurrenceResultTiming
-from eventus.intermediates.survival_result          import SurvivalResult
-from .occurrence_result_plotter_config import OccurrenceResultTimingConfig
-from . import occurrence_result_plotter_utils        as shared_utils
-from . import occurrence_result_timing_plotter_utils as timing_utils
+from eventus.visualizers.configs.occurrence_result_timing_config import OccurrenceResultTimingConfig
+from eventus.visualizers.occurrences import occurrence_result_plotter_utils        as shared_utils
+from eventus.visualizers.occurrences import occurrence_result_timing_plotter_utils as timing_utils
 
-_ERROR = "[OccurrenceResultTimingPlotter] Error"
+_ERROR = "[OccurrenceResultTimingPlotter]"
 
 
 class OccurrenceResultTimingPlotter:
@@ -29,7 +29,7 @@ class OccurrenceResultTimingPlotter:
     ----------
     timing : OccurrenceResultTiming
     config : OccurrenceResultTimingConfig | None
-        Plot configuration. Uses build_with_defaults() if not provided.
+        Plot configuration. Defaults to OccurrenceResultTimingConfig() if not provided.
     """
 
     _timing: OccurrenceResultTiming
@@ -46,7 +46,7 @@ class OccurrenceResultTimingPlotter:
                 f"got {type(timing).__name__}"
             )
         if config is None:
-            config = OccurrenceResultTimingConfig.build_with_defaults()
+            config = OccurrenceResultTimingConfig()
         if not isinstance(config, OccurrenceResultTimingConfig):
             raise TypeError(
                 f"{_ERROR} config must be an OccurrenceResultTimingConfig, "
@@ -55,9 +55,7 @@ class OccurrenceResultTimingPlotter:
         self._timing = timing
         self._config = config
 
-    # ------------------------------------------------------------------ #
-    # Plot methods
-    # ------------------------------------------------------------------ #
+    # ── Plot methods ──────────────────────────────────────────────────────────
 
     def plot_histogram(self, path: str) -> None:
         """
@@ -71,20 +69,20 @@ class OccurrenceResultTimingPlotter:
         """
         shared_utils.validate_path(path, _ERROR)
 
-        cfg    = self._config
-        data   = self._timing.data
-        max_n  = self._timing.max_n
+        cfg   = self._config
+        data  = self._timing.data
+        max_n = self._timing.max_n
 
-        # Collect all nth series for shared x-limit computation
+        # Collect all nth series
         nth_series = {
             nth: data[f"time_to_{nth}"].astype(float)
             for nth in range(1, max_n + 1)
         }
 
-        # Shared x limits — computed across all nths
+        # Shared x limits — computed from the base histogram bins across all nths
         x_min, x_max = shared_utils.resolve_x_limits(
             series_list = list(nth_series.values()),
-            cfg         = cfg.histogram,
+            bins_cfg    = cfg.histogram.bins,
         )
 
         fig, axes = timing_utils.build_faceted_figure(
@@ -93,20 +91,19 @@ class OccurrenceResultTimingPlotter:
             facet_width  = cfg.facet.facet_width,
         )
 
-        shared_utils.apply_general_config(
-            fig             = fig,
-            axes            = axes,
-            style           = cfg.general.style,
-            font_size       = cfg.general.font_size,
-            title_font_size = cfg.general.title_font_size,
-            title           = cfg.general.title,
-            auto_title      = f"Time to nth occurrence — {self._timing.identity}",
+        shared_utils.apply_style(
+            fig        = fig,
+            axes       = axes,
+            canvas     = cfg.canvas,
+            labels     = cfg.histogram.labels,
+            auto_title = f"Time to nth occurrence — {self._timing.identity}",
         )
 
         for nth, ax in zip(range(1, max_n + 1), axes):
-            series      = nth_series[nth]
-            n_eligible  = int(series.notna().sum())
-            hist_cfg    = cfg.resolve_histogram_for_nth(nth)
+            # Resolution logic lives here in the plotter, not in the config
+            hist_cfg   = cfg.histogram_per_n.get(nth, cfg.histogram)
+            series     = nth_series[nth]
+            n_eligible = int(series.notna().sum())
 
             timing_utils.draw_nth_facet(
                 ax                     = ax,
@@ -115,106 +112,16 @@ class OccurrenceResultTimingPlotter:
                 x_min                  = x_min,
                 x_max                  = x_max,
                 histogram_cfg          = hist_cfg,
-                font_size              = cfg.general.font_size,
+                font_size              = cfg.canvas.font_size,
                 n_eligible             = n_eligible,
                 n_total                = self._timing.n_entities,
                 show_denominator_label = True,
             )
 
         fig.tight_layout()
-        shared_utils.save_figure(fig, path, cfg.general.dpi)
+        shared_utils.save_figure(fig, path, cfg.canvas.dpi)
 
-    def plot_survival(
-        self,
-        path:     str,
-        survival: SurvivalResult,
-    ) -> None:
-        """
-        Plot a Kaplan-Meier survival curve from a SurvivalResult.
-
-        The curve shows the probability of NOT yet having a first
-        occurrence by day t. Entities with no occurrence are correctly
-        treated as right-censored at their obs_duration.
-
-        Parameters
-        ----------
-        path : str
-            Output file path. Must end in .png, .jpg, or .jpeg.
-        survival : SurvivalResult
-            Produced by CohortTimelineOccurrenceAnalyzer.compute_survival().
-        """
-        shared_utils.validate_path(path, _ERROR)
-
-        if not isinstance(survival, SurvivalResult):
-            raise TypeError(
-                f"{_ERROR} survival must be a SurvivalResult, "
-                f"got {type(survival).__name__}"
-            )
-
-        cfg = self._config
-        fig, ax = plt.subplots(
-            figsize=cfg.general.figsize or [10, 6]
-        )
-
-        shared_utils.apply_general_config(
-            fig             = fig,
-            axes            = ax,
-            style           = cfg.general.style,
-            font_size       = cfg.general.font_size,
-            title_font_size = cfg.general.title_font_size,
-            title           = cfg.general.title,
-            auto_title      = (
-                f"Time to first {survival.label} — KM survival curve\n"
-                f"n={survival.n_total:,}  |  "
-                f"events={survival.n_events_total:,} ({survival.event_rate_pct}%)  |  "
-                f"censored={survival.n_censored_total:,}"
-            ),
-        )
-
-        if survival.data.empty:
-            ax.text(
-                0.5, 0.5, "No events observed — survival curve unavailable",
-                transform = ax.transAxes,
-                ha        = "center",
-                va        = "center",
-                fontsize  = cfg.general.font_size,
-                color     = "#AAAAAA",
-            )
-        else:
-            timing_utils.draw_survival_curve(
-                ax            = ax,
-                survival_data = survival.data,
-                curve_cfg     = cfg.survival,
-                font_size     = cfg.general.font_size,
-                label         = survival.label,
-            )
-
-            median = survival.median_survival
-            if median is not None:
-                ax.axvline(
-                    x         = median,
-                    color     = cfg.survival.color,
-                    linestyle = "--",
-                    linewidth = 1.0,
-                    alpha     = 0.5,
-                )
-                ax.text(
-                    median + 1,
-                    0.52,
-                    f"median={median:.0f}d",
-                    fontsize = cfg.general.font_size - 1,
-                    color    = cfg.survival.color,
-                )
-
-            if cfg.survival.show_ci:
-                ax.legend(fontsize=cfg.general.font_size - 1)
-
-        fig.tight_layout()
-        shared_utils.save_figure(fig, path, cfg.general.dpi)
-
-    # ------------------------------------------------------------------ #
-    # Dunder
-    # ------------------------------------------------------------------ #
+    # ── Dunder ────────────────────────────────────────────────────────────────
 
     def __repr__(self) -> str:
         return (

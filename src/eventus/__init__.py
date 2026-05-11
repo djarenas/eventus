@@ -50,20 +50,21 @@ from eventus.visualizers.stacked_timeline_plotter import StackedTimelinePlotter
 from eventus.visualizers.configs.arrays_violin_config import ArraysViolinConfig
 from eventus.visualizers.configs.stacked_timeline_config import StackedTimelineConfig
 from eventus.visualizers.configs.activity_over_time_config import ActivityOverTimeConfig
+from eventus.visualizers.configs.occurrence_result_shape_config import OccurrenceResultShapeConfig
+from eventus.visualizers.configs.occurrence_result_timing_config import OccurrenceResultTimingConfig
+from eventus.visualizers.configs.occurrence_result_volume_config import OccurrenceResultVolumeConfig
 
-# Violins
+# Visualizers: Occurrences
+from eventus.visualizers.occurrences.occurrence_result_shape_plotter import OccurrenceResultShapePlotter
+from eventus.visualizers.occurrences.occurrence_result_timing_plotter import OccurrenceResultTimingPlotter
+from eventus.visualizers.occurrences.occurrence_result_volume_plotter import OccurrenceResultVolumePlotter
+
+
+# Visualizers: Violins
 from eventus.visualizers.violins.arrays_violin_plotter import ArraysViolinPlotter
 from eventus.visualizers.violins.event_coverage_violin_plotter import EventCoverageViolinPlotter 
 
 
-# # Occurrences result visualizers
-# from eventus.visualizers.occurrences.occurrence_result_plotter_config import (
-#     OccurrenceResultVolumeConfig, 
-#     OccurrenceResultTimingConfig, 
-#     OccurrenceResultShapeConfig)
-# from eventus.visualizers.occurrences.occurrence_result_shape_plotter import OccurrenceResultShapePlotter
-# from eventus.visualizers.occurrences.occurrence_result_timing_plotter import OccurrenceResultTimingPlotter
-# from eventus.visualizers.occurrences.occurrence_result_volume_plotter import OccurrenceResultVolumePlotter
 
 
 __version__ = "0.1.0"
@@ -98,22 +99,21 @@ __all__ = [
     "StackedTimelineConfig",
     "StackedTimelinePlotter",
     
-    # Visualizer Configs
-    "ArraysViolinConfig",
-    "StackedTimelineConfig",
+    # Visualizers Configs
     "ActivityOverTimeConfig",
+    "ArraysViolinConfig",
+    "OccurrenceResultTimingConfig",
+    "OccurrenceResultShapeConfig",
+    "OccurrenceResultVolumeConfig",
+    "StackedTimelineConfig",
     
-    # Violin visualizers
+    # Visualizers Occurrences
+    "OccurrenceResultShapePlotter",
+    "OccurrenceResultTimingPlotter",
+    "OccurrenceResultVolumePlotter",
+    
+    # Visualizers Violins
     "ArraysViolinPlotter",
-    "EventCoverageViolinPlotter"
+    "EventCoverageViolinPlotter",
 
-    # # OccurrenceResults visualizers
-    # "OccurrenceResultPlotterConfig",
-    # "OccurrenceResultPlotterConfig", 
-    # "OccurrenceResultVolumeConfig", 
-    # "OccurrenceResultTimingConfig", 
-    # "OccurrenceResultShapeConfig",
-    # "OccurrenceResultShapePlotter",
-    # "OccurrenceResultTimingPlotter",
-    # "OccurrenceResultVolumePlotter"
 ]

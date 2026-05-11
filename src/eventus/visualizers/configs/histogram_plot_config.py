@@ -41,7 +41,7 @@ from eventus.visualizers.configs.plot_config_utils import (
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_PREFIX             = "HistogramPlotConfig"
+_PREFIX             = "histogram config"
 _VALID_STRAT_STYLES = {"overlay", "facet"}
 
 
@@ -69,7 +69,7 @@ class HistogramStyleConfig(EdgeStyleConfig):
     # show_grid: bool
     # edgecolor: str
 
-    _PREFIX: ClassVar[str] = _PREFIX
+    _PREFIX: ClassVar[str] = "histogram style"
 
     # no histogram-specific style fields yet
 
@@ -80,11 +80,11 @@ class StratificationConfig:
     Controls stratified histogram rendering.
     Only used when a stratify_by column is passed to the plotter.
     """
-    style:          str                      = "overlay"
-    max_categories: int                      = 10
+    style:          str                       = "overlay"
+    max_categories: int                       = 10
     categories:     dict[str, CategoryConfig] = field(default_factory=dict)
 
-    _PREFIX: ClassVar[str] = _PREFIX
+    _PREFIX: ClassVar[str] = "histogram stratification"
 
     def __post_init__(self) -> None:
         validate_choice(
@@ -154,7 +154,7 @@ class HistogramPlotConfig(BasePlotConfig):
     percentile_lines: PercentilesConfig      = field(default_factory=PercentilesConfig)
     stratification:   StratificationConfig   = field(default_factory=StratificationConfig)
 
-    _PREFIX:   ClassVar[str]      = _PREFIX
+    _PREFIX:   ClassVar[str]      = "histogram config"
     _SECTIONS: ClassVar[set[str]] = {
         "bins", "labels", "axes", "style", "percentile_lines", "stratification",
     }

@@ -227,7 +227,7 @@ class OccurrenceLayerConfig:
             f"occurrences['{self.identity}'].marker", self._PREFIX,
         )
         try:
-            validate_positive_integer(self.size)
+            validate_positive_integer(self.size, self._PREFIX)
         except Exception as e:
             raise ValueError(f"error with size in occurrence layer: {e}")
         validate_alpha(self.alpha,   f"occurrences['{self.identity}'].alpha", self._PREFIX)

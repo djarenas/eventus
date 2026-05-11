@@ -5,7 +5,7 @@ No class state — only data and config inputs.
 
 Arrays and plot_order are always keyed by SHORT metric names
 (e.g. 'active_days', 'inactive_days_before_first_event').
-Full column name construction (evt_{identity}_*) is an internal
+Full column name construction (evt_comp_{identity}_*) is an internal
 detail of the array-building functions only.
 """
 from __future__ import annotations
@@ -70,7 +70,7 @@ def build_total_arrays(
     data : pd.DataFrame
         CohortTimeline data with coverage analysis columns present.
     identity : str
-        Event identity — used to locate evt_{identity}_* columns.
+        Event identity — used to locate evt_comp_{identity}_* columns.
 
     Returns
     -------
@@ -82,7 +82,7 @@ def build_total_arrays(
     plot_order = ["active_days", "inactive_days"]
     arrays: dict[str, np.ndarray] = {}
     for short in plot_order:
-        full_col      = f"evt_{identity}_{short}"
+        full_col      = f"evt_comp_{identity}_{short}"
         arrays[short] = (
             pd.to_numeric(data[full_col], errors="coerce")
             .fillna(0)
@@ -106,7 +106,7 @@ def build_breakdown_arrays(
     data : pd.DataFrame
         CohortTimeline data with coverage analysis columns present.
     identity : str
-        Event identity — used to construct evt_{identity}_* column names.
+        Event identity — used to construct evt_comp_{identity}_* column names.
     breakdown_cols : list[str]
         Short metric names in display order, e.g.
         ['inactive_days_before_first_event', 'inactive_days_after_last_event'].
@@ -122,7 +122,7 @@ def build_breakdown_arrays(
     plot_order: list[str]             = []
 
     for short in breakdown_cols:
-        full_col = f"evt_{identity}_{short}"
+        full_col = f"evt_comp_{identity}_{short}"
         plot_order.append(short)
 
         if full_col not in data.columns:

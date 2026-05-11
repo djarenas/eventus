@@ -4,13 +4,13 @@ EventCoverageViolinPlotter — violin plots from a CohortTimeline with
 event coverage analysis columns.
 
 Two plot methods:
-  plot_total()              — evt_{identity}_active_days vs inactive_days
+  plot_total()              — evt_comp_{identity}_active_days vs inactive_days
   plot_inactive_breakdown() — inactive metrics, filtered to > 0
 
 Drawing is delegated entirely to ArraysViolinPlotter.
 This class is responsible for:
   - validating the CohortTimeline has the required columns
-  - building the short-keyed arrays from evt_{identity}_* columns
+  - building the short-keyed arrays from evt_comp_{identity}_* columns
   - applying unit conversion
   - passing clean arrays + config to ArraysViolinPlotter
 """
@@ -40,8 +40,8 @@ _BREAKDOWN_METRICS = [
 
 
 def _required_cols(identity: str) -> set[str]:
-    """Return all required evt_{identity}_* column names."""
-    p = f"evt_{identity}_"
+    """Return all required evt_comp_{identity}_* column names."""
+    p = f"evt_comp_{identity}_"
     return {
         "obs_duration_days",
         f"{p}active_days",
@@ -68,7 +68,7 @@ class EventCoverageViolinPlotter:
     Parameters
     ----------
     cohort_timeline : CohortTimeline
-        Must have evt_{identity}_* analysis columns present.
+        Must have comp_{identity}_* analysis columns present.
         Call CohortTimelineEventAnalyzer(ct, identity).compute_coverage() first.
     identity : str
         Event identity whose columns to plot.

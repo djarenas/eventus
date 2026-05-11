@@ -7,7 +7,7 @@ a raw YAML-parsed mapping.
 
 Used by:
     StratificationConfig  (histogram_plot_config.py)
-    BaseViolinConfig      (violin_config.py)
+    ArraysViolinConfig    (arrays_violin_config.py)
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from typing import Any
 
 from eventus.visualizers.configs.plot_config_utils import err, validate_hex
 
-_PREFIX = "CategoryConfig"
+_PREFIX = "category"
 
 
 # ── Config dataclass ──────────────────────────────────────────────────────────

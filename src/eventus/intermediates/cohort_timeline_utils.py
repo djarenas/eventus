@@ -1,9 +1,10 @@
 """
-cohort_timelines_utils.py
+cohort_timeline_utils.py
 Validation, schema inference, and assembly utilities for CohortTimeline.
 No class state — only data inputs and outputs.
 """
 from __future__ import annotations
+import warnings
 import pandas as pd
 
 _ERROR = "[CohortTimeline]"
@@ -16,11 +17,24 @@ OBS_START_COL    = "obs_start"
 OBS_END_COL      = "obs_end"
 OBS_DURATION_COL = "obs_duration_days"
 
-_ANALYZED_OCC_SUFFIXES = (
-    "_n", "_first", "_last", "_time_to_first", "_recency_days",
-    "_mean_gap", "_std_gap", "_cv_gap", "_min_gap", "_max_gap",
-    "_burstiness", "_memory", "_density",
-)
+# ------------------------------------------------------------------ #
+# Reserved identity fragment sets
+#
+# Split identities on "_" and check whole fragments only.
+# "computer_time" → ["computer", "time"] — safe
+# "comp_time"     → ["comp", "time"]     — correctly raises
+# ------------------------------------------------------------------ #
+
+_RESERVED_IDENTITY_FRAGMENTS_ERROR = {
+    "comp",   # corrupts the occ_comp_ prefix: occ_comp_comp_x_n is unparseable
+}
+
+_RESERVED_IDENTITY_FRAGMENTS_WARN = {
+    "n", "first", "last", "time", "to", "recency", "days",
+    "mean", "gap", "std", "cv", "min", "max",
+    "burstiness", "memory", "density", "center", "mass",
+    "starts", "ends", "within", "vs",  # cross_comp relationship keywords
+}
 
 # ------------------------------------------------------------------ #
 # Column name helpers
@@ -34,6 +48,9 @@ def evt_ends_col(identity: str) -> str:
 
 def occ_col(identity: str) -> str:
     return f"occ_{identity}"
+
+def occ_comp_col(identity: str, stat: str) -> str:
+    return f"occ_comp_{identity}_{stat}"
 
 # ------------------------------------------------------------------ #
 # Schema inference
@@ -56,14 +73,63 @@ def infer_event_identities(columns: list[str]) -> list[str]:
 
 def infer_occurrence_identities(columns: list[str]) -> list[str]:
     """
-    Return sorted list of occurrence identities from raw occ_{identity}
-    columns — excluding analyzed suffix columns.
+    Return sorted list of raw occurrence identities.
+    Raw occurrence columns are occ_{identity} — excludes occ_comp_ columns.
     """
     return sorted(
         col[4:] for col in columns
         if col.startswith("occ_")
-        and not any(col.endswith(s) for s in _ANALYZED_OCC_SUFFIXES)
+        and not col.startswith("occ_comp_")
     )
+
+
+def infer_computed_occurrence_identities(columns: list[str]) -> list[str]:
+    """
+    Return sorted list of occurrence identities that have been computed
+    (i.e. have at least one occ_comp_{identity}_{stat} column present).
+
+    Parses identity as everything between "occ_comp_" prefix and the
+    final "_{stat}" suffix. Relies on stat names being a closed set —
+    identity names must not collide with reserved fragments.
+    """
+    return sorted({
+        "_".join(col[9:].split("_")[:-1])  # strip "occ_comp_" and trailing stat
+        for col in columns
+        if col.startswith("occ_comp_")
+    })
+
+# ------------------------------------------------------------------ #
+# Identity name validation
+# ------------------------------------------------------------------ #
+
+def validate_identity_name(identity: str) -> None:
+    """
+    Raise if identity contains reserved fragments that would corrupt the
+    occ_comp_ column namespace. Warn if fragments may cause ambiguity.
+
+    Checks whole fragments only (split on "_") so "computer_time" is safe
+    while "comp_time" correctly raises on "comp".
+    """
+    fragments = set(identity.split("_"))
+
+    hard_conflicts = fragments & _RESERVED_IDENTITY_FRAGMENTS_ERROR
+    if hard_conflicts:
+        raise ValueError(
+            f"{_ERROR} occurrence identity '{identity}' contains reserved "
+            f"fragment(s) {sorted(hard_conflicts)} which would corrupt the "
+            f"occ_comp_ column namespace. Consider renaming the identity."
+        )
+
+    soft_conflicts = fragments & _RESERVED_IDENTITY_FRAGMENTS_WARN
+    if soft_conflicts:
+        warnings.warn(
+            f"{_ERROR} occurrence identity '{identity}' contains reserved "
+            f"fragment(s) {sorted(soft_conflicts)} which may cause "
+            f"occ_comp_ columns to be ambiguous when inferred. "
+            f"Consider renaming the identity.",
+            UserWarning,
+            stacklevel=3,
+        )
 
 # ------------------------------------------------------------------ #
 # Validation
@@ -259,13 +325,28 @@ def attach_occurrence_columns(
     return result.merge(pipe_col, on=entity_col, how="left")
 
 
+def attach_occ_comp_columns(
+    data:       pd.DataFrame,
+    stats_df:   pd.DataFrame,
+    identity:   str,
+) -> pd.DataFrame:
+    """
+    Attach computed occurrence stat columns (occ_comp_{identity}_{stat})
+    to data. Overwrites any existing columns with the same names.
+    """
+    result = data.copy()
+    for stat_col in stats_df.columns:
+        result[occ_comp_col(identity, stat_col)] = stats_df[stat_col].values
+    return result
+
+
 def validate_components(
     obs_period:  object,
     events_list: list,
     occ_list:    list,
 ) -> None:
     """
-    Type and identity checks on raw components before assembly.
+    Type, identity, and name checks on raw components before assembly.
     """
     from eventus.data_objects.events import Events
     from eventus.data_objects.occurrences import Occurrences
@@ -298,6 +379,7 @@ def validate_components(
                 f"{_ERROR} occurrences[{i}] has no identity. "
                 f"Set identity in OccurrenceSemantics."
             )
+        validate_identity_name(o.semantics.identity)
 
 
 def resolve_entity_col(obs_period, events_list: list, occ_list: list) -> str:

@@ -1,50 +1,48 @@
 """
 occurrence_result_shape_plotter_utils.py
 Drawing utilities for OccurrenceResultShapePlotter.
-Imports shared primitives from occurrence_result_plotter_utils.
+Shared primitives live in occurrence_result_plotter_utils.
 """
 from __future__ import annotations
-import numpy as np
+
 import pandas as pd
 from matplotlib.axes import Axes
 
-from .occurrence_result_plotter_utils import draw_histogram
+from eventus.visualizers.configs.histogram_plot_config import HistogramPlotConfig
+from eventus.visualizers.configs.occurrence_result_shape_config import ShapeScatterConfig
+from eventus.visualizers.occurrences.occurrence_result_plotter_utils import (
+    draw_histogram,
+    draw_percentile_lines,
+)
 
 
-# ------------------------------------------------------------------ #
-# Fingerprint scatter
-# ------------------------------------------------------------------ #
+# ── Fingerprint scatter ───────────────────────────────────────────────────────
 
 def draw_fingerprint_scatter(
-    ax:          Axes,
-    burstiness:  pd.Series,
-    memory:      pd.Series,
-    scatter_cfg,
-    font_size:   int,
-    n_eligible:  int,
-    n_total:     int,
+    ax:         Axes,
+    burstiness: pd.Series,
+    memory:     pd.Series,
+    scatter_cfg: ShapeScatterConfig,
+    font_size:  int,
+    n_eligible: int,
+    n_total:    int,
 ) -> None:
     """
     Draw burstiness vs memory scatter plot (behavioral fingerprint).
 
     Only entities with both burstiness and memory defined (n >= 4)
-    appear as points. The eligible count is shown in the subtitle.
+    appear as points.
 
     Parameters
     ----------
-    ax : Axes
-    burstiness : pd.Series
-        Per-entity burstiness values. NaN for n < 3.
-    memory : pd.Series
-        Per-entity memory values. NaN for n < 4.
-    scatter_cfg : ShapeScatterConfig
-    font_size : int
-    n_eligible : int
-        Entities with both burstiness and memory defined.
-    n_total : int
-        Total cohort size.
+    ax          : Target Axes.
+    burstiness  : Per-entity burstiness values. NaN for n < 3.
+    memory      : Per-entity memory values. NaN for n < 4.
+    scatter_cfg : ShapeScatterConfig.
+    font_size   : Base font size.
+    n_eligible  : Entities with both burstiness and memory defined.
+    n_total     : Total cohort size.
     """
-    # Only plot where both are defined
     mask = burstiness.notna() & memory.notna()
     b    = burstiness[mask].values
     m    = memory[mask].values
@@ -63,14 +61,13 @@ def draw_fingerprint_scatter(
 
     ax.scatter(
         b, m,
-        color     = scatter_cfg.color,
-        alpha     = scatter_cfg.alpha,
-        s         = scatter_cfg.size,
-        linewidths= 0,
-        zorder    = 3,
+        color      = scatter_cfg.color,
+        alpha      = scatter_cfg.alpha,
+        s          = scatter_cfg.size,
+        linewidths = 0,
+        zorder     = 3,
     )
 
-    # Quadrant reference lines
     if scatter_cfg.show_quadrant_lines:
         ax.axvline(
             x         = 0,
@@ -91,52 +88,49 @@ def draw_fingerprint_scatter(
         ax.grid(True, linestyle="--", alpha=0.3)
         ax.set_axisbelow(True)
 
+    xlabel = scatter_cfg.labels.xlabel or "Burstiness  (< 0 regular  ·  > 0 bursty)"
+    ylabel = scatter_cfg.labels.ylabel or "Memory  (< 0 alternating  ·  > 0 persistent)"
+    ax.set_xlabel(xlabel, fontsize=font_size)
+    ax.set_ylabel(ylabel, fontsize=font_size)
+
     pct = round(100 * n_eligible / n_total, 1) if n_total else 0.0
-    ax.set_xlabel("Burstiness  (< 0 regular  ·  > 0 bursty)", fontsize=font_size)
-    ax.set_ylabel("Memory  (< 0 alternating  ·  > 0 persistent)", fontsize=font_size)
     ax.set_title(
         f"n={n_eligible:,} eligible ({pct}% of cohort, requires n ≥ 4)",
         fontsize=font_size - 1,
     )
 
 
-# ------------------------------------------------------------------ #
-# Distribution histograms (center_of_mass, density)
-# ------------------------------------------------------------------ #
+# ── Distribution histograms ───────────────────────────────────────────────────
 
 def draw_distribution_histogram(
     ax:            Axes,
     series:        pd.Series,
-    histogram_cfg: "SimpleHistogramConfig",
+    histogram_cfg: HistogramPlotConfig,
     font_size:     int,
     n_total:       int,
-    auto_xlabel:   str,
-    auto_ylabel:   str = "Entities",
 ) -> None:
     """
     Draw a single distribution histogram with eligible-count subtitle.
 
+    Labels are read directly from histogram_cfg.labels — set sensible
+    defaults via the factory functions in occurrence_result_shape_config.
+
     Parameters
     ----------
-    ax : Axes
-    series : pd.Series
-        Values to plot. NaN for ineligible entities — dropped before plotting.
-    histogram_cfg : SimpleHistogramConfig
-    font_size : int
-    n_total : int
-        Total cohort size for denominator label.
-    auto_xlabel : str
-        Fallback x-axis label if histogram_cfg.xlabel is None.
-    auto_ylabel : str
-        Fallback y-axis label.
+    ax            : Target Axes.
+    series        : Values to plot. NaN for ineligible entities — dropped before plotting.
+    histogram_cfg : HistogramPlotConfig — provides bins, style, labels, percentile_lines.
+    font_size     : Base font size.
+    n_total       : Total cohort size for denominator label.
     """
     draw_histogram(ax=ax, series=series, cfg=histogram_cfg)
+    draw_percentile_lines(ax=ax, series=series, pct_cfg=histogram_cfg.percentile_lines)
 
     n_eligible = int(series.notna().sum())
     pct        = round(100 * n_eligible / n_total, 1) if n_total else 0.0
 
-    ax.set_xlabel(histogram_cfg.xlabel or auto_xlabel, fontsize=font_size)
-    ax.set_ylabel(histogram_cfg.ylabel or auto_ylabel, fontsize=font_size)
+    ax.set_xlabel(histogram_cfg.labels.xlabel, fontsize=font_size)
+    ax.set_ylabel(histogram_cfg.labels.ylabel, fontsize=font_size)
     ax.set_title(
         f"n={n_eligible:,} eligible ({pct}% of cohort)",
         fontsize=font_size - 1,

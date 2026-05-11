@@ -4,20 +4,21 @@ OccurrenceResultVolumePlotter — plots for OccurrenceResultVolume.
 
 Plot methods
 ------------
-plot_histogram(path)        — distribution of N per entity
-plot_prevalence_bar(path)   — % with any / % with multiple / % with none
+plot_prevalence_bar(path)         — % with any / % with multiple / % with none
+plot_count_distribution_bar(path) — discrete n=0, n=1, ... n=max_n+ breakdown
 """
 from __future__ import annotations
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from eventus.intermediates.occurrence_result_volume import OccurrenceResultVolume
-from .occurrence_result_plotter_config import OccurrenceResultVolumeConfig
-from . import occurrence_result_plotter_utils        as shared_utils
-from . import occurrence_result_volume_plotter_utils as volume_utils
+from eventus.visualizers.configs.occurrence_result_volume_config import OccurrenceResultVolumeConfig
+from eventus.visualizers.occurrences import occurrence_result_plotter_utils        as shared_utils
+from eventus.visualizers.occurrences import occurrence_result_volume_plotter_utils as volume_utils
 
-_ERROR = "[OccurrenceResultVolumePlotter] Error"
+_ERROR = "[OccurrenceResultVolumePlotter]"
 
 
 class OccurrenceResultVolumePlotter:
@@ -28,7 +29,7 @@ class OccurrenceResultVolumePlotter:
     ----------
     volume : OccurrenceResultVolume
     config : OccurrenceResultVolumeConfig | None
-        Plot configuration. Uses build_with_defaults() if not provided.
+        Plot configuration. Defaults to OccurrenceResultVolumeConfig() if not provided.
     """
 
     _volume: OccurrenceResultVolume
@@ -45,7 +46,7 @@ class OccurrenceResultVolumePlotter:
                 f"got {type(volume).__name__}"
             )
         if config is None:
-            config = OccurrenceResultVolumeConfig.build_with_defaults()
+            config = OccurrenceResultVolumeConfig()
         if not isinstance(config, OccurrenceResultVolumeConfig):
             raise TypeError(
                 f"{_ERROR} config must be an OccurrenceResultVolumeConfig, "
@@ -54,50 +55,7 @@ class OccurrenceResultVolumePlotter:
         self._volume = volume
         self._config = config
 
-    # ------------------------------------------------------------------ #
-    # Plot methods
-    # ------------------------------------------------------------------ #
-
-    def plot_histogram(self, path: str) -> None:
-        """
-        Plot the distribution of N occurrences per entity.
-
-        Parameters
-        ----------
-        path : str
-            Output file path. Must end in .png, .jpg, or .jpeg.
-        """
-        shared_utils.validate_path(path, _ERROR)
-
-        cfg      = self._config
-        data     = self._volume.data
-        n_series = data["n"].astype(float)
-
-        fig, ax = plt.subplots(figsize=cfg.histogram.style.figsize)
-
-        shared_utils.apply_general_config(
-            fig             = fig,
-            axes            = ax,
-            style           = cfg.general.style,
-            font_size       = cfg.general.font_size,
-            title_font_size = cfg.general.title_font_size,
-            title           = cfg.general.title,
-            auto_title      = f"Occurrence count distribution — {self._volume.identity}",
-        )
-
-        shared_utils.draw_histogram(
-            ax     = ax,
-            series = n_series,
-            cfg    = cfg.histogram,
-        )
-
-        xlabel = cfg.histogram.xlabel or f"Number of {self._volume.identity} occurrences"
-        ylabel = cfg.histogram.ylabel or "Entities"
-        ax.set_xlabel(xlabel, fontsize=cfg.general.font_size)
-        ax.set_ylabel(ylabel, fontsize=cfg.general.font_size)
-
-        fig.tight_layout()
-        shared_utils.save_figure(fig, path, cfg.general.dpi)
+    # ── Plot methods ──────────────────────────────────────────────────────────
 
     def plot_prevalence_bar(self, path: str) -> None:
         """
@@ -111,38 +69,74 @@ class OccurrenceResultVolumePlotter:
         shared_utils.validate_path(path, _ERROR)
 
         cfg        = self._config
-        data       = self._volume.data
         prevalence = volume_utils.compute_prevalence(
-            n_col   = data["n"],
+            n_col   = self._volume.data["n"],
             n_total = self._volume.n_entities,
         )
 
-        fig, ax = plt.subplots(figsize=cfg.general.figsize or [8, 5])
+        fig, ax = plt.subplots(figsize=cfg.canvas.figsize)
 
-        shared_utils.apply_general_config(
-            fig             = fig,
-            axes            = ax,
-            style           = cfg.general.style,
-            font_size       = cfg.general.font_size,
-            title_font_size = cfg.general.title_font_size,
-            title           = cfg.general.title,
-            auto_title      = f"Occurrence prevalence — {self._volume.identity}",
+        shared_utils.apply_style(
+            fig        = fig,
+            axes       = ax,
+            canvas     = cfg.canvas,
+            labels     = cfg.bar.labels,
+            auto_title = f"Occurrence prevalence — {self._volume.identity}",
         )
 
         volume_utils.draw_prevalence_bar(
             ax         = ax,
             prevalence = prevalence,
             bar_cfg    = cfg.bar,
-            font_size  = cfg.general.font_size,
+            font_size  = cfg.canvas.font_size,
             identity   = self._volume.identity,
         )
 
         fig.tight_layout()
-        shared_utils.save_figure(fig, path, cfg.general.dpi)
+        shared_utils.save_figure(fig, path, cfg.canvas.dpi)
 
-    # ------------------------------------------------------------------ #
-    # Dunder
-    # ------------------------------------------------------------------ #
+    def plot_count_distribution_bar(self, path: str) -> None:
+        """
+        Plot a discrete breakdown of n=0, n=1, ... n=max_n+ occurrences per entity.
+
+        Parameters
+        ----------
+        path : str
+            Output file path. Must end in .png, .jpg, or .jpeg.
+        """
+        shared_utils.validate_path(path, _ERROR)
+
+        cfg     = self._config
+        buckets = volume_utils.compute_count_distribution(
+            n_col   = self._volume.data["n"],
+            n_total = self._volume.n_entities,
+            max_n   = cfg.count_bar.max_n,
+        )
+
+        fig, ax = plt.subplots(figsize=cfg.canvas.figsize)
+
+        shared_utils.apply_style(
+            fig        = fig,
+            axes       = ax,
+            canvas     = cfg.canvas,
+            labels     = cfg.count_bar.labels,
+            auto_title = f"Occurrence count breakdown — {self._volume.identity}",
+        )
+
+        volume_utils.draw_count_distribution_bar(
+            ax        = ax,
+            buckets   = buckets,
+            n_col     = self._volume.data["n"],
+            n_total   = self._volume.n_entities,
+            bar_cfg   = cfg.count_bar,
+            font_size = cfg.canvas.font_size,
+            identity  = self._volume.identity,
+        )
+
+        fig.tight_layout()
+        shared_utils.save_figure(fig, path, cfg.canvas.dpi)
+
+    # ── Dunder ────────────────────────────────────────────────────────────────
 
     def __repr__(self) -> str:
         return (
