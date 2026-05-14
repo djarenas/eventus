@@ -44,40 +44,28 @@ choice.
 > ### The script-based alternative
 >
 > To illustrate the limitations of the script-based paradigm, we asked
-> a large language model to implement the same cleaning pipeline — drop
-> nulls, enforce date bounds, enforce causality, drop duplicates, merge
-> overlapping stays with a gap of 0 days. The result is representative
-> of well-written ad-hoc analysis code, not a criticism of the tool
-> used to generate it.
+> a large language model to implement the same cleaning pipeline,
+> refactored to use global constants — the fairest possible comparison.
+> The script is at `vignettes/without_eventus/clean_hospitalizations_no_eventus.py`.
 >
-> **What the script produced:**
-> - 61 total lines, 42 lines of actual code
-> - Column names hardcoded 33 times — rename one column and it breaks
->   in multiple places
-> - The `gap=0` choice buried as a `<=` inside a loop on line 40 —
->   undocumented, not configurable, invisible to a future reader
-> - No count of rows dropped at each step
-> - No named reason per dropped row — no audit trail
-> - No errors raised on bad input — silent failures throughout
->
-> Refactoring to use global constants required ~59 lines. Still no
-> audit trail. Adding error transparency was estimated at ~90
-> additional lines.
+> | Feature | Without eventus | With eventus | Notes |
+> |---|:---:|:---:|---|
+> | Cleans the data | ✓ | ✓ | ~90 lines vs 8 lines |
+> | Error reporting | ✓ | ✓ | Coded manually vs included at no cost |
+> | Per-row audit trail | ✗ | ✓ | `cleaner.rejected` — one row per rejected input row |
+> | Config is versioned | ✗ | ✓ | YAML file — the record of every decision |
+> | Reusable on new dataset | ✗ | ✓ | Change `EventSemantics` — one place, nothing else breaks |
+> | IRB-ready report | ✗ | ✓ | `cleaner.print_report()` — automatic, no bookkeeping |
+> | Column names decoupled | ✗ | ✓ | `EventSemantics` defined once, never referenced again |
 >
 > **The structural problem is not the code quality — it is the
-> paradigm.** A script couples data-cleaning logic, analytical choices,
-> and column name conventions in a way that is fundamentally difficult
-> to audit, reproduce, or adapt. eventus separates these concerns
-> by design.
+> paradigm.**
 
 ---
 
 ## The eventus solution
 
-### The config file
-
 Every cleaning decision lives in a versioned YAML file — not in code.
-This is the documented, reproducible record of every choice made.
 
 ```yaml
 # configs/hospitalization_cleaner.yaml
@@ -88,18 +76,14 @@ causality_check:   reject
 parse_dates:       true
 drop_duplicates:   true
 merge_overlapping: true
-meaningful_gap:    1       # gaps of 1 day or less treated as continuous stays
-                           # — discharged Monday, readmitted Tuesday = one episode
-                           # set to 0 to treat them as separate stays
+meaningful_gap:    1       # gaps of 1 day or less = one continuous stay
+                           # set to 0 to treat next-day readmissions as separate
 date_floor:        "1920-01-01"
 date_ceiling:      "2030-01-01"
 ```
 
-`meaningful_gap: 1` is the answer to Problem 5. It is explicit,
-versioned, and documented in plain English. A collaborator reading
-this file in six months knows exactly what was decided and why.
-
-### The code
+`meaningful_gap: 1` is the answer to Problem 5. Explicit, versioned,
+documented in plain English.
 
 ```python
 import pandas as pd
@@ -114,15 +98,7 @@ sem    = EventSemantics(
     identity       = "inpatient_hospitalization",
 )
 
-config = EventsCleanerConfig.build_from_yaml("configs/hospitalization_cleaner.yaml")
-events = EventsCleaner(raw_hosp_df, sem, config).clean()
-```
-
-Three lines of analysis code. The decisions live in the YAML.
-
-### The audit trail
-
-```python
+config  = EventsCleanerConfig.build_from_yaml("configs/hospitalization_cleaner.yaml")
 cleaner = EventsCleaner(raw_hosp_df, sem, config)
 events  = cleaner.clean()
 cleaner.print_report()
@@ -144,19 +120,12 @@ Total rejected:                                9,956   (86.6%)
 Clean rows (before merge):                     1,544   (13.4%)
 ```
 
-Every rejected row is accounted for. The IRB report asks how many
-rows were excluded and why — this is the answer, produced
-automatically, without any manual bookkeeping.
-
-To inspect the rejected rows directly:
+Every rejected row is accounted for with an explicit reason.
+To inspect them directly:
 
 ```python
-rejected = cleaner.rejected
-# → pd.DataFrame — one row per rejected input row
-#   _rejection_reason column, original values preserved
+cleaner.rejected   # → pd.DataFrame, one row per rejected input row
 ```
-
-### The result
 
 ```python
 print(events)
@@ -172,20 +141,16 @@ Events(
 )
 ```
 
-The `Events` object is validated and structurally sound. It knows
-what its columns mean. If it exists, it is complete.
-
 ---
 
 ## What this demonstrated
 
-- **Domain agnosticism** — column names are defined once in
-  `EventSemantics` and never referenced again. Change `patient_id`
-  to `member_id` in one place and nothing else changes.
+- **Domain agnosticism** — column names defined once in `EventSemantics`,
+  never referenced again. Rename a column in one place, nothing breaks.
 
-- **Config is the methods section** — every cleaning decision lives
-  in a versioned YAML file. The file is the reproducible record of
-  what was done.
+- **Config is the methods section** — every cleaning decision in a
+  versioned YAML file. The file is the reproducible record of what
+  was done.
 
 - **Auditable by design** — the rejection report is automatic.
   No manual bookkeeping. No silent failures.
@@ -195,5 +160,5 @@ what its columns mean. If it exists, it is complete.
 *Bonus A — Cleaning occurrence data (ED visits) follows the same
 pattern with even less code. See `vignette_01A_cleaning_occs.md`.*
 
-*Chapter 2 — Event Duration asks: "How long were these
-hospitalizations?" See `vignette_02_event_duration.md`.*
+*Chapter 2 — "How long were these hospitalizations?"
+See `vignette_02_event_duration.md`.*

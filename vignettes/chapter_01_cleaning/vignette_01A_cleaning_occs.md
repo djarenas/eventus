@@ -8,7 +8,26 @@ no causality to enforce, no overlaps to merge.
 
 ---
 
-### The config file
+> ### The script-based alternative
+>
+> Script at `vignettes/without_eventus/clean_ed_visits_no_eventus.py`.
+>
+> | Feature | Without eventus | With eventus | Notes |
+> |---|:---:|:---:|---|
+> | Cleans the data | ✓ | ✓ | ~54 lines vs 5 lines |
+> | Error reporting | ✓ | ✓ | Coded manually vs included at no cost |
+> | Per-row audit trail | ✗ | ✓ | `cleaner.rejected` — one row per rejected input row |
+> | Config is versioned | ✗ | ✓ | YAML file — the record of every decision |
+> | Reusable on new dataset | ✗ | ✓ | Change `OccurrenceSemantics` — one place |
+> | IRB-ready report | ✗ | ✓ | `cleaner.print_report()` — automatic |
+> | Parallel with event cleaning | ✗ | ✓ | Same pattern — no new concepts to learn |
+>
+> **The structural problem is not the code quality — it is the
+> paradigm.**
+
+---
+
+## The eventus solution
 
 ```yaml
 # configs/ed_cleaner.yaml
@@ -19,8 +38,6 @@ drop_duplicates: true
 date_floor:      "1920-01-01"
 date_ceiling:    "2030-01-01"
 ```
-
-### The code
 
 ```python
 import pandas as pd
@@ -35,14 +52,6 @@ sem    = OccurrenceSemantics(
 )
 
 config    = OccurrencesCleanerConfig.build_from_yaml("configs/ed_cleaner.yaml")
-ed_visits = OccurrencesCleaner(raw_ed_df, sem, config).clean()
-```
-
-Same pattern. Different data type. No new concepts.
-
-### The audit trail
-
-```python
 cleaner   = OccurrencesCleaner(raw_ed_df, sem, config)
 ed_visits = cleaner.clean()
 cleaner.print_report()
@@ -55,14 +64,12 @@ Total input rows:                                5,400
 ────────────────────────────────────────────────────────
   Rejected:
     null_entity_id:                                 54   (1.0%)
-    null_date:                                     108   (2.0%)
-    duplicate_row:                                 432   (8.0%)
+    null_date:                                     107   (2.0%)
+    duplicate_row:                               3,254   (60.3%)
 ────────────────────────────────────────────────────────
-Total rejected:                                   594   (11.0%)
-Clean rows:                                     4,806   (89.0%)
+Total rejected:                                3,415   (63.2%)
+Clean rows:                                    1,985   (36.8%)
 ```
-
-### The result
 
 ```python
 print(ed_visits)
@@ -71,7 +78,7 @@ print(ed_visits)
 ```
 Occurrences(
   identity        : 'ed_visit'
-  rows            : 4,806
+  rows            : 1,985
   unique entities : 431
   entity_col      : 'patient_id'
   date_col        : 'ed_visit_date'
@@ -83,15 +90,13 @@ Occurrences(
 ## What this demonstrated
 
 - **Parallel design** — `OccurrencesCleaner` and `EventsCleaner`
-  follow the same pattern. Learning one means you already know the
-  other.
+  follow the same pattern. Learning one means you already know the other.
 
 - **Simpler config for simpler data** — occurrences have no causality,
-  no overlaps, no merging. The config is four lines. The complexity
-  of the config matches the complexity of the data type.
+  no overlaps. The config is four lines. Complexity matches the data type.
 
-- **Same audit trail** — `print_report()` works identically. The
-  framework's guarantees apply regardless of data type.
+- **Same guarantees** — `print_report()`, `cleaner.rejected`, validated
+  output object. The framework's guarantees apply regardless of data type.
 
 ---
 
