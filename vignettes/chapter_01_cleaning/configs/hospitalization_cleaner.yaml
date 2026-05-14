@@ -1,0 +1,20 @@
+# hospitalization_cleaner.yaml
+#
+# EventsCleanerConfig for inpatient hospitalization claims.
+# Used in vignette Chapter 1 — The Data Problem.
+#
+# Load with:
+#   config = EventsCleanerConfig.build_from_yaml("configs/hospitalization_cleaner.yaml")
+
+normalize_dates:   true    # strip time component — keep dates only
+coalesce_dates:    false   # do not fill missing admit from discharge date
+causality_check:   reject  # rows where discharge < admit are rejected
+parse_dates:       true    # parse string date columns automatically
+drop_duplicates:   true    # remove exact duplicates on patient + admit + discharge
+merge_overlapping: true    # merge overlapping or adjacent intervals per patient
+meaningful_gap:    1       # gaps of 1 day or less are treated as continuous stays
+                           # a patient discharged Monday and readmitted Tuesday
+                           # is counted as one hospitalization episode
+                           # set to 0 to treat same-day readmissions as separate stays
+date_floor:        "1920-01-01"
+date_ceiling:      "2030-01-01"

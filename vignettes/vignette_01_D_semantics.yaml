@@ -1,4 +1,0 @@
-identity: hospitalizations
-entity_id_col: patient_id 
-start_time_col: admit_date
-end_time_col: discharge_date

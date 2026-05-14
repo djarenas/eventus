@@ -1,0 +1,13 @@
+# ed_cleaner.yaml
+#
+# OccurrencesCleanerConfig for emergency department visit data.
+# Used in vignette Chapter 1 — The Data Problem.
+#
+# Load with:
+#   config = OccurrencesCleanerConfig.build_from_yaml("configs/ed_cleaner.yaml")
+
+normalize_dates: true    # strip time component — keep dates only
+parse_dates:     true    # parse string date columns automatically
+drop_duplicates: true    # remove exact duplicates on patient + visit date
+date_floor:      "1920-01-01"
+date_ceiling:    "2030-01-01"
