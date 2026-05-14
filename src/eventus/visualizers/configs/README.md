@@ -1,330 +1,426 @@
-# Plot Configuration System
+# eventus.visualizers
 
-## Design Philosophy
-
-The system is built around two principles:
-
-**1. Trust through construction.** If a config object exists, it is valid. All validation happens at construction time via `__post_init__`, so downstream plotting code never needs to defensive-check its inputs.
-
-**2. Concept honesty.** Each class represents exactly one real concept. Classes do not absorb neighboring concerns for convenience. A labels class knows about labels. A style class knows about style. An axis class knows about axis behavior. This makes the hierarchy predictable and extensible.
+Modular, configuration-driven plotting for eventus intermediates.
+Every visual decision lives in a versioned, validated config object —
+not in code. A config file is a complete, reproducible description of
+a plot. Hand someone a YAML file and they know exactly what was plotted
+and how.
 
 ---
 
-## Architecture
+## The problem visualizers solve
 
-### The 3-Layer Design
+A typical data science visualization workflow embeds visual choices
+directly in code — colors, bin widths, axis ranges, tick formats,
+figure sizes. These choices are invisible to anyone reading the
+analysis later. They cannot be versioned, shared, or reproduced without
+reading the script line by line.
+
+eventus visualizers separate the *what* from the *how*. The plotter
+knows how to draw. The config knows what to draw. The intermediate
+carries the data. None of the three knows about the others' concerns.
+
+---
+
+## The pipeline
 
 ```
-BasePlotConfig                          ← abstract base, enforces shared structure
+Intermediate                      — validated result object
+    ↓
+Config (YAML or code)             — every visual decision, validated
+    ↓                               at construction, round-trippable
+Plotter                           — consumes one intermediate and
+    ↓                               one config, produces one plot
+plot.png / plt.show()
+```
+
+The intermediate and the config are independent. A `SurvivalResult`
+can be plotted with a default config, a custom config loaded from YAML,
+or a config built programmatically. The plotter does not care how the
+config was built — only that it is valid.
+
+---
+
+## Config architecture
+
+The config system is built on two principles stated explicitly in the
+configs README:
+
+**Trust through construction.** If a config object exists, it is valid.
+All validation happens at `__post_init__`. Downstream plotting code
+never needs to defensive-check its inputs.
+
+**Concept honesty.** Each class represents exactly one real concept.
+A labels class knows about labels. A style class knows about style. An
+axis class knows about axis behavior. No class absorbs a neighboring
+concern for convenience.
+
+### The hierarchy
+
+```
+BasePlotConfig                    — abstract base
     ↓ inherits
-Concrete configs                        ← one per plot type
+Concrete configs                  — one per plot type
     ↓ composed of
-Section dataclasses                     ← small, single-concern, validated
+Section dataclasses               — small, single-concern, validated
 ```
 
-Each **concrete config** (e.g. `HistogramPlotConfig`) inherits from `BasePlotConfig` and composes section dataclasses for its own concerns (labels, axes, style, bins, etc.).
+`BasePlotConfig` does three things and nothing else: enforces that
+every config has a `CanvasConfig`, owns `build_from_yaml /
+build_from_dict / to_yaml / to_dict` for free inheritance, and runs
+base validation. Every concrete config calls `super().__post_init__()`
+first, then adds its own cross-section checks.
 
-Each **section dataclass** (e.g. `HistogramStyleConfig`) is a plain validated dataclass. It knows nothing about YAML or its parent config — it just holds and validates data.
+### The shared building blocks
 
-### `BasePlotConfig` — shared structure
+**`CanvasConfig`** — the physical canvas every plot is drawn on.
+figsize, dpi, font_size. Nothing else.
 
-`BasePlotConfig` does three things:
-1. Enforces that every concrete config has a `general: CanvasConfig` section
-2. Owns `build_from_yaml`, `build_from_dict`, `to_yaml`, `to_dict` — inherited for free by all concrete configs
-3. Runs base validation in `__post_init__`; concrete configs call `super().__post_init__()` first, then add their own cross-section checks
-
-```python
-@dataclass
-class BasePlotConfig:
-    general: CanvasConfig = field(default_factory=CanvasConfig)
-
-    def __post_init__(self):
-        if not isinstance(self.general, CanvasConfig):
-            raise TypeError(...)
-
-    @classmethod
-    def build_from_yaml(cls, path): ...
-
-    @classmethod
-    def build_from_dict(cls, data): ...
-
-    def to_yaml(self, path): ...
-
-    def to_dict(self): ...
-```
-
-### `CanvasConfig` — canvas fields
-
-Lives under the `general:` key in every YAML. Represents the physical canvas that every plot is drawn on — nothing more.
-
-| Field       | Type                    | Default        | Description             |
-|-------------|-------------------------|----------------|-------------------------|
-| `figsize`   | `tuple[float, float]`   | `(12.0, 7.0)`  | Figure width and height |
-| `dpi`       | `int`                   | `120`          | Render resolution       |
-| `font_size` | `int`                   | `12`           | Base font size          |
-
-### Labels hierarchy
-
-Three honest concepts, three classes. None bleeds into another.
+**Labels hierarchy** — three honest concepts, three classes:
 
 ```
-BasePlotLabels                      ← "what is this plot called"
-├── title:    str | None
-└── subtitle: str | None
-        ↓
-AxisLabels(BasePlotLabels)          ← "what are the axes called"
-├── xlabel:   str | None
-└── ylabel:   str | None
-        ↓
-HistogramLabels(AxisLabels)         ← no extras yet
-BarLabels(AxisLabels)               ← no extras yet
-ScatterLabels(AxisLabels)           ← no extras yet
-LineLabels(AxisLabels)              ← no extras yet
-BoxLabels(AxisLabels)
-└── group_label:    str | None
-HeatmapLabels(AxisLabels)
-└── colorbar_label: str | None
+BasePlotLabels          — title, subtitle
+    ↓
+AxisLabels              — + xlabel, ylabel, units
+    ↓
+HistogramLabels         — no extras yet
+StackedTimelineLabels   — + title_font_size
 ```
 
-Plots without axes (e.g. a future pie chart) compose `BasePlotLabels` directly and never see `AxisLabels`. The hierarchy follows what plots actually have in common, not what is convenient to share.
+Plots without axes compose `BasePlotLabels` directly. The hierarchy
+follows what plots actually have in common.
 
-### `AxisConfig` — axis display behavior
+**`AxisConfig`** — how axes behave visually. Tick locations, rotation,
+format strings. Separate from `AxisLabels` because "what are the axes
+called" and "how do the axes look" are different concerns.
 
-A separate concept from labels. `AxisLabels` answers "what are the axes called." `AxisConfig` answers "how do the axes behave visually." Composed into any concrete config that has axes; omitted by plots that don't.
-
-| Field             | Type                | Default | Description                               |
-|-------------------|---------------------|---------|-------------------------------------------|
-| `x_ticks`         | `list[float]\|None` | `None`  | Explicit tick locations; `None` = auto    |
-| `y_ticks`         | `list[float]\|None` | `None`  | Explicit tick locations; `None` = auto    |
-| `x_tick_rotation` | `float`             | `0.0`   | Tick label rotation in degrees            |
-| `y_tick_rotation` | `float`             | `0.0`   | Tick label rotation in degrees            |
-| `x_tick_format`   | `str\|None`         | `None`  | Format string e.g. `"{:.0f}"`, `"%Y-%m"` |
-| `y_tick_format`   | `str\|None`         | `None`  | Format string                             |
-
-### Style hierarchy
-
-`alpha` is the only truly universal style field. `color` and `show_grid` apply to axis-based plots. Edge-drawn plots (bars, histograms) add `edgecolor`. Plots that diverge significantly branch directly off the base.
+**Style hierarchy** — alpha is the only truly universal style field:
 
 ```
-BaseStyleConfig
-└── alpha: float
-        ↓
-AxisStyleConfig(BaseStyleConfig)        ← axis-based plots
-├── color:     str
-└── show_grid: bool
-        ↓
-EdgeStyleConfig(AxisStyleConfig)        ← plots that draw bars/patches
-└── edgecolor: str
-        ↓
-HistogramStyleConfig(EdgeStyleConfig)   ← no extras yet
-BarStyleConfig(EdgeStyleConfig)         ← no extras yet
-
-ScatterStyleConfig(AxisStyleConfig)
-├── marker:     str
-└── markersize: float
-
-LineStyleConfig(AxisStyleConfig)
-├── linewidth:  float
-└── linestyle:  str
-
-HeatmapStyleConfig(BaseStyleConfig)     ← branches off base directly
-├── cmap:  str                          ← no single color, no show_grid
-└── alpha: float  (inherited)
+BaseStyleConfig         — alpha
+    ↓
+AxisStyleConfig         — + color, show_grid
+    ↓
+EdgeStyleConfig         — + edgecolor
+    ↓
+HistogramStyleConfig    — no extras yet
 ```
 
----
+**`PercentilesConfig`** — reference lines at chosen percentile values.
+Composable into any config that needs them — histograms, violins,
+count distributions.
 
-## File Layout
+**`CategoryConfig`** — visual identity for one category: color and
+optional display label. Used wherever plots stratify by group.
 
-```
-plot_config/
-├── README.md
-├── base_plot_config.py         ← BasePlotConfig, CanvasConfig, BasePlotLabels,
-│                                  AxisLabels, AxisConfig, BaseStyleConfig,
-│                                  AxisStyleConfig, EdgeStyleConfig
-├── plot_config_utils.py        ← validation helpers, _DEFAULT_PALETTE
-├── bins_config.py              ← BinsConfig + spec variants (standalone, reusable)
-├── histogram_plot_config.py    ← HistogramPlotConfig + its section dataclasses
-├── scatter_plot_config.py      ← ScatterPlotConfig + its section dataclasses
-├── bar_plot_config.py          ← BarPlotConfig + its section dataclasses
-├── line_plot_config.py         ← LinePlotConfig + its section dataclasses
-├── box_plot_config.py          ← BoxPlotConfig + its section dataclasses
-└── heatmap_plot_config.py      ← HeatmapPlotConfig + its section dataclasses
-```
-
-Each plot type owns its section dataclasses in its own file. Base classes live in `base_plot_config.py`. Concrete subclasses live alongside the config that uses them.
-
----
-
-## For Users: Writing YAML Configs
-
-Every concrete config maps directly to a YAML structure. Top-level keys are section names. Every plot has a `general` section. All sections are optional — omitting one uses its defaults entirely.
-
-### Example — Histogram
-
-```yaml
-general:
-  figsize: [10, 5]
-  dpi: 150
-  font_size: 12
-
-bins:
-  type: uniform
-  n_bins: 10
-  min: 0
-  max: 365
-
-labels:
-  title: "Duration Distribution"
-  xlabel: "Duration (days)"
-  ylabel: "Count"
-
-axes:
-  x_tick_rotation: 45
-  x_tick_format: "{:.0f}"
-
-style:
-  color: "#028090"
-  edgecolor: "#FFFFFF"
-  alpha: 0.85
-  show_grid: true
-
-percentile_lines:
-  show: true
-  values: [25, 50, 75, 90]
-  color: "#333333"
-  linestyle: dashed
-  show_labels: true
-
-stratification:
-  style: overlay
-  max_categories: 10
-  colors:
-    H01: "#028090"
-    H02: "#E05C40"
-```
-
-### Loading and saving
-
-```python
-# Load from YAML
-config = HistogramPlotConfig.build_from_yaml("my_config.yaml")
-
-# Build from dict
-config = HistogramPlotConfig.build_from_dict({
-    "general": {"figsize": [10, 5], "dpi": 150},
-    "bins": {"type": "uniform", "n_bins": 10, "min": 0, "max": 365},
-    "style": {"color": "#028090"},
-})
-
-# Build with all defaults
-config = HistogramPlotConfig()
-
-# Save to YAML
-config.to_yaml("output_config.yaml")
-```
-
-### Validation rules
-
-Construction raises `ValueError` immediately on any of the following:
-
-- `general.figsize` values are not both `> 0`
-- `general.dpi` or `general.font_size` are `<= 0`
-- Any `color` or `edgecolor` is not a valid hex string (`#RGB` or `#RRGGBB`)
-- `alpha` is outside `[0.0, 1.0]`
-- `bins.n_bins <= 0`
-- `bins.min >= bins.max` when both are provided
-- `bins.min <= 0` for `log` type
-- `bins.edges` has fewer than 2 values or is not strictly increasing
-- `percentile_lines.values` contains values outside `[0, 100]`
-- `stratification.max_categories < 2`
-- Any enum-like field (e.g. `linestyle`, `stratification.style`) receives an unknown value
-
-A `UserWarning` (not an error) is issued when:
-
-- `percentile_lines.show=False` but `values` or `show_labels` are configured
-- A stratification category has no assigned color (auto-assigned from palette with warning)
-
----
-
-## `BinsConfig` Reference
-
-`BinsConfig` is standalone (`bins_config.py`) and can be imported by any plot config that needs binning.
-
-### Bin types
-
-| Type      | Key params               | When to use                                        |
-|-----------|--------------------------|----------------------------------------------------|
-| `auto`    | —                        | "I don't care, matplotlib figure it out"           |
-| `uniform` | `n_bins`, `min?`, `max?` | "Give me ~10 bins between 0 and 365"               |
-| `log`     | `n_bins`, `min?`, `max?` | Data spans orders of magnitude; `min` must be `>0` |
-| `custom`  | `edges: list[float]`     | Full control; N edges produce N−1 bins             |
-
-`uniform` is the primary workhorse. `min` and `max` are optional — when omitted they fall back to the data range at plot time. `n_bins` is a target, not a guarantee; matplotlib may adjust slightly for clean boundaries.
-
-### Friendly constructors
+**`BinsConfig`** — standalone, composable binning configuration.
+Four bin types with friendly alternative constructors:
 
 ```python
 BinsConfig.auto()
-BinsConfig.uniform(n_bins=10, min=0, max=365)
-BinsConfig.uniform(n_bins=20)                    # min/max from data
+BinsConfig.uniform(n_bins=20, min=0, max=365)
 BinsConfig.log(n_bins=20, min=1, max=10_000)
 BinsConfig.custom(edges=[0, 10, 25, 50, 100, 365])
-
-# From dict — used internally by build_from_dict / YAML loading
-BinsConfig.from_dict({"type": "uniform", "n_bins": 10, "min": 0, "max": 365})
-BinsConfig.from_dict(None)                       # → BinsConfig.auto()
+BinsConfig.from_dict({"type": "uniform", "n_bins": 20})
 ```
 
-### Relationship to `AxisConfig` ticks
-
-Bin edges and tick locations are **independent concerns**:
-
-- `BinsConfig` controls where bars are cut — a data/computation concern.
-- `AxisConfig.x_ticks` controls what numbers appear on the axis — a display concern.
-
-You may have bins every 7 days but ticks every 30. Or use `custom` edges and set `x_ticks` to a subset of those edges for a clean aligned look. Neither field affects the other.
+`BinsConfig` and `AxisConfig.x_ticks` are independent concerns. Bins
+control where bars are cut — a data concern. Ticks control what numbers
+appear on the axis — a display concern. You may have bins every 7 days
+but ticks every 30.
 
 ---
 
-## For Developers: Adding a New Plot Config
+## Concrete configs
 
-Follow these steps to add a new plot type. `HistogramPlotConfig` is the reference implementation.
+### `StackedTimelineConfig`
 
-**1. Create `<name>_plot_config.py`**
-
-**2. Define section dataclasses** for this plot's specific concerns. Subclass from the right base:
-
-- Labels: `AxisLabels` for anything with x/y axes; `BasePlotLabels` for plots without
-- Style: `EdgeStyleConfig` → bars/patches, `AxisStyleConfig` → lines/scatter, `BaseStyleConfig` → heatmap/other
-- Single-section validation stays in the section's own `__post_init__`
-- Cross-section validation goes in the concrete config's `__post_init__`
-
-**3. Define the concrete config**, inheriting `BasePlotConfig`:
+Configuration for `StackedTimelinePlotter`. Draws one horizontal bar
+per entity, with event coverage layers and occurrence markers overlaid.
 
 ```python
-@dataclass
-class MyPlotConfig(BasePlotConfig):
-    # --- Inherited from BasePlotConfig ---
-    # general: CanvasConfig      ← figsize, dpi, font_size
+from eventus.visualizers.configs import StackedTimelineConfig
 
-    # --- Own fields ---
-    labels: MyLabels   = field(default_factory=MyLabels)
-    axes:   AxisConfig = field(default_factory=AxisConfig)
-    style:  MyStyle    = field(default_factory=MyStyle)
-
-    _PREFIX: ClassVar[str] = "MyPlotConfig"   # used in all error messages
-
-    def __post_init__(self):
-        super().__post_init__()               # always call this first
-        # cross-section validation here if needed
+config = StackedTimelineConfig.build_from_yaml("timeline.yaml")
+config = StackedTimelineConfig()   # all defaults
 ```
 
-**4. Checklist before merging:**
-- [ ] All fields have defaults (required for dataclass inheritance to work)
-- [ ] `__post_init__` calls `super().__post_init__()` as its first line
-- [ ] Every constrained field raises `ValueError` with a `[PREFIX]` message on bad input
-- [ ] `build_from_yaml`, `build_from_dict`, and `to_yaml` work without modification (inherited — verify, don't rewrite)
-- [ ] Constructing with zero arguments produces a valid object
-- [ ] Labels and style subclasses are the most specific honest fit — not over-inheriting
-- [ ] Added an example YAML block to this README
+**Sections**
+
+| Section | Class | Controls |
+|---|---|---|
+| `canvas` | `CanvasConfig` | figsize, dpi, font_size |
+| `labels` | `StackedTimelineLabels` | title, subtitle, title_font_size |
+| `layout` | `LayoutConfig` | row height, bar height, entity labels, jitter |
+| `x_axis` | `TimelineAxisConfig` | mode (auto/calendar/normalized), tick unit and interval |
+| `poi` | `POIConfig` | observation period bar colors — before/active/gap/after |
+| `events` | `list[EventLayerConfig]` | one entry per event identity — color, alpha, label |
+| `occurrences` | `list[OccurrenceLayerConfig]` | one entry per occurrence identity — color, marker, size |
+| `legend` | `LegendConfig` | show, location, font size, outside placement |
+
+**YAML example**
+
+```yaml
+canvas:
+  figsize: [18, 10]
+  dpi: 120
+
+layout:
+  row_height: 0.6
+  max_entities: 50
+  jitter: false
+
+x_axis:
+  mode: calendar
+  unit: months
+  interval: 3
+  format: "%Y-%m"
+
+poi:
+  color_before:    "#9E9E9E"
+  color_middle:    "#F44336"
+  color_after:     "#BDBDBD"
+  color_no_events: "#EEEEEE"
+
+events:
+  - identity: inpatient_hospitalization
+    color:    "#028090"
+    label:    "Inpatient"
+  - identity: medicaid_coverage
+    color:    "#6B4FA0"
+    label:    "Coverage"
+
+occurrences:
+  - identity: ed_visit
+    color:    "#E05C40"
+    marker:   circle
+    size:     6
+    label:    "ED visit"
+
+legend:
+  show:    true
+  outside: true
+```
+
+---
+
+### `ActivityOverTimeConfig`
+
+Configuration for `ActivityOverTimePlotter`. Two-panel plot: top panel
+shows percentage of cohort with active event coverage over time; bottom
+panel shows entities entering and exiting coverage.
+
+```python
+from eventus.visualizers.configs import ActivityOverTimeConfig
+
+config = ActivityOverTimeConfig.build_from_yaml("activity.yaml")
+```
+
+**Sections**
+
+| Section | Class | Controls |
+|---|---|---|
+| `canvas` | `CanvasConfig` | figsize, dpi, font_size |
+| `labels` | `AxisLabels` | title, subtitle, axis labels |
+| `time` | `TimeConfig` | x_unit, x_interval, matplotlib style |
+| `axes` | `AxisConfig` | tick locations, rotation, format |
+| `line_style` | `ActivityLineStyleConfig` | line color, alpha, fill, linewidth |
+| `flow_style` | `FlowStyleConfig` | bottom panel mode (bar/scatter), entered/exited colors |
+| `layout` | `ActivityLayoutConfig` | relative height of top vs bottom panel |
+
+---
+
+### `HistogramPlotConfig`
+
+General-purpose histogram configuration. Composable into any plotter
+that needs histogram-style plots.
+
+```python
+from eventus.visualizers.configs import HistogramPlotConfig
+
+config = HistogramPlotConfig.build_from_yaml("histogram.yaml")
+config = HistogramPlotConfig.build_from_dict({
+    "canvas": {"figsize": [10, 5]},
+    "bins":   {"type": "uniform", "n_bins": 20, "min": 0, "max": 365},
+    "style":  {"color": "#028090"},
+})
+```
+
+**Sections:** `canvas`, `bins`, `labels`, `axes`, `style`,
+`percentile_lines`, `stratification`.
+
+The `stratification` section controls optional overlaid or faceted
+breakdowns by a grouping column. Category colors are configured per
+key; missing keys are auto-assigned from the default palette with a
+warning.
+
+---
+
+### `OccurrenceResultVolumeConfig`
+
+Configuration for `OccurrenceResultVolumePlotter`. Acts as an
+orchestrator — each attribute owns the full configuration for exactly
+one plot method.
+
+```python
+config = OccurrenceResultVolumeConfig.build_from_yaml("volume.yaml")
+```
+
+| Attribute | Class | Plot method |
+|---|---|---|
+| `bar` | `CategoryBarConfig` | `plot_prevalence_bar()` |
+| `count_bar` | `CountDistributionBarConfig` | `plot_count_distribution_bar()` |
+
+`CountDistributionBarConfig` renders one bar per integer count value
+from n=0 to max_n-1, plus an overflow bar for n≥max_n. Percentile
+lines are snapped to the nearest bar position.
+
+---
+
+### `OccurrenceResultTimingConfig`
+
+Configuration for `OccurrenceResultTimingPlotter`. Orchestrates
+histogram configs per nth occurrence, with per-nth overrides.
+
+```python
+config = OccurrenceResultTimingConfig.build_from_yaml("timing.yaml")
+```
+
+The plotter resolves the right config for each nth via:
+```python
+cfg.histogram_per_n.get(nth, cfg.histogram)
+```
+
+This means you can configure a base histogram for all nths, then
+override specific ones — a different color for the second occurrence,
+a narrower range for the third.
+
+```python
+config = OccurrenceResultTimingConfig.build_from_dict({
+    "histogram": {
+        "bins":  {"type": "uniform", "n_bins": 52, "min": 0, "max": 365}
+    },
+    "histogram_per_n": {
+        2: {"style": {"color": "#E05C40"}},
+        3: {"style": {"color": "#6B4FA0"}},
+    },
+})
+```
+
+---
+
+### `OccurrenceResultShapeConfig`
+
+Configuration for `OccurrenceResultShapePlotter`. Orchestrates three
+distinct plot methods from one config object. The canvas is shared
+across all three.
+
+```python
+config = OccurrenceResultShapeConfig.build_from_yaml("shape.yaml")
+```
+
+| Attribute | Class | Plot method |
+|---|---|---|
+| `center_of_mass` | `HistogramPlotConfig` | `plot_center_of_mass()` |
+| `density` | `HistogramPlotConfig` | `plot_density()` |
+| `scatter` | `ShapeScatterConfig` | `plot_fingerprint()` |
+
+`plot_fingerprint()` draws the behavioral fingerprint scatter plot —
+burstiness on the x-axis, memory on the y-axis. Quadrant lines divide
+the space into four behavioral regions. Each entity is one point.
+
+---
+
+### `ArraysViolinConfig`
+
+Configuration for `ArraysViolinPlotter`. The plotter receives a
+pre-built `{key: np.ndarray}` dict and draws one violin per key. This
+config controls all visual aspects — category colors, labels, bandwidth,
+percentile lines, axis bounds.
+
+```python
+config = ArraysViolinConfig.build_from_dict({
+    "labels": {"title": "Duration by site", "units": "days"},
+    "categories": {
+        "all_data":   {"color": "#AAAAAA", "label": "All"},
+        "Hospital_A": {"color": "#028090", "label": "North"},
+        "Hospital_B": {"color": "#E05C40", "label": "South"},
+    },
+})
+```
+
+Plot order is determined by the order categories are defined — first
+defined is leftmost violin. Missing keys are auto-assigned from the
+default palette with a warning.
+
+---
+
+## YAML round-trip
+
+Every config can be saved and reloaded exactly:
+
+```python
+config = StackedTimelineConfig.build_from_yaml("timeline.yaml")
+config.to_yaml("timeline_copy.yaml")   # identical to the original
+
+# Or build from code and save for the record
+config = HistogramPlotConfig.build_from_dict({...})
+config.to_yaml("methods/histogram_config_2024_01.yaml")
+```
+
+The YAML file is the record of every visual decision made in an
+analysis. It can be version-controlled, shared with collaborators, and
+used to reproduce any plot exactly.
+
+---
+
+## Plotters
+
+Plotters consume one intermediate and one config. They do not validate
+data — the intermediate already guarantees structural soundness. They do
+not make visual decisions — the config already owns all of those.
+
+| Plotter | Intermediate | Config |
+|---|---|---|
+| `StackedTimelinePlotter` | `CohortTimeline` | `StackedTimelineConfig` |
+| `ActivityOverTimePlotter` | `EventActivityOverTime` | `ActivityOverTimeConfig` |
+| `OccurrenceResultVolumePlotter` | `OccurrenceResultVolume` | `OccurrenceResultVolumeConfig` |
+| `OccurrenceResultTimingPlotter` | `OccurrenceResultTiming` | `OccurrenceResultTimingConfig` |
+| `OccurrenceResultShapePlotter` | `OccurrenceResultShape` | `OccurrenceResultShapeConfig` |
+| `ArraysViolinPlotter` | `dict[str, np.ndarray]` | `ArraysViolinConfig` |
+
+---
+
+## Design notes
+
+**Config is the methods section.** Every visual decision — colors, bin
+widths, axis ranges, tick formats, figure sizes — lives in a versioned
+YAML file. The config file is a complete, human-readable description of
+what was plotted and how. This is reproducibility at the visualization
+layer.
+
+**Concept honesty over convenience.** Every section dataclass
+represents exactly one real concept. `AxisLabels` knows about labels.
+`AxisConfig` knows about axis behavior. `BinsConfig` knows about
+binning. No class absorbs a neighboring concern because it would be
+convenient to share. The result is a hierarchy that is predictable,
+extensible, and honest.
+
+**Orchestrator configs.** Some configs — `OccurrenceResultShapeConfig`,
+`OccurrenceResultTimingConfig`, `OccurrenceResultVolumeConfig` — act as
+orchestrators. Each attribute owns the full configuration for exactly
+one plot method. This means one YAML file configures an entire
+analytical visualization suite, and each method gets its own
+independently tunable config.
+
+**Validation at construction, not at plot time.** If a config exists,
+it is valid. Plotters never defensive-check their config inputs.
+Errors surface immediately when the config is built — not silently
+at plot time when the figure is half-drawn.
+
+**The intermediate is the handshake.** A plotter accepts an intermediate
+type, not a specific analyzer. Any analyzer that produces an
+`OccurrenceResultShape` can feed `OccurrenceResultShapePlotter`. The
+config and the intermediate are fully decoupled — the same intermediate
+can be plotted with a default config, a saved config from a previous
+analysis, or a new config built for a different publication.

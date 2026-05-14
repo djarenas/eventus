@@ -291,6 +291,12 @@ class StackedTimelineConfig(BasePlotConfig):
             raise err(_PREFIX, f"events must be a list, got {type(self.events).__name__}")
         if not isinstance(self.occurrences, list):
             raise err(_PREFIX, f"occurrences must be a list, got {type(self.occurrences).__name__}")
+        if not self.events and not self.occurrences:
+            raise ValueError(
+                f"[{_PREFIX}] at least one event layer or occurrence layer "
+                f"must be configured. Add an entry to 'events' or "
+                f"'occurrences' in your config."
+            )
 
     @classmethod
     def _build_sections(

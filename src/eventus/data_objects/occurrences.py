@@ -65,90 +65,16 @@ class Occurrences:
     # Public methods
     # ------------------------------------------------------------------ #
 
-    def filter_by_entities(self, entity_ids) -> "Occurrences":
-        """
-        Return a new Occurrences containing only the specified entities.
-
-        Parameters
-        ----------
-        entity_ids : list or set
-            Entity identifiers to keep.
-        """
-        col      = self.semantics.entity_id_col
-        filtered = self.data[self.data[col].isin(entity_ids)].copy()
-        return Occurrences.construct_from_clean(filtered, self.semantics)
-
-    def filter_by_dates(
-        self,
-        start = None,
-        end   = None,
-    ) -> "Occurrences":
-        """
-        Return a new Occurrences keeping only occurrences within [start, end].
-        Both bounds are inclusive. Pass None to leave unbounded.
-
-        Parameters
-        ----------
-        start : str | pd.Timestamp | None
-            Lower bound (inclusive).
-        end : str | pd.Timestamp | None
-            Upper bound (inclusive).
-        """
-        col      = self.semantics.date_col
-        filtered = self.data.copy()
-        if start is not None:
-            filtered = filtered[filtered[col] >= pd.Timestamp(start)]
-        if end is not None:
-            filtered = filtered[filtered[col] <= pd.Timestamp(end)]
-        return Occurrences.construct_from_clean(filtered, self.semantics)
-
-    def count_per_entity(self) -> pd.Series:
-        """
-        Return occurrence counts indexed by entity ID.
-
-        Returns
-        -------
-        pd.Series
-            Index: entity_id_col values. Values: occurrence counts.
-        """
-        return self.data.groupby(self.semantics.entity_id_col).size()
-
     def copy(self) -> "Occurrences":
         """Return a copy of this Occurrences."""
-        return Occurrences.construct_from_clean(self.data.copy(), self.semantics)
-
-
-    def build_summary(self) -> dict:  
-        """Return a structured summary of occurrences as a dictionary."""  
-        col        = self.semantics.date_col  
-        entity_col = self.semantics.entity_id_col  
-        identity   = self.semantics.identity or "—"  
-    
-        counts = self.count_per_entity()  
-    
-        summary = {  
-            "identity": identity,  
-            "total_rows": len(self.data),  
-            "unique_entities": self.data[entity_col].nunique(),  
-            "earliest_date": str(self.data[col].min().date()),  
-            "latest_date": str(self.data[col].max().date()),  
-            "mean_per_entity": round(counts.mean(), 1),  
-            "max_per_entity": int(counts.max())  
-        }  
-    
-        return summary  
-
-    def print_summary(self):
-        summary = self.build_summary()
-        for key, value in summary.items():  
-            print(f"{key}: {value}")  
+        return Occurrences._construct_from_cleaned(self.data.copy(), self.semantics)
 
     # ------------------------------------------------------------------ #
     # Private helpers
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def construct_from_clean(
+    def _construct_from_cleaned(
         cls,
         data:      pd.DataFrame,
         semantics: OccurrenceSemantics,

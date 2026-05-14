@@ -1,18 +1,22 @@
 """
 event_coverage_violin_plotter_utils.py
 Pure utility functions for EventCoverageViolinPlotter.
-No class state — only data and config inputs.
 
-Arrays and plot_order are always keyed by SHORT metric names
-(e.g. 'active_days', 'inactive_days_before_first_event').
-Full column name construction (evt_comp_{identity}_*) is an internal
-detail of the array-building functions only.
+Shared violin primitives now live in eventus.visualizers.violin_utils.
+This module contains only coverage-specific array builders, unit
+conversion, and tick label logic.
 """
 from __future__ import annotations
 
 import warnings
 import numpy as np
 import pandas as pd
+
+# ── Re-export shared tick label builder with pct ──────────────────────────────
+
+from eventus.visualizers.violin_utils import build_tick_labels_with_pct as build_tick_labels
+
+__all__ = ["build_tick_labels"]
 
 _ERROR_PREFIX = "[EventCoverageViolinPlotter]"
 
@@ -62,22 +66,7 @@ def build_total_arrays(
 ) -> tuple[list[str], dict[str, np.ndarray]]:
     """
     Build arrays for plot_total() — active vs inactive days.
-
     Both metrics include ALL entities — zero is valid and meaningful.
-
-    Parameters
-    ----------
-    data : pd.DataFrame
-        CohortTimeline data with coverage analysis columns present.
-    identity : str
-        Event identity — used to locate evt_comp_{identity}_* columns.
-
-    Returns
-    -------
-    plot_order : list[str]
-        Short metric names in display order: ['active_days', 'inactive_days']
-    arrays : dict[str, np.ndarray]
-        Keyed by short metric name.
     """
     plot_order = ["active_days", "inactive_days"]
     arrays: dict[str, np.ndarray] = {}
@@ -98,25 +87,7 @@ def build_breakdown_arrays(
 ) -> tuple[list[str], dict[str, np.ndarray]]:
     """
     Build arrays for plot_inactive_breakdown().
-
     Each metric is filtered to entities where value > 0.
-
-    Parameters
-    ----------
-    data : pd.DataFrame
-        CohortTimeline data with coverage analysis columns present.
-    identity : str
-        Event identity — used to construct evt_comp_{identity}_* column names.
-    breakdown_cols : list[str]
-        Short metric names in display order, e.g.
-        ['inactive_days_before_first_event', 'inactive_days_after_last_event'].
-
-    Returns
-    -------
-    plot_order : list[str]
-        Short metric names in display order.
-    arrays : dict[str, np.ndarray]
-        Keyed by short metric name. Each array filtered to values > 0.
     """
     arrays:     dict[str, np.ndarray] = {}
     plot_order: list[str]             = []
@@ -150,37 +121,3 @@ def build_breakdown_arrays(
         arrays[short] = num[num > 0].to_numpy(dtype=np.float64)
 
     return plot_order, arrays
-
-
-# ── Tick labels ───────────────────────────────────────────────────────────────
-
-def build_tick_labels(
-    plot_order: list[str],
-    arrays:     dict[str, np.ndarray],
-    n_total:    int,
-    resolved:   dict,
-) -> list[str]:
-    """
-    Build x-tick labels showing metric label, n, and % of cohort.
-
-    Format: "Label\\n(n=234, 45.2%)"
-
-    Parameters
-    ----------
-    plot_order : list[str]
-        Short metric names in display order.
-    arrays : dict[str, np.ndarray]
-        Keyed by short metric name.
-    n_total : int
-        Total number of entities in the cohort.
-    resolved : dict[str, CategoryConfig]
-        From ArraysViolinConfig.resolve() — carries label per key.
-    """
-    labels = []
-    for key in plot_order:
-        n     = len(arrays[key])
-        pct   = 100 * n / n_total if n_total > 0 else 0.0
-        cat   = resolved.get(key)
-        label = (cat.label if cat and cat.label else key)
-        labels.append(f"{label}\n(n={n:,}, {pct:.1f}%)")
-    return labels

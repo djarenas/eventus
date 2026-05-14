@@ -8,7 +8,6 @@ stacked_timeline_plotter_utils.py.
 """
 from __future__ import annotations
 import warnings
-import pathlib
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -20,6 +19,7 @@ from collections import defaultdict
 from eventus.visualizers.configs.stacked_timeline_config import StackedTimelineConfig
 from eventus.intermediates.cohort_timeline import CohortTimeline
 from eventus.intermediates.cohort_timeline_utils import OBS_START_COL, OBS_END_COL
+from eventus.visualizers.plot_utils import validate_path, save_figure
 
 _ERROR_PREFIX = "[StackedTimelinePlotter] Error"
 
@@ -167,33 +167,6 @@ class StackedTimelinePlotter:
         return data
 
     # ------------------------------------------------------------------ #
-    # Convenience classmethod
-    # ------------------------------------------------------------------ #
-
-    @classmethod
-    def from_components(
-        cls,
-        obs_period,
-        events:      object | None                = None,
-        occurrences: object | list[object] | None = None,
-        config:      StackedTimelineConfig | None = None,
-        sort_by:     list[str] | None             = None,
-        ascending:   bool | list[bool]            = True,
-    ) -> "StackedTimelinePlotter":
-        """
-        Build a StackedTimelinePlotter directly from data objects.
-
-        Assembles a CohortTimeline via build_from_components() and returns
-        a ready-to-plot plotter.
-        """
-        cohort_timeline = CohortTimeline.build_from_components(
-            obs_period  = obs_period,
-            events      = events,
-            occurrences = occurrences,
-        )
-        return cls(cohort_timeline, config, sort_by=sort_by, ascending=ascending)
-
-    # ------------------------------------------------------------------ #
     # Public API
     # ------------------------------------------------------------------ #
 
@@ -204,7 +177,7 @@ class StackedTimelinePlotter:
             precompute, format_xaxis, compute_figsize,
         )
 
-        self._validate_path(path)
+        validate_path(path, _ERROR_PREFIX)
 
         cfg  = self._config
         ec   = self._cohort_timeline.entity_col
@@ -358,9 +331,7 @@ class StackedTimelinePlotter:
             ax.legend(**legend_kwargs)
 
         fig.tight_layout()
-        fig.savefig(path, dpi=cfg.canvas.dpi, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Saved: {path}")
+        save_figure(fig, path, cfg.canvas.dpi)
 
     # ------------------------------------------------------------------ #
     # Config resolution helpers
@@ -437,20 +408,12 @@ class StackedTimelinePlotter:
     # Validation and dunder
     # ------------------------------------------------------------------ #
 
-    def _validate_path(self, path: str) -> None:
-        ext = pathlib.Path(path).suffix.lower()
-        if ext not in {".png", ".jpg", ".jpeg"}:
-            raise ValueError(
-                f"{_ERROR_PREFIX}: unsupported file extension '{ext}'. "
-                f"Use .png, .jpg, or .jpeg"
-            )
-
     def __repr__(self) -> str:
         return (
             f"StackedTimelinePlotter(\n"
             f"  entities             : {len(self._cohort_timeline):,}\n"
             f"  event_identities     : {self._cohort_timeline.event_identities}\n"
             f"  occurrence_identities: {self._cohort_timeline.occurrence_identities}\n"
-            f"  x_axis               : '{self._config.canvas.x_axis}'\n"
+            f"  x_axis               : '{self._config.x_axis.mode}'\n"
             f")"
         )

@@ -3,7 +3,7 @@ from eventus.analyzers.cohort_timeline_occurrence_analyzer import CohortTimeline
 from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
 
 __all__ = [
+    "CohortTimelineOccurrenceAnalyzer",
+    "CohortTimelineEventAnalyzer",
     "EventDurationAnalyzer",
-    "CohortTimelineOccurenceAnalyzer",
-    "CohortTimelineEventAnalyzer"
 ]

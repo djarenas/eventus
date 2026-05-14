@@ -183,7 +183,7 @@ class OccurrencesCleaner:
         )
         self._cleaned = df.reset_index(drop=True)
 
-        return Occurrences.construct_from_clean(self._cleaned, self._semantics)
+        return Occurrences._construct_from_cleaned(self._cleaned, self._semantics)
 
     # ------------------------------------------------------------------ #
     # Properties

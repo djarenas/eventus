@@ -46,6 +46,7 @@ class Events:
         self._validate_columns(data, semantics)
         data = self._parse_dates(data, semantics)
         self._validate_no_nulls(data, semantics)
+        self._validate_causality(data, semantics)
 
         self.data      = data.copy().reset_index(drop=True)
         self.semantics = semantics
@@ -112,12 +113,34 @@ class Events:
                 f"Use EventsCleaner to handle these before constructing Events."
             )
 
+    def _validate_causality(
+        self, data: pd.DataFrame, sem: EventSemantics
+    ) -> None:
+        """Raise if any event has start strictly after end."""
+        sc  = sem.start_time_col
+        ec  = sem.end_time_col
+        bad = data[data[sc] > data[ec]]
+        if not bad.empty:
+            n        = len(bad)
+            examples = (
+                bad[[sem.entity_id_col, sc, ec]]
+                .head(3)
+                .to_dict("records")
+            )
+            raise ValueError(
+                f"{_ERROR_PREFIX}: {n:,} row(s) violate causality — "
+                f"start must be before or equal to end. "
+                f"Examples: {examples}. "
+                f"Use EventsCleaner to swap or remove these rows before "
+                f"constructing Events."
+            )
+
     # ------------------------------------------------------------------ #
     # Class methods
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def _build_from_cleaned(cls, data: pd.DataFrame, semantics: EventSemantics) -> "Events":
+    def _construct_from_cleaned(cls, data: pd.DataFrame, semantics: EventSemantics) -> "Events":
         """
         Bypass validation to construct an Events from already-clean data.
         Only used internally — never call this on unvalidated data.
@@ -131,106 +154,10 @@ class Events:
     # Public methods
     # ------------------------------------------------------------------ #
 
-    def filter_by_entities(self, entity_ids: np.ndarray | pd.Series) -> "Events":
-        """Return a new Events containing only the specified entities."""
-        if not isinstance(entity_ids, (np.ndarray, pd.Series)):
-            raise TypeError(
-                f"{_ERROR_PREFIX} in filter_by_entities(): entity_ids must be "
-                f"a numpy array or pd.Series, got {type(entity_ids).__name__}"
-            )
-        col      = self.semantics.entity_id_col
-        filtered = self.data.loc[self.data[col].isin(entity_ids)].copy()
-        return Events._build_from_cleaned(filtered, self.semantics)
-
-    def filter_by_dates(self, start=None, end=None) -> "Events":
-        """
-        Return a new Events filtered to the given date range.
-
-        Keeps events whose start is >= start AND whose end is <= end.
-        Either bound may be omitted.
-
-        Parameters
-        ----------
-        start : str | pd.Timestamp | None
-            Lower bound — keep events starting on or after this date.
-        end : str | pd.Timestamp | None
-            Upper bound — keep events ending on or before this date.
-        """
-        if start is None and end is None:
-            raise ValueError(
-                f"{_ERROR_PREFIX} in filter_by_dates(): "
-                f"at least one of start or end must be provided."
-            )
-
-        if start is not None:
-            try:
-                start = pd.Timestamp(start)
-            except Exception:
-                raise ValueError(
-                    f"{_ERROR_PREFIX} in filter_by_dates(): "
-                    f"start={start!r} could not be parsed as a date."
-                )
-
-        if end is not None:
-            try:
-                end = pd.Timestamp(end)
-            except Exception:
-                raise ValueError(
-                    f"{_ERROR_PREFIX} in filter_by_dates(): "
-                    f"end={end!r} could not be parsed as a date."
-                )
-
-        if start is not None and end is not None and start > end:
-            raise ValueError(
-                f"{_ERROR_PREFIX} in filter_by_dates(): "
-                f"start ({start.date()}) must be before end ({end.date()})."
-            )
-
-        sc = self.semantics.start_time_col
-        ec = self.semantics.end_time_col
-        df = self.data
-
-        if start is not None:
-            df = df[df[sc] >= start]
-        if end is not None:
-            df = df[df[ec] <= end]
-
-        return Events._build_from_cleaned(df.copy(), self.semantics)
-
     def copy(self) -> "Events":
         """Return a copy of this Events object."""
-        return Events._build_from_cleaned(self.data.copy(), self.semantics)
+        return Events._construct_from_cleaned(self.data.copy(), self.semantics)
 
-    def build_summary(self) -> dict:  
-        """Return a summary of this Events object as a dictionary."""  
-        sc  = self.semantics.start_time_col  
-        ec  = self.semantics.end_time_col  
-        eid = self.semantics.entity_id_col  
-    
-        n_rows     = len(self.data)  
-        n_entities = self.data[eid].nunique()  
-        date_min   = self.data[sc].min().date()  
-        date_max   = self.data[ec].max().date()  
-        durations  = (self.data[ec] - self.data[sc]).dt.days  
-        avg_dur    = round(durations.mean(), 1)  
-        min_dur    = int(durations.min())  
-        max_dur    = int(durations.max())  
-    
-        summary = {  
-            "total_rows": n_rows,  
-            "unique_entities": n_entities,  
-            "date_range": (str(date_min), str(date_max)),  
-            "avg_duration_days": avg_dur,  
-            "min_duration_days": min_dur,  
-            "max_duration_days": max_dur,  
-        }  
-    
-        return summary  
-
-    def print_summary(self):
-        summary = self.build_summary()
-        for key, value in summary.items():  
-            print(f"{key}: {value}")  
     # ------------------------------------------------------------------ #
     # Dunder
     # ------------------------------------------------------------------ #

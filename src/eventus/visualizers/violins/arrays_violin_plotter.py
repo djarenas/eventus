@@ -16,7 +16,6 @@ at the end and auto-assigned a color from the default palette.
 """
 from __future__ import annotations
 
-import pathlib
 import warnings
 import numpy as np
 import matplotlib
@@ -24,6 +23,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from eventus.visualizers.configs.arrays_violin_config import ArraysViolinConfig
+from eventus.visualizers.plot_utils import validate_path, save_figure
 
 _ERROR_PREFIX = "[ArraysViolinPlotter] Error"
 _WARN_PREFIX  = "[ArraysViolinPlotter] Warning"
@@ -202,7 +202,7 @@ class ArraysViolinPlotter:
             Output file path. Must end in .png, .jpg, or .jpeg.
             Parent directory must exist.
         """
-        from eventus.visualizers.plotters.arrays_violin_plotter_utils import (
+        from eventus.visualizers.violins.arrays_violin_plotter_utils import (
             apply_y_bounds,
             build_tick_labels,
             compute_widths,
@@ -212,7 +212,7 @@ class ArraysViolinPlotter:
             draw_violin_body,
         )
 
-        self._validate_path(path)
+        validate_path(path, _ERROR_PREFIX)
 
         cfg    = self._config
         canvas = cfg.canvas
@@ -278,26 +278,11 @@ class ArraysViolinPlotter:
 
         # ── Save ──────────────────────────────────────────────────────
         fig.tight_layout()
-        fig.savefig(path, dpi=canvas.dpi, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Saved: {path}")
+        save_figure(fig, path, canvas.dpi)
 
     # ------------------------------------------------------------------ #
     # Private helpers
     # ------------------------------------------------------------------ #
-
-    def _validate_path(self, path: str) -> None:
-        p = pathlib.Path(path)
-        if p.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
-            raise ValueError(
-                f"{_ERROR_PREFIX}: unsupported file extension '{p.suffix}'. "
-                f"Use .png, .jpg, or .jpeg"
-            )
-        if not p.parent.exists():
-            raise ValueError(
-                f"{_ERROR_PREFIX}: output directory does not exist: "
-                f"'{p.parent}'. Create it before calling plot()."
-            )
 
     # ------------------------------------------------------------------ #
     # Dunder

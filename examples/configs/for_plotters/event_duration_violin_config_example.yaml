@@ -1,0 +1,64 @@
+# event_duration_violin_config.yaml
+#
+# ArraysViolinConfig for EventDurationViolinPlotter.
+# All sections are optional — omit any section to use its defaults.
+#
+# Note: stratify_by is passed directly to EventDurationViolinPlotter,
+# not configured here. The config controls only visual decisions.
+#
+# Load with:
+#   config = ArraysViolinConfig.build_from_yaml("event_duration_violin_config.yaml")
+#
+# Use with:
+#   # No stratification
+#   plotter = EventDurationViolinPlotter(result, config)
+#
+#   # Stratified by hospital
+#   plotter = EventDurationViolinPlotter(result, config, stratify_by="hospital_id")
+
+canvas:
+  figsize: [12, 7]
+  dpi: 120
+  font_size: 12
+
+labels:
+  title:  "Inpatient Hospitalization Duration"
+  ylabel: "Duration"
+  units:  "days"
+
+axes:
+  y_min: 0
+  y_max: null            # null → matplotlib auto
+
+style:
+  bandwidth:      scott
+  show_box:       true
+  show_points:    false
+  point_alpha:    0.3
+  point_size:     3.0
+  max_categories: 8
+
+percentiles:
+  show:        true
+  values:      [25, 50, 75, 90]
+  color:       "#333333"
+  linestyle:   dashed
+  show_labels: true
+
+# categories keys must match the values in the stratify_by column,
+# plus the reserved key "all_data" for the full cohort violin.
+# If a key is missing, a color is auto-assigned from the default palette
+# with a warning.
+categories:
+  all_data:
+    color: "#AAAAAA"
+    label: "All patients"
+  Hospital_A:
+    color: "#028090"
+    label: "North"
+  Hospital_B:
+    color: "#E05C40"
+    label: "South"
+  Hospital_C:
+    color: "#6B4FA0"
+    label: "East"

@@ -338,14 +338,6 @@ class ObsPeriodPerEntity(EventsPerEntity):
     # Methods
     # ------------------------------------------------------------------ #
 
-    def filter_by_entities(self, entity_ids) -> "ObsPeriodPerEntity":
-        """Return a new ObsPeriodPerEntity containing only the specified entities."""
-        col      = self.semantics.entity_id_col
-        filtered = self.data[self.data[col].isin(entity_ids)].copy()
-        obj = ObsPeriodPerEntity(filtered, self.semantics, identity=self._identity)
-        obj._construction_path = self._construction_path + " (filtered)"
-        return obj
-
     def copy(self) -> "ObsPeriodPerEntity":
         """Return a copy of this ObsPeriodPerEntity."""
         obj = ObsPeriodPerEntity(
@@ -354,36 +346,23 @@ class ObsPeriodPerEntity(EventsPerEntity):
         obj._construction_path = self._construction_path
         return obj
 
-    def summary(self) -> None:
-        """Print a human-readable summary."""
-        sc  = self.semantics.start_time_col
-        ec  = self.semantics.end_time_col
-
-        lengths = (self.data[ec] - self.data[sc]).dt.days
-
-        print(f"ObsPeriodPerEntity summary")
-        print(f"  identity           : {self._identity}")
-        print(f"  construction path  : {self._construction_path}")
-        print(f"{'─' * 48}")
-        print(f"{'Total entities':<30}: {len(self.data):>10,}")
-        print(f"{'Period length mean':<30}: {lengths.mean():>10.1f} days")
-        print(f"{'Period length min':<30}: {int(lengths.min()):>10} days")
-        print(f"{'Period length max':<30}: {int(lengths.max()):>10} days")
-        print(f"{'Earliest start':<30}: {str(self.data[sc].min().date()):>10}")
-        print(f"{'Latest end':<30}: {str(self.data[ec].max().date()):>10}")
-
-    # ------------------------------------------------------------------ #
-    # Dunder
-    # ------------------------------------------------------------------ #
-
-    def __repr__(self) -> str:
-        return (
-            f"ObsPeriodPerEntity(\n"
-            f"  identity          : '{self._identity}'\n"
-            f"  entities          : {len(self.data):,}\n"
-            f"  construction_path : '{self._construction_path}'\n"
-            f"  entity_col        : '{self.semantics.entity_id_col}'\n"
-            f"  start_col         : '{self.semantics.start_time_col}'\n"
-            f"  end_col           : '{self.semantics.end_time_col}'\n"
-            f")"
-        )
+    def __repr__(self) -> str:  
+        sc = self.semantics.start_time_col  
+        ec = self.semantics.end_time_col  
+        lengths = (self.data[ec] - self.data[sc]).dt.days  
+    
+        return (  
+            f"ObsPeriodPerEntity(\n"  
+            f"  identity           : '{self._identity}'\n"  
+            f"  construction_path  : '{self._construction_path}'\n"  
+            f"  entity_col         : '{self.semantics.entity_id_col}'\n"  
+            f"  start_col          : '{self.semantics.start_time_col}'\n"  
+            f"  end_col            : '{self.semantics.end_time_col}'\n"  
+            f"  total_entities     : {len(self.data):,}\n"  
+            f"  period_length_mean : {lengths.mean():.1f} days\n"  
+            f"  period_length_min  : {int(lengths.min())} days\n"  
+            f"  period_length_max  : {int(lengths.max())} days\n"  
+            f"  earliest_start     : {self.data[sc].min().date()}\n"  
+            f"  latest_end         : {self.data[ec].max().date()}\n"  
+            f")"  
+        )  

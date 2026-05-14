@@ -150,25 +150,6 @@ class EventsCleanerConfig:
 
         return cls(**cfg)
 
-    @classmethod
-    def build_with_defaults(cls) -> "EventsCleanerConfig":
-        """
-        A minimal config — only the safest, most essential cleaning.
-        No date floor/ceiling checks, no merging, no coalescing.
-        Good for data you mostly trust but want null/duplicate handling.
-        """
-        return cls(
-            normalize_dates  = True,
-            coalesce_dates   = False,
-            causality_check  = "reject",
-            parse_dates      = True,
-            drop_duplicates  = True,
-            merge_overlapping = False,
-            meaningful_gap   = 0,
-            date_floor       = "1800-01-01",
-            date_ceiling      = "2200-01-01",
-        )
-
     # ------------------------------------------------------------------ #
     # Utilities
     # ------------------------------------------------------------------ #

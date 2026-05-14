@@ -26,6 +26,9 @@ from eventus.cleaners.events_cleaner import EventsCleaner
 from eventus.cleaners.events_cleaner_config import EventsCleanerConfig
 from eventus.cleaners.occurrences_cleaner import OccurrencesCleaner
 from eventus.cleaners.occurrences_cleaner_config import OccurrencesCleanerConfig
+from eventus.cleaners.events_filter import EventsFilter
+from eventus.cleaners.occurrences_filter import OccurrencesFilter
+from eventus.cleaners.obs_period_filter import ObsPeriodFilter
 
 # Data objects
 from eventus.data_objects.events import Events
@@ -69,7 +72,7 @@ from eventus.visualizers.occurrences.occurrence_result_volume_plotter import Occ
 # Visualizers: Violins
 from eventus.visualizers.violins.arrays_violin_plotter import ArraysViolinPlotter
 from eventus.visualizers.violins.event_coverage_violin_plotter import EventCoverageViolinPlotter 
-
+from eventus.visualizers.violins.event_duration_violin_plotter import EventDurationViolinPlotter
 
 
 
@@ -86,6 +89,9 @@ __all__ = [
     "EventsCleanerConfig",
     "OccurrencesCleaner",
     "OccurrencesCleanerConfig",
+    "EventsFilter",
+    "OccurrencesFilter",
+    "ObsPeriodFilter",
 
     # Data objects
     "Events",
@@ -108,7 +114,6 @@ __all__ = [
     
     "ActivityOverTimePlotter",
     "EventsDurationPlotter",
-    "StackedTimelineConfig",
     "StackedTimelinePlotter",
     
     # Visualizers Configs
@@ -127,5 +132,6 @@ __all__ = [
     # Visualizers Violins
     "ArraysViolinPlotter",
     "EventCoverageViolinPlotter",
+    "EventDurationViolinPlotter"
 
 ]

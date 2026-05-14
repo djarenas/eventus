@@ -10,13 +10,13 @@ Takes an EventActivityOverTime result object produced by
 CohortTimelineEventAnalyzer.compute_activity_over_time().
 """
 from __future__ import annotations
-import pathlib
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from eventus.visualizers.configs.activity_over_time_config import ActivityOverTimeConfig
 from eventus.intermediates.event_activity_over_time import EventActivityOverTime
+from eventus.visualizers.plot_utils import validate_path, save_figure
 
 _ERROR_PREFIX = "[ActivityOverTimePlotter] Error"
 
@@ -86,7 +86,7 @@ class ActivityOverTimePlotter:
             render_line_panel, render_arrow_panel,
         )
 
-        self._validate_path(path)
+        validate_path(path, _ERROR_PREFIX)
 
         cfg      = self._config
         canvas   = cfg.canvas
@@ -139,21 +139,7 @@ class ActivityOverTimePlotter:
             )
 
         fig.tight_layout()
-        fig.savefig(path, dpi=canvas.dpi, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Saved: {path}")
-
-    # ------------------------------------------------------------------ #
-    # Private helpers
-    # ------------------------------------------------------------------ #
-
-    def _validate_path(self, path: str) -> None:
-        ext = pathlib.Path(path).suffix.lower()
-        if ext not in {".png", ".jpg", ".jpeg"}:
-            raise ValueError(
-                f"{_ERROR_PREFIX}: unsupported file extension '{ext}'. "
-                f"Use .png, .jpg, or .jpeg"
-            )
+        save_figure(fig, path, canvas.dpi)
 
     # ------------------------------------------------------------------ #
     # Dunder

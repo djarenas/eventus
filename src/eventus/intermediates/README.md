@@ -280,7 +280,13 @@ Organized into three tiers:
 
 ## Design notes
 
-**Intermediates and data objects.** *(*** revisit once data_objects README is written — the distinction between the two layers needs to be stated accurately here.)* Intermediates hold computed results and can enrich themselves, expose analytical properties, and produce derived results. A `CohortTimeline` is not just a DataFrame with a schema — it is an analytical object that knows what it contains and what can be done with it.
+**Intermediates and data objects.** Both are validated, self-describing objects that refuse to construct from invalid data. The distinction is one of role and direction, not of capability.
+
+Data objects are validated *input* containers. They sit at the entry point of the pipeline — they know what their columns mean, they enforce structural soundness at construction, and they carry their schema through every downstream step via semantics objects. They have multiple construction paths analogous to constructor overloading in C++, but they do not compute.
+
+Intermediates are validated *result* containers. They sit at the output of an analyzer — they know what was computed, they enforce that the result is structurally sound, and they expose methods that allow further enrichment and interrogation. A `CohortTimeline` is not just a DataFrame with a schema — it is an analytical object that knows what it contains, can be progressively enriched with new computed layers, and carries that enrichment forward through the pipeline. An `OccurrenceResultShape` knows it is a behavioral fingerprint and enforces the minimum requirements for every stat it carries.
+
+The pipeline flows from data objects through analyzers to intermediates — never in reverse.
 
 **Immutability by convention.** Enrichment methods on `CohortTimeline` always return new instances. The original is never mutated. This makes pipelines explicit and reproducible — each enrichment step is a discrete, auditable operation.
 

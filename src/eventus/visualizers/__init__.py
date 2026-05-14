@@ -2,6 +2,7 @@
 from eventus.visualizers.activity_over_time_plotter import ActivityOverTimePlotter
 from eventus.visualizers.events_duration_plotter import EventsDurationPlotter
 from eventus.visualizers.stacked_timeline_plotter import StackedTimelinePlotter
+from eventus.visualizers.events_duration_plotter import EventsDurationPlotter
 
 # Visualizers: Configuration objects
 from eventus.visualizers.configs.stacked_timeline_config import StackedTimelineConfig

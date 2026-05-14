@@ -23,9 +23,6 @@ class OccurrencesPerEntity(Occurrences):
     enrollment dates — where one occurrence per entity is a
     structural requirement.
 
-    Also provides build_obs_period() to generate per-entity
-    observation windows centered on the occurrence date.
-
     Raises
     ------
     ValueError
@@ -46,7 +43,7 @@ class OccurrencesPerEntity(Occurrences):
 
     def _validate_one_row_per_entity(self) -> None:
         """Raise if any entity appears more than once."""
-        col       = self.semantics.entity_id_col
+        col        = self.semantics.entity_id_col
         duplicated = self.data[self.data[col].duplicated(keep=False)]
         if not duplicated.empty:
             dupes = duplicated[col].unique().tolist()
@@ -57,18 +54,15 @@ class OccurrencesPerEntity(Occurrences):
             )
 
     # ------------------------------------------------------------------ #
-    # Public methods — override to return OccurrencesPerEntity
+    # Constructor — override to return OccurrencesPerEntity
     # ------------------------------------------------------------------ #
-
-    def filter_by_entities(self, entity_ids) -> "OccurrencesPerEntity":
-        """Return a new OccurrencesPerEntity containing only the specified entities."""
-        col      = self.semantics.entity_id_col
-        filtered = self.data[self.data[col].isin(entity_ids)].copy()
-        return OccurrencesPerEntity._from_clean(filtered, self.semantics)
 
     def copy(self) -> "OccurrencesPerEntity":
         """Return a copy of this OccurrencesPerEntity."""
-        return OccurrencesPerEntity._from_clean(self.data.copy(), self.semantics)
+        return OccurrencesPerEntity._construct_from_cleaned(
+            self.data.copy(),
+            self.semantics,
+        )
 
     # ------------------------------------------------------------------ #
     # Build observation period
@@ -87,8 +81,8 @@ class OccurrencesPerEntity(Occurrences):
         ----------
         window : tuple[int, int]
             (before_days, after_days) — both non-negative integers.
-            span_start = occurrence_date - before_days
-            span_end   = occurrence_date + after_days
+            obs_start = occurrence_date - before_days
+            obs_end   = occurrence_date + after_days
         span_semantics : EventSemantics
             Semantics for the output ObsPeriodPerEntity.
             entity_id_col must match this object's entity_id_col.
@@ -99,7 +93,7 @@ class OccurrencesPerEntity(Occurrences):
         Returns
         -------
         ObsPeriodPerEntity
-            One row per entity with span_start and span_end columns.
+            One row per entity with obs_start and obs_end columns.
 
         Examples
         --------
@@ -109,8 +103,8 @@ class OccurrencesPerEntity(Occurrences):
         ...     identity       = "post_diagnosis_window",
         ... )
         """
-        from .obs_period_per_entity import ObsPeriodPerEntity
-        from .occurrences_utils import build_span_from_occurrences
+        from eventus.data_objects.obs_period_per_entity import ObsPeriodPerEntity
+        from eventus.data_objects.occurrences_utils import build_span_from_occurrences
 
         if span_semantics.entity_id_col != self.semantics.entity_id_col:
             raise ValueError(

@@ -97,21 +97,6 @@ class OccurrencesCleanerConfig:
 
         return cls(**cfg)
 
-    @classmethod
-    def build_with_defaults(cls) -> "OccurrencesCleanerConfig":
-        """
-        A minimal config — only the safest, most essential cleaning.
-        No date floor/ceiling checks.
-        Good for data you mostly trust but want null/duplicate handling.
-        """
-        return cls(
-            normalize_dates = True,
-            parse_dates     = True,
-            drop_duplicates = True,
-            date_floor      = "1800-01-01",
-            date_ceiling    = "2200-01-01",
-        )
-
     def to_yaml(self, path: str) -> None:
         """Save this config to a YAML file."""
         cfg = {
