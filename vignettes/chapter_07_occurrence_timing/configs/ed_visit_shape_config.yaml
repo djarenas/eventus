@@ -1,0 +1,34 @@
+# ed_visit_shape_config.yaml
+# OccurrenceResultShapeConfig for Chapter 7 — gap distribution ages 18-21
+
+canvas:
+  figsize:   [10, 6]
+  dpi:       120
+  font_size: 12
+
+density:
+  bins:
+    type:   uniform
+    n_bins: 30
+    min:    0
+  style:
+    color: "#028090"
+  percentile_lines:
+    show:        true
+    values:      [25, 50, 75]
+    linestyle:   dashed
+    show_labels: true
+
+center_of_mass:
+  bins:
+    type:   uniform
+    n_bins: 20
+    min:    0.0
+    max:    1.0
+  style:
+    color: "#028090"
+
+scatter:
+  color:               "#028090"
+  show_quadrant_lines: true
+  quadrant_line_color: "#AAAAAA"

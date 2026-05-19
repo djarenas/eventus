@@ -1,0 +1,16 @@
+# nursing_facility_semantics.yaml
+# EventSemantics for nursing facility assessment data.
+
+identity:        nursing_facility_stay
+entity_id_col:   resident_id
+start_time_col:  admit_date
+end_time_col:    discharge_date
+also_defined_by:
+  - facility_id
+descriptor_cols:
+  systolic_bp:
+    type: numeric
+  bmi:
+    type: numeric
+  mobility_status:
+    type: category

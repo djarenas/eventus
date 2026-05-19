@@ -1,0 +1,30 @@
+# ed_visit_gap_violin_config.yaml
+# ArraysViolinConfig for Chapter 7 Bonus — mean gap between ED visits
+
+canvas:
+  figsize:   [6, 8]
+  dpi:       120
+  font_size: 12
+
+labels:
+  title:  "Mean Days Between ED Visits — Ages 18-21"
+  ylabel: "days"
+
+axes:
+  y_min: 0
+
+style:
+  bandwidth:  scott
+  show_box:   true
+  show_points: false
+
+percentiles:
+  show:        true
+  values:      [25, 50, 75]
+  linestyle:   dashed
+  show_labels: true
+
+categories:
+  "mean gap\n(days)":
+    color: "#028090"
+    label: "mean gap (days)"

@@ -1,0 +1,30 @@
+# ed_visit_volume_config.yaml
+# OccurrenceResultVolumeConfig for Chapter 6 Bonus A — ED visit volume plots.
+
+canvas:
+  figsize:   [10, 6]
+  dpi:       120
+  font_size: 12
+
+bar:
+  color_any:       "#028090"
+  color_multiple:  "#E05C40"
+  color_none:      "#EEEEEE"
+  show_pct_labels: true
+  show_ci:         true
+  labels:
+    title: "ED Visit Prevalence — 2022 Cohort"
+
+count_bar:
+  color:             "#028090"
+  max_n:             5
+  show_as_pct:       true
+  show_count_labels: true
+  show_ci:           true
+  labels:
+    title: "ED Visit Count Distribution — 2022 Cohort"
+  percentile_lines:
+    show:        true
+    values:      [50, 75, 90]
+    linestyle:   dashed
+    show_labels: true

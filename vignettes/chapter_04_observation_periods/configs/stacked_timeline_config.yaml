@@ -1,0 +1,33 @@
+# stacked_timeline_config.yaml
+# StackedTimelineConfig for Chapter 4 — Medicaid Coverage Timeline
+
+canvas:
+  figsize: [14, 20]
+  dpi: 120
+  font_size: 10
+
+labels:
+  title: "Medicaid Coverage — 2022 Cohort"
+
+layout:
+  row_height:    0.35
+  max_entities:  100       # show first 100 members for readability
+  show_entity_labels: false
+
+x_axis:
+  mode:     calendar
+  unit:     months
+  interval: 1
+
+poi:
+  color_before:    "#BDBDBD"   # not yet covered
+  color_middle:    "#F44336"   # gap in coverage
+  color_after:     "#BDBDBD"   # no longer covered
+  color_no_events: "#EEEEEE"   # never covered
+
+events:
+  - identity: medicaid_coverage
+    color:    "#028090"        # active coverage periods
+
+legend:
+  show: true

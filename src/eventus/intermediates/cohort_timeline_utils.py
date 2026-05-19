@@ -46,8 +46,16 @@ def evt_starts_col(identity: str) -> str:
 def evt_ends_col(identity: str) -> str:
     return f"evt_{identity}_ends"
 
+def evt_descriptor_col(identity: str, col: str) -> str:
+    """Column name for a descriptor carried from an Events object."""
+    return f"evt_{identity}_{col}"
+
 def occ_col(identity: str) -> str:
     return f"occ_{identity}"
+
+def occ_descriptor_col(identity: str, col: str) -> str:
+    """Column name for a descriptor carried from an Occurrences object."""
+    return f"occ_{identity}_{col}"
 
 def occ_comp_col(identity: str, stat: str) -> str:
     return f"occ_comp_{identity}_{stat}"
@@ -71,16 +79,105 @@ def infer_event_identities(columns: list[str]) -> list[str]:
     return sorted(starts_ids & ends_ids)
 
 
+def infer_event_descriptor_cols(
+    columns:    list[str],
+    identities: list[str],
+) -> dict[str, list[str]]:
+    """
+    Return a dict mapping each event identity to its list of
+    descriptor column names carried in the CohortTimeline.
+
+    e.g. {"inpatient_hospitalization": ["hospital_id", "icd10_condition"]}
+
+    Parameters
+    ----------
+    columns    : All column names in the CohortTimeline DataFrame.
+    identities : Known event identities from infer_event_identities().
+    """
+    result = {identity: [] for identity in identities}
+    for col in columns:
+        if not col.startswith("evt_"):
+            continue
+        # Exclude _starts and _ends columns
+        if col.endswith("_starts") or col.endswith("_ends"):
+            continue
+        suffix = col[4:]  # strip "evt_"
+        for identity in identities:
+            prefix = identity + "_"
+            if suffix.startswith(prefix):
+                descriptor = suffix[len(prefix):]
+                result[identity].append(descriptor)
+    return result
+
+
 def infer_occurrence_identities(columns: list[str]) -> list[str]:
     """
     Return sorted list of raw occurrence identities.
-    Raw occurrence columns are occ_{identity} — excludes occ_comp_ columns.
+
+    Raw occurrence columns are occ_{identity} — the date pipe-delimited
+    column. Excludes:
+      - occ_comp_* computed columns
+      - occ_{identity}_{descriptor} descriptor columns
+
+    To distinguish occ_{identity} from occ_{identity}_{descriptor}, we
+    build the set of all occ_* column suffixes and keep only those that
+    are not a prefix of another occ_* column (i.e. no other column starts
+    with occ_{suffix}_).
     """
-    return sorted(
+    # All occ_* columns that are not occ_comp_*
+    candidates = [
         col[4:] for col in columns
         if col.startswith("occ_")
         and not col.startswith("occ_comp_")
-    )
+    ]
+
+    # A candidate is a pure identity if no other candidate starts with it + "_"
+    # e.g. "ed_visit" is kept because no candidate starts with "ed_visit_"
+    # but "ed_visit_icd10_condition" would be filtered because... wait,
+    # "ed_visit_icd10_condition" itself starts with "ed_visit_" which IS a known identity.
+    # So: a candidate is a descriptor suffix if it starts with any other candidate + "_"
+
+    candidate_set = set(candidates)
+    identities = []
+    for c in candidates:
+        # Check if c starts with any other candidate followed by "_"
+        is_descriptor = any(
+            c.startswith(other + "_")
+            for other in candidate_set
+            if other != c
+        )
+        if not is_descriptor:
+            identities.append(c)
+
+    return sorted(set(identities))
+
+
+def infer_occurrence_descriptor_cols(
+    columns:    list[str],
+    identities: list[str],
+) -> dict[str, list[str]]:
+    """
+    Return a dict mapping each occurrence identity to its list of
+    descriptor column names carried in the CohortTimeline.
+
+    e.g. {"ed_visit": ["icd10_condition", "systolic_bp", "hospital_id"]}
+
+    Parameters
+    ----------
+    columns    : All column names in the CohortTimeline DataFrame.
+    identities : Known occurrence identities from infer_occurrence_identities().
+    """
+    result = {identity: [] for identity in identities}
+    for col in columns:
+        if not col.startswith("occ_") or col.startswith("occ_comp_"):
+            continue
+        suffix = col[4:]  # strip "occ_"
+        for identity in identities:
+            prefix = identity + "_"
+            if suffix.startswith(prefix):
+                descriptor = suffix[len(prefix):]
+                result[identity].append(descriptor)
+    return result
 
 
 def infer_computed_occurrence_identities(columns: list[str]) -> list[str]:
@@ -271,19 +368,35 @@ def attach_event_columns(
     entity_col:  str,
 ) -> pd.DataFrame:
     """
-    Pipe-delimit starts and ends for one Events object and merge into result.
+    Pipe-delimit starts, ends, and descriptor columns for one Events
+    object and merge into result.
+
+    Produces:
+      evt_{identity}_starts       — pipe-delimited start dates (always)
+      evt_{identity}_ends         — pipe-delimited end dates (always)
+      evt_{identity}_{col}        — pipe-delimited also_defined_by columns
+      evt_{identity}_{col}        — aggregated descriptor columns
+                                    per DescriptorColConfig.timeline:
+                                    "sequence" — pipe-delimit in event order
+                                    "unique"   — unique values, sorted
+                                    "average"  — mean across events (numeric)
+                                    "none"     — not carried
     """
-    identity   = evt.semantics.identity
-    start_col  = evt.semantics.start_time_col
-    end_col    = evt.semantics.end_time_col
+    identity  = evt.semantics.identity
+    start_col = evt.semantics.start_time_col
+    end_col   = evt.semantics.end_time_col
     starts_out = evt_starts_col(identity)
     ends_out   = evt_ends_col(identity)
+
+    also_defined_by = evt.semantics.also_defined_by or []
+    descriptor_cols = evt.semantics.descriptor_cols or {}
 
     evt_data = evt.data.copy()
     evt_data[start_col] = pd.to_datetime(evt_data[start_col]).dt.normalize()
     evt_data[end_col]   = pd.to_datetime(evt_data[end_col]).dt.normalize()
     evt_sorted = evt_data.sort_values([entity_col, start_col])
 
+    # ── Starts and ends ───────────────────────────────────────────────────
     starts_pipe = (
         evt_sorted.groupby(entity_col)[start_col]
         .apply(lambda s: " | ".join(d.strftime("%Y-%m-%d") for d in s))
@@ -294,9 +407,65 @@ def attach_event_columns(
         .apply(lambda s: " | ".join(d.strftime("%Y-%m-%d") for d in s))
         .rename(ends_out)
     )
-
     result = result.merge(starts_pipe, on=entity_col, how="left")
     result = result.merge(ends_pipe,   on=entity_col, how="left")
+
+    # ── also_defined_by columns — always sequence, always atomic ─────────
+    for col in also_defined_by:
+        if col not in evt_data.columns:
+            continue
+        out = evt_descriptor_col(identity, col)
+        pipe_col = (
+            evt_sorted.groupby(entity_col)[col]
+            .apply(lambda s: " | ".join(str(v) for v in s))
+            .rename(out)
+        )
+        result = result.merge(pipe_col, on=entity_col, how="left")
+
+    # ── descriptor_cols — aggregated per timeline rule ────────────────────
+    for col, cfg in descriptor_cols.items():
+        if col not in evt_data.columns:
+            continue
+        if cfg.timeline == "none":
+            continue
+
+        out = evt_descriptor_col(identity, col)
+
+        if cfg.timeline == "sequence":
+            pipe_col = (
+                evt_sorted.groupby(entity_col)[col]
+                .apply(lambda s: " | ".join(
+                    str(v) for v in s if pd.notna(v)
+                ))
+                .rename(out)
+            )
+            result = result.merge(pipe_col, on=entity_col, how="left")
+
+        elif cfg.timeline == "unique":
+            pipe_col = (
+                evt_sorted.groupby(entity_col)[col]
+                .apply(lambda s: " | ".join(
+                    sorted(set(
+                        str(v).strip()
+                        for v in s
+                        if pd.notna(v) and str(v).strip()
+                    ))
+                ))
+                .rename(out)
+            )
+            result = result.merge(pipe_col, on=entity_col, how="left")
+
+        elif cfg.timeline == "average":
+            import numpy as np
+            avg_col = (
+                evt_sorted.groupby(entity_col)[col]
+                .apply(lambda s: float(np.mean(
+                    [float(v) for v in s if pd.notna(v)]
+                )) if s.notna().any() else float("nan"))
+                .rename(out)
+            )
+            result = result.merge(avg_col, on=entity_col, how="left")
+
     return result
 
 
@@ -306,23 +475,95 @@ def attach_occurrence_columns(
     entity_col: str,
 ) -> pd.DataFrame:
     """
-    Pipe-delimit occurrence dates for one Occurrences object and merge into result.
+    Pipe-delimit occurrence dates and descriptor columns for one
+    Occurrences object and merge into result.
+
+    Produces:
+      occ_{identity}              — pipe-delimited dates (always)
+      occ_{identity}_{col}        — pipe-delimited also_defined_by columns
+      occ_{identity}_{col}        — aggregated descriptor columns
+                                    per DescriptorColConfig.timeline:
+                                    "sequence" — pipe-delimit in visit order
+                                    "unique"   — unique values, sorted
+                                    "average"  — mean across visits (numeric)
+                                    "none"     — not carried
     """
-    identity = occ.semantics.identity
-    date_col = occ.semantics.date_col
-    out_col  = occ_col(identity)
+    identity  = occ.semantics.identity
+    date_col  = occ.semantics.date_col
+    out_col   = occ_col(identity)
+
+    also_defined_by = occ.semantics.also_defined_by or []
+    descriptor_cols = occ.semantics.descriptor_cols or {}
 
     occ_data = occ.data.copy()
     occ_data[date_col] = pd.to_datetime(occ_data[date_col]).dt.normalize()
+    occ_sorted = occ_data.sort_values([entity_col, date_col])
 
-    pipe_col = (
-        occ_data.sort_values([entity_col, date_col])
-        .groupby(entity_col)[date_col]
+    # ── Dates ────────────────────────────────────────────────────────────
+    pipe_dates = (
+        occ_sorted.groupby(entity_col)[date_col]
         .apply(lambda s: " | ".join(d.strftime("%Y-%m-%d") for d in s))
         .rename(out_col)
     )
+    result = result.merge(pipe_dates, on=entity_col, how="left")
 
-    return result.merge(pipe_col, on=entity_col, how="left")
+    # ── also_defined_by columns — always sequence, always atomic ─────────
+    for col in also_defined_by:
+        if col not in occ_data.columns:
+            continue
+        out = occ_descriptor_col(identity, col)
+        pipe_col = (
+            occ_sorted.groupby(entity_col)[col]
+            .apply(lambda s: " | ".join(str(v) for v in s))
+            .rename(out)
+        )
+        result = result.merge(pipe_col, on=entity_col, how="left")
+
+    # ── descriptor_cols — aggregated per timeline rule ────────────────────
+    for col, cfg in descriptor_cols.items():
+        if col not in occ_data.columns:
+            continue
+        if cfg.timeline == "none":
+            continue
+
+        out = occ_descriptor_col(identity, col)
+
+        if cfg.timeline == "sequence":
+            pipe_col = (
+                occ_sorted.groupby(entity_col)[col]
+                .apply(lambda s: " | ".join(
+                    str(v) for v in s if pd.notna(v)
+                ))
+                .rename(out)
+            )
+            result = result.merge(pipe_col, on=entity_col, how="left")
+
+        elif cfg.timeline == "unique":
+            pipe_col = (
+                occ_sorted.groupby(entity_col)[col]
+                .apply(lambda s: " | ".join(
+                    sorted(set(
+                        str(v).strip()
+                        for v in s
+                        if pd.notna(v) and str(v).strip()
+                    ))
+                ))
+                .rename(out)
+            )
+            result = result.merge(pipe_col, on=entity_col, how="left")
+
+        elif cfg.timeline == "average":
+            import numpy as np
+            avg_col = (
+                occ_sorted.groupby(entity_col)[col]
+                .apply(lambda s: float(np.mean(
+                    [float(v) for v in s if pd.notna(v)]
+                )) if s.notna().any() else float("nan"))
+                .rename(out)
+            )
+            result = result.merge(avg_col, on=entity_col, how="left")
+
+    return result
 
 
 def attach_occ_comp_columns(

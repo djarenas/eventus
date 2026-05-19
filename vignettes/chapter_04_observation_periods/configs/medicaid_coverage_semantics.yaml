@@ -1,0 +1,7 @@
+# medicaid_coverage_semantics.yaml
+# EventSemantics for Medicaid coverage periods.
+
+identity:       medicaid_coverage
+entity_id_col:  patient_id
+start_time_col: coverage_start
+end_time_col:   coverage_end

@@ -1,0 +1,49 @@
+# ed_visit_gap_stratified_config.yaml
+# ArraysViolinConfig for Chapter 7 Bonus B
+# Mean gap between ED visits stratified by icd10_condition
+
+canvas:
+  figsize:   [12, 8]
+  dpi:       120
+  font_size: 12
+
+labels:
+  title:  "Mean Days Between ED Visits by Condition — Ages 18-21"
+  ylabel: "days"
+
+axes:
+  y_min: 0
+
+style:
+  bandwidth:   scott
+  show_box:    true
+  show_points: false
+
+percentiles:
+  show:        true
+  values:      [25, 50, 75]
+  linestyle:   dashed
+  show_labels: true
+
+categories:
+  conditionA:
+    color: "#028090"
+    label: "Condition A only"
+  conditionB:
+    color: "#E05C40"
+    label: "Condition B only"
+  conditionC:
+    color: "#6B4FA0"
+    label: "Condition C only"
+  conditionA | conditionB:
+    color: "#F0A500"
+    label: "A + B"
+  conditionA | conditionC:
+    color: "#2E86AB"
+    label: "A + C"
+  conditionB | conditionC:
+    color: "#A23B72"
+    label: "B + C"
+  conditionA | conditionB | conditionC:
+    color: "#333333"
+    label: "A + B + C"

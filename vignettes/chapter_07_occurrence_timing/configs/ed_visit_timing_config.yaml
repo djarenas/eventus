@@ -1,0 +1,53 @@
+# ed_visit_timing_config.yaml
+# OccurrenceResultTimingConfig for Chapter 7 — time to nth ED visit ages 18-21
+
+canvas:
+  figsize:   [10, 9]
+  dpi:       120
+  font_size: 12
+
+histogram:
+  bins:
+    type:   uniform
+    n_bins: 36
+    min:    0
+    max:    1095
+  style:
+    color: "#028090"
+  percentile_lines:
+    show:        true
+    values:      [25, 50, 75]
+    linestyle:   dashed
+    show_labels: true
+
+histogram_per_n:
+  2:
+    bins:
+      type:   uniform
+      n_bins: 36
+      min:    0
+      max:    1095
+    style:
+      color: "#E05C40"
+    percentile_lines:
+      show:        true
+      values:      [25, 50, 75]
+      linestyle:   dashed
+      show_labels: true
+  3:
+    bins:
+      type:   uniform
+      n_bins: 36
+      min:    0
+      max:    1095
+    style:
+      color: "#6B4FA0"
+    percentile_lines:
+      show:        true
+      values:      [25, 50, 75]
+      linestyle:   dashed
+      show_labels: true
+
+facet:
+  facet_height: 3.0
+  facet_width:  10.0

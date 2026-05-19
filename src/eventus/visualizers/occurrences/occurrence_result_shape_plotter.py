@@ -186,14 +186,185 @@ class OccurrenceResultShapePlotter:
         fig.tight_layout()
         shared_utils.save_figure(fig, path, cfg.canvas.dpi)
 
-    # ── Dunder ────────────────────────────────────────────────────────────────
+    def plot_mean_gap_violin(
+        self,
+        path:          str,
+        violin_config: "ArraysViolinConfig | None" = None,
+    ) -> None:
+        """
+        Plot distribution of mean inter-occurrence gap as a violin.
 
-    def __repr__(self) -> str:
+        Only entities with at least 2 occurrences (n_with_gaps) appear —
+        mean_gap requires at least one gap. Entities with fewer than 2
+        occurrences have NaN mean_gap and are excluded automatically.
+
+        Parameters
+        ----------
+        path : str
+            Output file path. Must end in .png, .jpg, or .jpeg.
+        violin_config : ArraysViolinConfig | None
+            Visual configuration for the violin plot. If None, sensible
+            defaults are used — one teal violin, days on y-axis.
+        """
+        from eventus.visualizers.configs.arrays_violin_config import ArraysViolinConfig
+        from eventus.visualizers.violins.arrays_violin_plotter import ArraysViolinPlotter
+
+        shared_utils.validate_path(path, _ERROR)
+
+        mean_gap = self._shape.data["mean_gap"].dropna()
+
+        if len(mean_gap) < 2:
+            raise ValueError(
+                f"{_ERROR} plot_mean_gap_violin() requires at least 2 entities "
+                f"with valid mean_gap. Got {len(mean_gap)}. "
+                f"Ensure members have at least 2 occurrences."
+            )
+
+        if violin_config is None:
+            from eventus.visualizers.configs.category_config import CategoryConfig
+            from eventus.visualizers.configs.base_plot_config import AxisLabels
+            from eventus.visualizers.configs.percentiles_config import PercentilesConfig
+            violin_config = ArraysViolinConfig.build_from_dict({
+                "canvas": {
+                    "figsize":    [6, 8],
+                    "dpi":        120,
+                    "font_size":  12,
+                },
+                "labels": {
+                    "title":  f"Mean gap between occurrences — {self._shape.identity}",
+                    "ylabel": "days",
+                },
+                "axes": {"y_min": 0},
+                "style": {
+                    "bandwidth":   "scott",
+                    "show_box":    True,
+                    "show_points": False,
+                },
+                "percentiles": {
+                    "show":        True,
+                    "values":      [25, 50, 75],
+                    "linestyle":   "dashed",
+                    "show_labels": True,
+                },
+                "categories": {
+                    "mean_gap": {"color": "#028090", "label": "mean gap (days)"},
+                },
+            })
+
+        arrays = {"mean_gap": mean_gap.values}
+        ArraysViolinPlotter(arrays, violin_config).plot(path)
+
+    def plot_mean_gap_violin_stratified(
+        self,
+        path:             str,
+        cohort_timeline:  object,
+        stratify_by:      str,
+        violin_config:    "ArraysViolinConfig | None" = None,
+        max_groups:       int = 5,
+    ) -> None:
+        """
+        Plot mean inter-occurrence gap as a stratified violin, grouped
+        by a descriptor column carried in the CohortTimeline.
+
+        Parameters
+        ----------
+        path : str
+            Output file path. Must end in .png, .jpg, or .jpeg.
+        cohort_timeline : CohortTimeline
+            The enriched CohortTimeline carrying the descriptor column.
+            Must contain occ_{identity}_{stratify_by}.
+        stratify_by : str
+            Descriptor column name to stratify by e.g. "icd10_condition".
+            Must be declared in OccurrenceSemantics.descriptor_cols with
+            timeline != "none".
+        violin_config : ArraysViolinConfig | None
+            Visual configuration. If None, sensible defaults are used.
+        max_groups : int
+            Maximum number of groups allowed before raising. Default 5.
+            Override by declaring explicit categories in violin_config.
+        """
+        from eventus.visualizers.configs.arrays_violin_config import ArraysViolinConfig
+        from eventus.visualizers.violins.arrays_violin_plotter import ArraysViolinPlotter
+
+        shared_utils.validate_path(path, _ERROR)
+
+        # ── Get descriptor series from CohortTimeline ─────────────────────
+        descriptor = cohort_timeline.get_occurrence_descriptor(
+            self._shape.identity, stratify_by
+        )
+
+        # ── Join mean_gap with descriptor on entity ───────────────────────
+        entity_col  = self._shape.entity_col
+        shape_data  = self._shape.data[[entity_col, "mean_gap"]].copy()
+        ct_data     = cohort_timeline.data[[entity_col]].copy()
+        ct_data[stratify_by] = descriptor.values
+
+        merged = shape_data.merge(ct_data, on=entity_col, how="left")
+        merged = merged[merged["mean_gap"].notna()].copy()
+
+        # ── Get unique groups ─────────────────────────────────────────────
+        unique_groups = sorted(merged[stratify_by].dropna().unique())
+
+        # If violin_config declares explicit categories, use those
+        # Otherwise validate group count
+        if violin_config is None or not violin_config.categories:
+            if len(unique_groups) > max_groups:
+                raise ValueError(
+                    f"{_ERROR} plot_mean_gap_violin_stratified() found "
+                    f"{len(unique_groups)} unique groups in '{stratify_by}': "
+                    f"{unique_groups[:10]}{'...' if len(unique_groups) > 10 else ''}. "
+                    f"This exceeds max_groups={max_groups}. "
+                    f"Declare explicit categories in violin_config or increase "
+                    f"max_groups."
+                )
+            groups = unique_groups
+        else:
+            groups = list(violin_config.categories.keys())
+
+        # ── Build arrays dict ─────────────────────────────────────────────
+        arrays = {}
+        for group in groups:
+            vals = merged[merged[stratify_by] == group]["mean_gap"].values
+            if len(vals) >= 2:
+                arrays[group] = vals
+
+        if not arrays:
+            raise ValueError(
+                f"{_ERROR} plot_mean_gap_violin_stratified(): no groups had "
+                f"at least 2 valid mean_gap values. Check that members have "
+                f"at least 2 occurrences and that '{stratify_by}' values match "
+                f"the declared groups."
+            )
+
+        # ── Build default config if needed ────────────────────────────────
+        if violin_config is None:
+            violin_config = ArraysViolinConfig.build_from_dict({
+                "canvas": {"figsize": [max(6, len(arrays) * 2), 8],
+                           "dpi": 120, "font_size": 12},
+                "labels": {
+                    "title":  f"Mean gap by {stratify_by} — {self._shape.identity}",
+                    "ylabel": "days",
+                },
+                "axes": {"y_min": 0},
+                "style": {"bandwidth": "scott", "show_box": True},
+                "percentiles": {"show": True, "values": [25, 50, 75],
+                                "linestyle": "dashed", "show_labels": True},
+                "categories": {
+                    g: {"color": ["#028090","#E05C40","#6B4FA0",
+                                  "#F0A500","#2E86AB"][i % 5]}
+                    for i, g in enumerate(arrays.keys())
+                },
+            })
+
+        ArraysViolinPlotter(arrays, violin_config).plot(path)
         return (
             f"OccurrenceResultShapePlotter(\n"
             f"  identity      : '{self._shape.identity}'\n"
             f"  entities      : {self._shape.n_entities:,}\n"
+            f"  n_with_gaps   : {self._shape.n_with_gaps:,}\n"
             f"  n_with_shape  : {self._shape.n_with_shape:,}\n"
             f"  n_with_memory : {self._shape.n_with_memory:,}\n"
+            f"  methods       : plot_fingerprint, plot_center_of_mass, "
+            f"plot_density, plot_mean_gap_violin\n"
             f")"
         )

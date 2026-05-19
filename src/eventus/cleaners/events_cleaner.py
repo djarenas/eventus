@@ -79,8 +79,15 @@ class EventsCleaner:
         self._config    = config
         self._cleaned   = None
         self._rejected  = None
-        self._modified  = None   # rows kept but modified (coalesced, swapped)
+        self._modified  = None
         self._n_input   = len(data)
+
+        # Validate MergeConfig against semantics
+        if config.merge is not None:
+            config.merge.validate_against_semantics(
+                also_defined_by = semantics.also_defined_by or [],
+                descriptor_cols = semantics.descriptor_cols or {},
+            )
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -99,7 +106,7 @@ class EventsCleaner:
         5.  Reject rows outside date_floor / date_ceiling
         6.  Causality check         (reject or swap end < start)
         7.  Drop exact duplicates   (if config.drop_duplicates)
-        8.  Merge overlapping       (if config.merge_overlapping)
+        8.  Merge overlapping       (if config.merge is not None)
 
         Returns
         -------
@@ -107,7 +114,7 @@ class EventsCleaner:
             A validated Events object containing only clean rows.
         """
         from eventus.data_objects.events import Events
-        from eventus.data_objects.events_utils import merge_overlapping_events
+        from eventus.cleaners.merge_utils import merge_overlapping_events
 
         df  = self._raw.copy()
         ec  = self._semantics.entity_id_col
@@ -219,9 +226,9 @@ class EventsCleaner:
                 rejected_frames.append(bad)
                 df = df[~bad_causality].copy()
 
-        # ── 7. Drop duplicates ────────────────────────────────────────────
-        if cfg.drop_duplicates:
-            dupes = df.duplicated(subset=[ec, sc, en], keep="first")
+        # ── 7. Drop duplicate rows ────────────────────────────────────────
+        if cfg.drop_duplicate_rows:
+            dupes = df.duplicated(keep="first")
             if dupes.any():
                 bad = df[dupes].copy()
                 bad["_rejection_reason"] = _REASON_DUPLICATE
@@ -243,9 +250,9 @@ class EventsCleaner:
         self._cleaned = df.reset_index(drop=True)
 
         # ── 8. Merge overlapping ──────────────────────────────────────────
-        if cfg.merge_overlapping and len(self._cleaned) > 0:
+        if cfg.merge is not None and len(self._cleaned) > 0:
             self._cleaned = merge_overlapping_events(
-                self._cleaned, self._semantics, cfg.meaningful_gap
+                self._cleaned, self._semantics, cfg.merge
             )
 
         return Events(self._cleaned, self._semantics)
@@ -309,12 +316,12 @@ class EventsCleaner:
                     "pct_of_input": round(100 * row["n"] / n_total, 1)  
                 })  
     
-        # Optional merge info  
-        if getattr(self._config, "merge_overlapping", False):  
-            report["merge_info"] = {  
-                "meaningful_gap_days": self._config.meaningful_gap,  
-                "clean_rows_after_merge": n_clean  
-            }  
+        # Optional merge info
+        if self._config.merge is not None:
+            report["merge_info"] = {
+                "meaningful_gap_days":    self._config.merge.meaningful_gap_days,
+                "clean_rows_after_merge": n_clean,
+            }
     
         return report  
     

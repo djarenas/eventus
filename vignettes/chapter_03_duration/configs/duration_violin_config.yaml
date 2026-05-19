@@ -1,0 +1,40 @@
+# duration_violin_config.yaml
+# ArraysViolinConfig for Chapter 3 — stay duration stratified by facility
+#
+# Load with:
+#   config = eventus.ArraysViolinConfig.build_from_yaml("configs/duration_violin_config.yaml")
+
+canvas:
+  figsize: [10, 7]
+  dpi: 120
+  font_size: 12
+
+labels:
+  title: "Stay Duration by Facility"
+  units: days
+
+axes:
+  y_min: 0
+
+style:
+  bandwidth:   scott
+  show_box:    true
+  show_points: false
+
+percentiles:
+  show:        true
+  values:      [25, 50, 75]
+  color:       "#333333"
+  linestyle:   dashed
+  show_labels: true
+
+categories:
+  all_data:
+    color: "#AAAAAA"
+    label: "All residents"
+  Facility_A:
+    color: "#028090"
+    label: "Facility A"
+  Facility_B:
+    color: "#E05C40"
+    label: "Facility B"

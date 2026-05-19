@@ -1,0 +1,49 @@
+# duration_plot_config.yaml
+# EventDurationPlotConfig for Chapter 3 — Stay Duration Analysis
+#
+# Load with:
+#   config = eventus.EventDurationPlotConfig.build_from_yaml("configs/duration_plot_config.yaml")
+
+canvas:
+  figsize: [10, 6]
+  dpi: 120
+  font_size: 12
+
+histogram:
+  bins:
+    type:   uniform
+    n_bins: 20
+    min:    0
+    max:    200
+  labels:
+    title: "Nursing Facility Stay Duration"
+    units: days
+  style:
+    color:     "#028090"
+    edgecolor: "#FFFFFF"
+    alpha:     0.85
+    show_grid: true
+  percentile_lines:
+    show:        true
+    values:      [25, 50, 75, 90]
+    color:       "#333333"
+    linestyle:   dashed
+    show_labels: true
+
+kde:
+  labels:
+    title: "Nursing Facility Stay Duration — Density"
+    units: days
+  style:
+    color:      "#028090"
+    alpha:      0.90
+    fill_alpha: 0.15
+    linewidth:  1.5
+    bandwidth:  scott
+    show_grid:  true
+  percentiles:
+    show:        true
+    values:      [25, 50, 75, 90]
+    color:       "#333333"
+    linestyle:   dashed
+    show_labels: true

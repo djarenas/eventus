@@ -1,0 +1,17 @@
+# nursing_facility_cleaner.yaml
+# EventsCleanerConfig for nursing facility assessment data.
+
+normalize_dates:     true
+coalesce_dates:      false
+causality_check:     reject
+parse_dates:         true
+drop_duplicate_rows: true
+date_floor:          "1920-01-01"
+date_ceiling:        "2030-01-01"
+
+merge:
+  meaningful_gap_days: 0
+  descriptor_cols:
+    systolic_bp:     mean
+    bmi:             median
+    mobility_status: sequence

@@ -38,7 +38,7 @@ class EventDurationHistogramPlotter:
 
     Parameters
     ----------
-    result : EventDurationResult
+    duration_result : EventDurationResult
         Produced by EventDurationAnalyzer.calc().
     config : EventDurationPlotConfig | None
         Plot configuration. Uses EventDurationPlotConfig() defaults
@@ -55,7 +55,7 @@ class EventDurationHistogramPlotter:
 
     def __init__(
         self,
-        result: EventDurationResult,
+        duration_result: EventDurationResult,
         config: EventDurationPlotConfig | None = None,
     ) -> None:
         if not isinstance(result, EventDurationResult):
@@ -71,7 +71,7 @@ class EventDurationHistogramPlotter:
                 f"got {type(config).__name__}"
             )
 
-        self._result = result
+        self._duration_result = duration_result
         self._config = config
 
     # ------------------------------------------------------------------ #
@@ -223,7 +223,7 @@ class EventDurationHistogramPlotter:
     def _durations(self) -> pd.Series:
         """Return duration_days as a clean Series with NaNs dropped."""
         return (
-            self._result.data["duration_days"]
+            self._duration_result.data["duration_days"]
             .dropna()
             .reset_index(drop=True)
         )
@@ -236,7 +236,7 @@ class EventDurationHistogramPlotter:
         plot_type: str,
     ) -> None:
         """Apply title, xlabel, ylabel from config labels."""
-        identity = self._result.identity
+        identity = self._duration_result.identity
 
         # Title — config first, then auto
         title = labels.title
@@ -278,8 +278,8 @@ class EventDurationHistogramPlotter:
     def __repr__(self) -> str:
         return (
             f"EventDurationHistogramPlotter(\n"
-            f"  identity   : {self._result.identity!r}\n"
-            f"  n_events   : {self._result.n_events:,}\n"
-            f"  n_entities : {self._result.n_entities:,}\n"
+            f"  identity   : {self._duration_result.identity!r}\n"
+            f"  n_events   : {self._duration_result.n_events:,}\n"
+            f"  n_entities : {self._duration_result.n_entities:,}\n"
             f")"
         )

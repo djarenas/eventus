@@ -1,0 +1,12 @@
+# hospitalization_semantics.yaml
+# EventSemantics for inpatient hospitalization claims.
+
+identity:        inpatient_hospitalization
+entity_id_col:   patient_id
+start_time_col:  admit_date
+end_time_col:    discharge_date
+also_defined_by:
+  - hospital_id
+descriptor_cols:
+  icd10_condition:
+    type: category

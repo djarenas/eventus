@@ -4,89 +4,102 @@ Configuration dataclass for EventsCleaner.
 Controls what counts as a valid row for a given dataset.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import Any
+
 import pandas as pd
 import yaml
 
-_ERROR_PREFIX = "[EventsCleanerConfig] Error"
+from eventus.cleaners.merge_config import MergeConfig
 
+_ERROR_PREFIX = "[EventsCleanerConfig] Error"
 _VALID_CAUSALITY = {"reject", "swap"}
 
 
 @dataclass
 class EventsCleanerConfig:
     """
-    'I am a reproducible set of rules for what counts as a valid event row. I can be built from a YAML file and saved back to one'
-
-    All parameters have sensible defaults suitable for most clinical and
-    insurance datasets. Override via build_from_yaml() to make your
-    cleaning choices explicit, versioned, and reproducible.
+    I am a reproducible set of rules for what counts as a valid event
+    row. I can be built from a YAML file and saved back to one.
 
     Parameters
     ----------
     normalize_dates : bool
         Strip time components from date columns — keep dates only.
-        Default True. Recommended for clinical data where time of day
-        is unreliable or irrelevant.
+        Default True.
 
     coalesce_dates : bool
         If a row is missing start OR end (but not both), fill the missing
         value from the other. If False (default), rows missing either
-        date are rejected. Either way the action is recorded in the
-        quality report.
+        date are rejected. Either way recorded in the quality report.
 
     causality_check : str
         What to do when end date is before start date.
         "reject" (default) — reject the row.
         "swap"             — swap start and end dates and keep the row.
-        Either way the action is recorded in the quality report.
 
     parse_dates : bool
         Auto-parse date columns from strings. Default True.
 
     drop_duplicates : bool
-        Remove rows that are identical across entity_id, start, and end.
+        Remove rows identical across entity_id, start, and end.
         Default True.
 
-    merge_overlapping : bool
+    merge : MergeConfig | None
         Merge overlapping or adjacent intervals after all other cleaning.
-        Default False.
-
-    meaningful_gap : int
-        Days between intervals below which they are merged into one episode.
-        Only used when merge_overlapping=True. Default 0.
+        None (default) — no merging.
+        MergeConfig    — merge with the declared rules.
 
     date_floor : str
         Reject rows with start date before this date. Default "1920-01-01".
 
     date_ceiling : str
         Reject rows with end date after this date. Default "2100-01-01".
+
+    Example YAML
+    ------------
+    normalize_dates: true
+    coalesce_dates:  false
+    causality_check: reject
+    parse_dates:     true
+    drop_duplicates: true
+    date_floor:      "1920-01-01"
+    date_ceiling:    "2100-01-01"
+
+    merge:
+      meaningful_gap_days: 1
+      merge_mandates:
+        - hospital_id
+      descriptor_cols:
+        icd10_condition:
+          type: category
+          aggregation_rule: unique
+        bmi_at_admission:
+          type: numeric
+          aggregation_rule: median
     """
 
-    normalize_dates:  bool = True
-    coalesce_dates:   bool = False
-    causality_check:  str  = "reject"
-    parse_dates:      bool = True
-    drop_duplicates:  bool = True
-    merge_overlapping: bool = False
-    meaningful_gap:   int  = 0
-    date_floor:       str  = "1920-01-01"
-    date_ceiling:     str  = "2100-01-01"
+    normalize_dates:      bool               = True
+    coalesce_dates:       bool               = False
+    causality_check:      str                = "reject"
+    parse_dates:          bool               = True
+    drop_duplicate_rows:  bool               = True
+    merge:                MergeConfig | None = None
+    date_floor:           str                = "1920-01-01"
+    date_ceiling:         str                = "2100-01-01"
 
     def __post_init__(self) -> None:
-        # Validate causality_check
         if self.causality_check not in _VALID_CAUSALITY:
             raise ValueError(
                 f"{_ERROR_PREFIX}: causality_check must be one of "
                 f"{sorted(_VALID_CAUSALITY)}, got {self.causality_check!r}"
             )
-        # Validate meaningful_gap
-        if not isinstance(self.meaningful_gap, int) or self.meaningful_gap < 0:
+        if self.merge is not None and not isinstance(self.merge, MergeConfig):
             raise ValueError(
-                f"{_ERROR_PREFIX}: meaningful_gap must be a non-negative integer, "
-                f"got {self.meaningful_gap!r}"
+                f"{_ERROR_PREFIX}: merge must be a MergeConfig or None, "
+                f"got {type(self.merge).__name__}"
             )
-        # Validate date_floor and date_ceiling
         try:
             floor   = pd.Timestamp(self.date_floor)
             ceiling = pd.Timestamp(self.date_ceiling)
@@ -105,31 +118,14 @@ class EventsCleanerConfig:
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def build_from_yaml(cls, path: str) -> "EventsCleanerConfig":
+    def build_from_yaml(cls, path) -> "EventsCleanerConfig":
         """
         Build an EventsCleanerConfig from a YAML file.
 
         Parameters
         ----------
-        path : str
+        path : str | pathlib.Path
             Path to the YAML config file.
-
-        Returns
-        -------
-        EventsCleanerConfig
-            Validated config object.
-
-        Example YAML
-        ------------
-        normalize_dates:   true
-        coalesce_dates:    false
-        causality_check:   reject
-        parse_dates:       true
-        drop_duplicates:   true
-        merge_overlapping: false
-        meaningful_gap:    0
-        date_floor:        "1920-01-01"
-        date_ceiling:      "2100-01-01"
         """
         with open(path, "r") as f:
             cfg = yaml.safe_load(f)
@@ -140,48 +136,68 @@ class EventsCleanerConfig:
                 f"got {type(cfg).__name__}"
             )
 
-        valid_keys = set(cls.__dataclass_fields__.keys())
-        unknown    = set(cfg.keys()) - valid_keys
+        known_keys = {
+            "normalize_dates", "coalesce_dates", "causality_check",
+            "parse_dates", "drop_duplicate_rows", "merge",
+            "date_floor", "date_ceiling",
+        }
+        unknown = set(cfg.keys()) - known_keys
         if unknown:
             raise ValueError(
                 f"{_ERROR_PREFIX}: unknown keys in YAML: {sorted(unknown)}. "
-                f"Valid keys: {sorted(valid_keys)}"
+                f"Valid keys: {sorted(known_keys)}"
             )
 
-        return cls(**cfg)
+        merge_data = cfg.pop("merge", None)
+        merge      = MergeConfig.from_dict(merge_data) if merge_data else None
+
+        return cls(**cfg, merge=merge)
 
     # ------------------------------------------------------------------ #
     # Utilities
     # ------------------------------------------------------------------ #
 
-    def to_yaml(self, path: str) -> None:
+    def to_yaml(self, path) -> None:
         """Save this config to a YAML file."""
-        cfg = {
-            "normalize_dates":  self.normalize_dates,
-            "coalesce_dates":   self.coalesce_dates,
-            "causality_check":  self.causality_check,
-            "parse_dates":      self.parse_dates,
-            "drop_duplicates":  self.drop_duplicates,
-            "merge_overlapping": self.merge_overlapping,
-            "meaningful_gap":   self.meaningful_gap,
-            "date_floor":       self.date_floor,
-            "date_ceiling":     self.date_ceiling,
+        cfg: dict[str, Any] = {
+            "normalize_dates":     self.normalize_dates,
+            "coalesce_dates":      self.coalesce_dates,
+            "causality_check":     self.causality_check,
+            "parse_dates":         self.parse_dates,
+            "drop_duplicate_rows": self.drop_duplicate_rows,
+            "date_floor":          self.date_floor,
+            "date_ceiling":        self.date_ceiling,
         }
+        if self.merge is not None:
+            descriptor_cols = {
+                col: {
+                    "type":             dcfg.type,
+                    "aggregation_rule": dcfg.aggregation_rule,
+                }
+                for col, dcfg in self.merge.descriptor_cols.items()
+            }
+            cfg["merge"] = {
+                "meaningful_gap_days": self.merge.meaningful_gap_days,
+                "descriptor_cols":     descriptor_cols,
+            }
         with open(path, "w") as f:
             yaml.dump(cfg, f, sort_keys=False, default_flow_style=False)
-        print(f"Config saved to: {path}")
 
     def __repr__(self) -> str:
+        merge_repr = (
+            f"\n  merge               : {self.merge}"
+            if self.merge is not None
+            else "\n  merge               : None"
+        )
         return (
             f"EventsCleanerConfig(\n"
-            f"  normalize_dates  : {self.normalize_dates}\n"
-            f"  coalesce_dates   : {self.coalesce_dates}\n"
-            f"  causality_check  : '{self.causality_check}'\n"
-            f"  parse_dates      : {self.parse_dates}\n"
-            f"  drop_duplicates  : {self.drop_duplicates}\n"
-            f"  merge_overlapping: {self.merge_overlapping}\n"
-            f"  meaningful_gap   : {self.meaningful_gap} days\n"
-            f"  date_floor       : {self.date_floor}\n"
-            f"  date_ceiling     : {self.date_ceiling}\n"
+            f"  normalize_dates     : {self.normalize_dates}\n"
+            f"  coalesce_dates      : {self.coalesce_dates}\n"
+            f"  causality_check     : '{self.causality_check}'\n"
+            f"  parse_dates         : {self.parse_dates}\n"
+            f"  drop_duplicate_rows : {self.drop_duplicate_rows}"
+            f"{merge_repr}\n"
+            f"  date_floor          : {self.date_floor}\n"
+            f"  date_ceiling        : {self.date_ceiling}\n"
             f")"
         )

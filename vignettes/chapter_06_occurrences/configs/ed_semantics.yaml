@@ -1,0 +1,15 @@
+# ed_semantics.yaml
+# OccurrenceSemantics for ED visit data.
+
+identity:        ed_visit
+entity_id_col:   patient_id
+date_col:        ed_visit_date
+also_defined_by:
+  - hospital_id
+descriptor_cols:
+  icd10_condition:
+    type:     category
+    timeline: unique     # "what conditions did this member have?" — for stratification
+  systolic_bp:
+    type:     numeric
+    timeline: average    # mean BP across visits — single summary value per member

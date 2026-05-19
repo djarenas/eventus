@@ -1,13 +1,11 @@
 # ed_cleaner.yaml
-#
-# OccurrencesCleanerConfig for emergency department visit data.
-# Used in vignette Chapter 1 — The Data Problem.
-#
-# Load with:
-#   config = OccurrencesCleanerConfig.build_from_yaml("configs/ed_cleaner.yaml")
+# OccurrencesCleanerConfig for ED visit data.
+# Used in Chapter 1 Bonus A.
+# No consolidation — demonstrates basic occurrence cleaning only.
+# See ed_cleaner_with_consolidation.yaml for Chapter 6.
 
-normalize_dates: true    # strip time component — keep dates only
-parse_dates:     true    # parse string date columns automatically
-drop_duplicates: true    # remove exact duplicates on patient + visit date
-date_floor:      "1920-01-01"
-date_ceiling:    "2030-01-01"
+normalize_dates:     true
+parse_dates:         true
+drop_duplicate_rows: true
+date_floor:          "1920-01-01"
+date_ceiling:        "2030-01-01"

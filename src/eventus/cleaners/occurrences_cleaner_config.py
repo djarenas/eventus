@@ -4,9 +4,14 @@ Configuration dataclass for OccurrencesCleaner.
 Controls what counts as a valid row for a given occurrences dataset.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import Any
+
 import pandas as pd
 import yaml
+
+from eventus.cleaners.occurrence_consolidate_config import OccurrenceConsolidateConfig
 
 _ERROR_PREFIX = "[OccurrencesCleanerConfig] Error"
 
@@ -14,14 +19,9 @@ _ERROR_PREFIX = "[OccurrencesCleanerConfig] Error"
 @dataclass
 class OccurrencesCleanerConfig:
     """
-    'I am a reproducible set of rules for what counts as a valid occurrence row. I can be built from a YAML file and saved back to one.'
-
-    Configuration for OccurrencesCleaner — controls how raw occurrence
-    data is cleaned.
-
-    All parameters have sensible defaults suitable for most clinical
-    datasets. Override via build_from_yaml() to make your cleaning
-    choices explicit, versioned, and reproducible.
+    I am a reproducible set of rules for what counts as a valid
+    occurrence row. I can be built from a YAML file and saved back
+    to one.
 
     Parameters
     ----------
@@ -32,22 +32,50 @@ class OccurrencesCleanerConfig:
         Auto-parse date column from strings. Default True.
 
     drop_duplicates : bool
-        Remove rows identical across entity_id and date. Default True.
+        Remove rows identical across entity_id, date, and
+        also_defined_by columns. Default True.
+
+    consolidate : OccurrenceConsolidateConfig | None
+        Consolidate same-date records sharing the same entity and
+        also_defined_by values into one occurrence, aggregating
+        descriptor columns according to declared rules.
+        None (default) — no consolidation beyond deduplication.
 
     date_floor : str
         Reject rows with date before this value. Default "1920-01-01".
 
     date_ceiling : str
         Reject rows with date after this value. Default "2100-01-01".
+
+    Example YAML
+    ------------
+    normalize_dates: true
+    parse_dates:     true
+    drop_duplicates: true
+    date_floor:      "1920-01-01"
+    date_ceiling:    "2030-01-01"
+
+    consolidate:
+      descriptor_cols:
+        triage_level:   unique
+        wait_time_mins: median
     """
 
-    normalize_dates: bool = True
-    parse_dates:     bool = True
-    drop_duplicates: bool = True
-    date_floor:      str  = "1920-01-01"
-    date_ceiling:    str  = "2100-01-01"
+    normalize_dates:      bool                               = True
+    parse_dates:          bool                               = True
+    drop_duplicate_rows:  bool                               = True
+    consolidate:          OccurrenceConsolidateConfig | None = None
+    date_floor:           str                                = "1920-01-01"
+    date_ceiling:         str                                = "2100-01-01"
 
     def __post_init__(self) -> None:
+        if self.consolidate is not None and \
+                not isinstance(self.consolidate, OccurrenceConsolidateConfig):
+            raise ValueError(
+                f"{_ERROR_PREFIX}: consolidate must be an "
+                f"OccurrenceConsolidateConfig or None, "
+                f"got {type(self.consolidate).__name__}"
+            )
         try:
             floor   = pd.Timestamp(self.date_floor)
             ceiling = pd.Timestamp(self.date_ceiling)
@@ -66,17 +94,13 @@ class OccurrencesCleanerConfig:
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def build_from_yaml(cls, path: str) -> "OccurrencesCleanerConfig":
+    def build_from_yaml(cls, path) -> "OccurrencesCleanerConfig":
         """
         Build an OccurrencesCleanerConfig from a YAML file.
 
-        Example YAML
-        ------------
-        normalize_dates: true
-        parse_dates:     true
-        drop_duplicates: true
-        date_floor:      "1920-01-01"
-        date_ceiling:    "2100-01-01"
+        Parameters
+        ----------
+        path : str | pathlib.Path
         """
         with open(path, "r") as f:
             cfg = yaml.safe_load(f)
@@ -87,36 +111,58 @@ class OccurrencesCleanerConfig:
                 f"got {type(cfg).__name__}"
             )
 
-        valid_keys = set(cls.__dataclass_fields__.keys())
-        unknown    = set(cfg.keys()) - valid_keys
+        known_keys = {
+            "normalize_dates", "parse_dates", "drop_duplicate_rows",
+            "consolidate", "date_floor", "date_ceiling",
+        }
+        unknown = set(cfg.keys()) - known_keys
         if unknown:
             raise ValueError(
                 f"{_ERROR_PREFIX}: unknown keys in YAML: {sorted(unknown)}. "
-                f"Valid keys: {sorted(valid_keys)}"
+                f"Valid keys: {sorted(known_keys)}"
             )
 
-        return cls(**cfg)
+        consolidate_data = cfg.pop("consolidate", None)
+        consolidate = (
+            OccurrenceConsolidateConfig.from_dict(consolidate_data)
+            if consolidate_data else None
+        )
 
-    def to_yaml(self, path: str) -> None:
+        return cls(**cfg, consolidate=consolidate)
+
+    # ------------------------------------------------------------------ #
+    # Utilities
+    # ------------------------------------------------------------------ #
+
+    def to_yaml(self, path) -> None:
         """Save this config to a YAML file."""
-        cfg = {
-            "normalize_dates": self.normalize_dates,
-            "parse_dates":     self.parse_dates,
-            "drop_duplicates": self.drop_duplicates,
-            "date_floor":      self.date_floor,
-            "date_ceiling":    self.date_ceiling,
+        cfg: dict[str, Any] = {
+            "normalize_dates":     self.normalize_dates,
+            "parse_dates":         self.parse_dates,
+            "drop_duplicate_rows": self.drop_duplicate_rows,
+            "date_floor":          self.date_floor,
+            "date_ceiling":        self.date_ceiling,
         }
+        if self.consolidate is not None:
+            cfg["consolidate"] = {
+                "descriptor_cols": self.consolidate.descriptor_cols
+            }
         with open(path, "w") as f:
             yaml.dump(cfg, f, sort_keys=False, default_flow_style=False)
-        print(f"Config saved to: {path}")
 
     def __repr__(self) -> str:
+        consolidate_repr = (
+            f"\n  consolidate         : {self.consolidate}"
+            if self.consolidate is not None
+            else "\n  consolidate         : None"
+        )
         return (
             f"OccurrencesCleanerConfig(\n"
-            f"  normalize_dates : {self.normalize_dates}\n"
-            f"  parse_dates     : {self.parse_dates}\n"
-            f"  drop_duplicates : {self.drop_duplicates}\n"
-            f"  date_floor      : {self.date_floor}\n"
-            f"  date_ceiling    : {self.date_ceiling}\n"
+            f"  normalize_dates     : {self.normalize_dates}\n"
+            f"  parse_dates         : {self.parse_dates}\n"
+            f"  drop_duplicate_rows : {self.drop_duplicate_rows}"
+            f"{consolidate_repr}\n"
+            f"  date_floor          : {self.date_floor}\n"
+            f"  date_ceiling        : {self.date_ceiling}\n"
             f")"
         )

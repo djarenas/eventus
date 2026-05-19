@@ -45,6 +45,8 @@ class CohortTimeline:
     _event_identities:              list[str]
     _occurrence_identities:         list[str]
     _computed_occurrence_identities: list[str]
+    _event_descriptor_cols:         dict[str, list[str]]
+    _occurrence_descriptor_cols:    dict[str, list[str]]
 
     def __init__(self, data: pd.DataFrame, entity_col: str) -> None:
         if not isinstance(data, pd.DataFrame):
@@ -63,10 +65,12 @@ class CohortTimeline:
         utils.validate_obs_period_cols(columns)
         utils.validate_event_cols(columns)
 
-        event_identities      = utils.infer_event_identities(columns)
-        occurrence_identities = utils.infer_occurrence_identities(columns)
+        event_identities        = utils.infer_event_identities(columns)
+        occurrence_identities   = utils.infer_occurrence_identities(columns)
         computed_occ_identities = utils.infer_computed_occurrence_identities(columns)
-        has_obs_period        = utils.OBS_START_COL in columns and utils.OBS_END_COL in columns
+        has_obs_period          = utils.OBS_START_COL in columns and utils.OBS_END_COL in columns
+        event_descriptor_cols   = utils.infer_event_descriptor_cols(columns, event_identities)
+        occurrence_descriptor_cols = utils.infer_occurrence_descriptor_cols(columns, occurrence_identities)
 
         utils.validate_no_duplicate_identities(event_identities, occurrence_identities)
         utils.validate_at_least_one_layer(has_obs_period, event_identities, occurrence_identities)
@@ -77,6 +81,8 @@ class CohortTimeline:
         self._event_identities               = event_identities
         self._occurrence_identities          = occurrence_identities
         self._computed_occurrence_identities = computed_occ_identities
+        self._event_descriptor_cols          = event_descriptor_cols
+        self._occurrence_descriptor_cols     = occurrence_descriptor_cols
 
     def copy(self) -> "CohortTimeline":
         return CohortTimeline(self._data.copy(), self._entity_col)
@@ -104,6 +110,94 @@ class CohortTimeline:
     @property
     def computed_occurrence_identities(self) -> list[str]:
         return list(self._computed_occurrence_identities)
+
+    @property
+    def event_descriptor_cols(self) -> dict[str, list[str]]:
+        """
+        Descriptor columns carried from Events objects.
+        Maps identity → list of column names.
+        e.g. {"inpatient_hospitalization": ["hospital_id", "icd10_condition"]}
+        Access via ct.data["evt_{identity}_{col}"].
+        """
+        return dict(self._event_descriptor_cols)
+
+    @property
+    def occurrence_descriptor_cols(self) -> dict[str, list[str]]:
+        """
+        Descriptor columns carried from Occurrences objects.
+        Maps identity → list of column names.
+        e.g. {"ed_visit": ["hospital_id", "icd10_condition"]}
+        Access via ct.data["occ_{identity}_{col}"].
+        """
+        return dict(self._occurrence_descriptor_cols)
+
+    def get_occurrence_descriptor(
+        self,
+        identity: str,
+        col:      str,
+    ) -> "pd.Series":
+        """
+        Return the descriptor column for a given occurrence identity
+        and column name. Raises if not present.
+
+        Parameters
+        ----------
+        identity : str
+            Occurrence identity e.g. "ed_visit".
+        col : str
+            Descriptor column name e.g. "icd10_condition".
+
+        Returns
+        -------
+        pd.Series
+            One value per entity — the pipe-delimited or aggregated
+            descriptor values for that occurrence identity.
+        """
+        col_name = f"occ_{identity}_{col}"
+        if col_name not in self._data.columns:
+            available = self._occurrence_descriptor_cols.get(identity, [])
+            raise ValueError(
+                f"[CohortTimeline] Error: descriptor column '{col}' not found "
+                f"for identity '{identity}'. "
+                f"Available: {available}. "
+                f"Ensure OccurrenceSemantics.descriptor_cols declares '{col}' "
+                f"with timeline != 'none'."
+            )
+        return self._data[col_name].copy()
+
+    def get_event_descriptor(
+        self,
+        identity: str,
+        col:      str,
+    ) -> "pd.Series":
+        """
+        Return the descriptor column for a given event identity
+        and column name. Raises if not present.
+
+        Parameters
+        ----------
+        identity : str
+            Event identity e.g. "inpatient_hospitalization".
+        col : str
+            Descriptor column name e.g. "icd10_condition".
+
+        Returns
+        -------
+        pd.Series
+            One value per entity — the pipe-delimited or aggregated
+            descriptor values for that event identity.
+        """
+        col_name = f"evt_{identity}_{col}"
+        if col_name not in self._data.columns:
+            available = self._event_descriptor_cols.get(identity, [])
+            raise ValueError(
+                f"[CohortTimeline] Error: descriptor column '{col}' not found "
+                f"for identity '{identity}'. "
+                f"Available: {available}. "
+                f"Ensure EventSemantics.descriptor_cols declares '{col}' "
+                f"with timeline != 'none'."
+            )
+        return self._data[col_name].copy()
 
     @classmethod
     def build_from_components(
@@ -241,13 +335,17 @@ class CohortTimeline:
         return len(self._data)
 
     def __repr__(self) -> str:
+        evt_desc = {k: v for k, v in self._event_descriptor_cols.items() if v}
+        occ_desc = {k: v for k, v in self._occurrence_descriptor_cols.items() if v}
         return (
             f"CohortTimeline(\n"
-            f"  entities                    : {len(self):,}\n"
-            f"  entity_col                  : '{self._entity_col}'\n"
-            f"  has_obs_period              : {self._has_obs_period}\n"
-            f"  event_identities            : {self._event_identities}\n"
-            f"  occurrence_identities       : {self._occurrence_identities}\n"
+            f"  entities                      : {len(self):,}\n"
+            f"  entity_col                    : '{self._entity_col}'\n"
+            f"  has_obs_period                : {self._has_obs_period}\n"
+            f"  event_identities              : {self._event_identities}\n"
+            f"  event_descriptor_cols         : {evt_desc}\n"
+            f"  occurrence_identities         : {self._occurrence_identities}\n"
+            f"  occurrence_descriptor_cols    : {occ_desc}\n"
             f"  computed_occurrence_identities: {self._computed_occurrence_identities}\n"
             f")"
         )

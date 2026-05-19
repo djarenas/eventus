@@ -1,0 +1,14 @@
+# ed_cleaner_with_consolidation.yaml
+# OccurrencesCleanerConfig for ED visit data.
+# Used in Chapter 6 — with consolidation of same-date same-hospital records.
+
+normalize_dates:     true
+parse_dates:         true
+drop_duplicate_rows: true
+date_floor:          "1920-01-01"
+date_ceiling:        "2030-01-01"
+
+consolidate:
+  descriptor_cols:
+    icd10_condition: unique
+    systolic_bp:     median

@@ -1,0 +1,13 @@
+# medicaid_coverage_cleaner.yaml
+# EventsCleanerConfig for Medicaid coverage periods.
+
+normalize_dates:     true
+coalesce_dates:      false
+causality_check:     reject
+parse_dates:         true
+drop_duplicate_rows: true
+date_floor:          "1920-01-01"
+date_ceiling:        "2030-01-01"
+
+merge:
+  meaningful_gap_days: 1    # gaps of 1 day or less treated as continuous coverage

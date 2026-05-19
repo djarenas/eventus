@@ -16,6 +16,7 @@ at the end and auto-assigned a color from the default palette.
 """
 from __future__ import annotations
 
+import pathlib
 import warnings
 import numpy as np
 import matplotlib
@@ -23,7 +24,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from eventus.visualizers.configs.arrays_violin_config import ArraysViolinConfig
-from eventus.visualizers.plot_utils import validate_path, save_figure
 
 _ERROR_PREFIX = "[ArraysViolinPlotter] Error"
 _WARN_PREFIX  = "[ArraysViolinPlotter] Warning"
@@ -42,6 +42,7 @@ class ArraysViolinPlotter:
         One entry per violin. Keys must be non-empty strings.
         Values must be convertible to 1-D numeric arrays.
         NaN and inf values are dropped automatically.
+        Categories with fewer than 2 finite values are skipped with a warning.
     config : ArraysViolinConfig | None
         Plot configuration. Uses ArraysViolinConfig() defaults if not provided.
 
@@ -145,13 +146,14 @@ class ArraysViolinPlotter:
                     UserWarning, stacklevel=2,
                 )
 
-            # Must have at least 2 finite values to draw a violin
+            # Skip categories with fewer than 2 finite values — not enough to draw a violin
             if len(arr) < 2:
-                raise ValueError(
-                    f"{_ERROR_PREFIX}: arrays[{key!r}] has fewer than 2 finite "
-                    f"values after dropping NaN/inf ({len(arr)} remaining). "
-                    f"Cannot draw a violin."
+                warnings.warn(
+                    f"{_WARN_PREFIX}: arrays[{key!r}] has fewer than 2 finite "
+                    f"values ({len(arr)} remaining) — skipping this category.",
+                    UserWarning, stacklevel=2,
                 )
+                continue
 
             # Warn if all values are identical — violin degenerates to a line
             if np.all(arr == arr[0]):
@@ -212,7 +214,7 @@ class ArraysViolinPlotter:
             draw_violin_body,
         )
 
-        validate_path(path, _ERROR_PREFIX)
+        self._validate_path(path)
 
         cfg    = self._config
         canvas = cfg.canvas
@@ -278,11 +280,26 @@ class ArraysViolinPlotter:
 
         # ── Save ──────────────────────────────────────────────────────
         fig.tight_layout()
-        save_figure(fig, path, canvas.dpi)
+        fig.savefig(path, dpi=canvas.dpi, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Saved: {path}")
 
     # ------------------------------------------------------------------ #
     # Private helpers
     # ------------------------------------------------------------------ #
+
+    def _validate_path(self, path: str) -> None:
+        p = pathlib.Path(path)
+        if p.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+            raise ValueError(
+                f"{_ERROR_PREFIX}: unsupported file extension '{p.suffix}'. "
+                f"Use .png, .jpg, or .jpeg"
+            )
+        if not p.parent.exists():
+            raise ValueError(
+                f"{_ERROR_PREFIX}: output directory does not exist: "
+                f"'{p.parent}'. Create it before calling plot()."
+            )
 
     # ------------------------------------------------------------------ #
     # Dunder
