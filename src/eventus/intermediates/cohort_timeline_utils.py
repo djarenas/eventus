@@ -180,19 +180,43 @@ def infer_occurrence_descriptor_cols(
     return result
 
 
-def infer_computed_occurrence_identities(columns: list[str]) -> list[str]:
+def infer_computed_occurrence_identities(
+    columns:              list[str],
+    occurrence_identities: list[str],
+) -> list[str]:
     """
     Return sorted list of occurrence identities that have been computed
     (i.e. have at least one occ_comp_{identity}_{stat} column present).
 
-    Parses identity as everything between "occ_comp_" prefix and the
-    final "_{stat}" suffix. Relies on stat names being a closed set —
-    identity names must not collide with reserved fragments.
+    Matches against known occurrence_identities to correctly handle
+    multi-fragment stat names (e.g. "time_to_1", "mean_gap").
     """
     return sorted({
-        "_".join(col[9:].split("_")[:-1])  # strip "occ_comp_" and trailing stat
+        identity
         for col in columns
         if col.startswith("occ_comp_")
+        for identity in occurrence_identities
+        if col[9:].startswith(identity + "_")
+    })
+
+
+def infer_computed_event_identities(
+    columns:          list[str],
+    event_identities: list[str],
+) -> list[str]:
+    """
+    Return sorted list of event identities that have been computed
+    (i.e. have at least one evt_comp_{identity}_{stat} column present).
+
+    Matches against known event_identities to correctly handle
+    multi-fragment stat names (e.g. "active_days", "first_start").
+    """
+    return sorted({
+        identity
+        for col in columns
+        if col.startswith("evt_comp_")
+        for identity in event_identities
+        if col[9:].startswith(identity + "_")
     })
 
 # ------------------------------------------------------------------ #
@@ -290,6 +314,30 @@ def validate_event_cols(columns: list[str]) -> None:
         raise ValueError(
             f"{_ERROR} Event identities have '_ends' but no '_starts': "
             f"{sorted(unpaired_ends)}. Event columns must be paired."
+        )
+
+    known_identities    = starts_ids & ends_ids
+    computed_identities = infer_computed_event_identities(columns, list(known_identities))
+    orphaned = [i for i in computed_identities if i not in known_identities]
+    if orphaned:
+        raise ValueError(
+            f"{_ERROR} Computed event identities have no corresponding "
+            f"evt_{{identity}}_starts/ends columns: {orphaned}. "
+            f"Every evt_comp_{{identity}}_* column requires a matching "
+            f"evt_{{identity}}_starts and evt_{{identity}}_ends column."
+        )
+
+
+def validate_occurrence_cols(columns: list[str]) -> None:
+    known_identities    = set(infer_occurrence_identities(columns))
+    computed_identities = infer_computed_occurrence_identities(columns, list(known_identities))
+    orphaned = [i for i in computed_identities if i not in known_identities]
+    if orphaned:
+        raise ValueError(
+            f"{_ERROR} Computed occurrence identities have no corresponding "
+            f"occ_{{identity}} column: {orphaned}. "
+            f"Every occ_comp_{{identity}}_* column requires a matching "
+            f"occ_{{identity}} column."
         )
 
 

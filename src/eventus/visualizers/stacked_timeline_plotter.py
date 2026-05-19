@@ -95,10 +95,21 @@ class StackedTimelinePlotter:
 
         if sort_by is not None:
             self._validate_sort_args(sort_by, ascending, cohort_timeline.data)
-            sorted_data = self._prepare_for_sort(cohort_timeline.data, sort_by)
+            sorted_data, temp_cols = self._prepare_for_sort(cohort_timeline.data, sort_by)
+
+            # Replace any pipe-delimited sort columns with their temp proxies
+            actual_sort_by = list(sort_by)
+            for orig_col, temp_col in temp_cols:
+                idx = actual_sort_by.index(orig_col)
+                actual_sort_by[idx] = temp_col
+
             sorted_data = sorted_data.sort_values(
-                by=sort_by, ascending=ascending, na_position="last"
-            ).reset_index(drop=True)
+                by=actual_sort_by, ascending=ascending, na_position="last"
+            )
+            # Drop temp sort columns before constructing CohortTimeline
+            drop_cols = [temp for _, temp in temp_cols]
+            sorted_data = sorted_data.drop(columns=drop_cols, errors="ignore")
+            sorted_data = sorted_data.reset_index(drop=True)
             cohort_timeline = CohortTimeline(sorted_data, cohort_timeline.entity_col)
 
         self._cohort_timeline = cohort_timeline
@@ -156,15 +167,37 @@ class StackedTimelinePlotter:
         data:    pd.DataFrame,
         sort_by: list[str],
     ) -> pd.DataFrame:
-        """Cast sort columns to correct types before sorting."""
+        """
+        Cast sort columns to correct types before sorting, without
+        destroying original column data.
+
+        Date columns (obs_start, obs_end) are parsed as datetime in-place.
+        Event starts/ends (pipe-delimited) are sorted by extracting the
+        first date into a temporary _sort_{col} column, which is dropped
+        after sorting. Numeric columns are cast to float.
+        """
         data = data.copy()
+        temp_cols = []
+
         for col in sort_by:
             if col in _SORT_DATE:
                 data[col] = pd.to_datetime(data[col], errors="coerce")
+            elif (col.startswith("evt_") and
+                  (col.endswith("_starts") or col.endswith("_ends"))):
+                # Pipe-delimited date strings — extract first date for sorting
+                # into a temp column, leave original intact
+                temp = f"_sort_tmp_{col}"
+                data[temp] = data[col].apply(
+                    lambda v: pd.to_datetime(
+                        str(v).split(" | ")[0].strip(), errors="coerce"
+                    ) if pd.notna(v) else pd.NaT
+                )
+                temp_cols.append((col, temp))
             else:
-                # Try numeric for everything else (evt_*_active_days etc.)
+                # Numeric — computed stats, obs_duration_days, etc.
                 data[col] = pd.to_numeric(data[col], errors="coerce").astype(float)
-        return data
+
+        return data, temp_cols
 
     # ------------------------------------------------------------------ #
     # Public API

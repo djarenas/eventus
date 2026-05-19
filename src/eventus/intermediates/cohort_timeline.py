@@ -44,6 +44,7 @@ class CohortTimeline:
     _has_obs_period:                bool
     _event_identities:              list[str]
     _occurrence_identities:         list[str]
+    _computed_event_identities:      list[str]
     _computed_occurrence_identities: list[str]
     _event_descriptor_cols:         dict[str, list[str]]
     _occurrence_descriptor_cols:    dict[str, list[str]]
@@ -64,10 +65,12 @@ class CohortTimeline:
         utils.validate_entity_col(data, entity_col)
         utils.validate_obs_period_cols(columns)
         utils.validate_event_cols(columns)
+        utils.validate_occurrence_cols(columns)
 
         event_identities        = utils.infer_event_identities(columns)
         occurrence_identities   = utils.infer_occurrence_identities(columns)
-        computed_occ_identities = utils.infer_computed_occurrence_identities(columns)
+        computed_evt_identities = utils.infer_computed_event_identities(columns, event_identities)
+        computed_occ_identities = utils.infer_computed_occurrence_identities(columns, occurrence_identities)
         has_obs_period          = utils.OBS_START_COL in columns and utils.OBS_END_COL in columns
         event_descriptor_cols   = utils.infer_event_descriptor_cols(columns, event_identities)
         occurrence_descriptor_cols = utils.infer_occurrence_descriptor_cols(columns, occurrence_identities)
@@ -80,6 +83,7 @@ class CohortTimeline:
         self._has_obs_period                 = has_obs_period
         self._event_identities               = event_identities
         self._occurrence_identities          = occurrence_identities
+        self._computed_event_identities      = computed_evt_identities
         self._computed_occurrence_identities = computed_occ_identities
         self._event_descriptor_cols          = event_descriptor_cols
         self._occurrence_descriptor_cols     = occurrence_descriptor_cols
@@ -110,6 +114,10 @@ class CohortTimeline:
     @property
     def computed_occurrence_identities(self) -> list[str]:
         return list(self._computed_occurrence_identities)
+
+    @property
+    def computed_event_identities(self) -> list[str]:
+        return list(self._computed_event_identities)
 
     @property
     def event_descriptor_cols(self) -> dict[str, list[str]]:
@@ -344,6 +352,7 @@ class CohortTimeline:
             f"  has_obs_period                : {self._has_obs_period}\n"
             f"  event_identities              : {self._event_identities}\n"
             f"  event_descriptor_cols         : {evt_desc}\n"
+            f"  computed_event_identities     : {self._computed_event_identities}\n"
             f"  occurrence_identities         : {self._occurrence_identities}\n"
             f"  occurrence_descriptor_cols    : {occ_desc}\n"
             f"  computed_occurrence_identities: {self._computed_occurrence_identities}\n"

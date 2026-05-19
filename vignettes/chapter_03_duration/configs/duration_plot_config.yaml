@@ -32,7 +32,7 @@ histogram:
 
 kde:
   labels:
-    title: "Nursing Facility Stay Duration — Density"
+    title: "Nursing Facility Stay Duration: Density"
     units: days
   style:
     color:      "#028090"

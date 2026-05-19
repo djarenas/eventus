@@ -46,7 +46,7 @@ class EventDurationHistogramPlotter:
 
     Examples
     --------
-    >>> result  = EventDurationAnalyzer(events).calc()
+    >>> duration_result  = EventDurationAnalyzer(events).calc()
     >>> config  = EventDurationPlotConfig.build_from_yaml("duration.yaml")
     >>> plotter = EventDurationHistogramPlotter(result, config)
     >>> plotter.plot_histogram("duration_histogram.png")
@@ -58,10 +58,10 @@ class EventDurationHistogramPlotter:
         duration_result: EventDurationResult,
         config: EventDurationPlotConfig | None = None,
     ) -> None:
-        if not isinstance(result, EventDurationResult):
+        if not isinstance(duration_result, EventDurationResult):
             raise TypeError(
                 f"{_ERROR}: result must be an EventDurationResult, "
-                f"got {type(result).__name__}"
+                f"got {type(duration_result).__name__}"
             )
         if config is None:
             config = EventDurationPlotConfig()
