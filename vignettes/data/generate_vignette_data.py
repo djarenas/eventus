@@ -88,6 +88,20 @@ AGE_COVERAGE_END    = pd.Timestamp("2025-12-31")
 # Age window ED visit properties
 ED_AGE_ANNUAL_RATE  = 1.0   # Poisson lambda — expected ED visits per year
 
+# Chapter 8 — co-occurrence analysis
+CH08_N_PATIENTS          = 800
+CH08_ID_PREFIX           = "C"          # C0001-C0800, distinct from P pool
+CH08_DATE_START          = pd.Timestamp("2022-01-01")
+CH08_DATE_END            = pd.Timestamp("2022-12-31")
+CH08_ED_ANNUAL_RATE      = 3.0          # Poisson lambda for ED visits per year
+CH08_ED_TO_ADMIT_RATE    = 0.20         # 20% of ED visits trigger admission
+CH08_ARTIFACT_RATE       = 0.05         # 5% of ED visits are billing artifacts
+CH08_ELECTIVE_ANNUAL_RATE = 0.30        # Poisson lambda for elective admissions
+CH08_ED_STAY_MIN         = 2            # ED-triggered stay length
+CH08_ED_STAY_MAX         = 7
+CH08_ELECTIVE_STAY_MIN   = 5            # Elective stay length
+CH08_ELECTIVE_STAY_MAX   = 14
+
 
 # ── Hospitalization generator ─────────────────────────────────────────────────
 
@@ -876,6 +890,127 @@ def make_ed_visits_agewindow_signal(
     return df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
 
+# ── Chapter 8 generators ──────────────────────────────────────────────────────
+
+def make_ch08_data(seed: int = SEED) -> tuple:
+    """
+    Generate hospitalizations and ED visits for Chapter 8 co-occurrence analysis.
+
+    Patient pool : C0001-C0800 — distinct from the P pool used elsewhere.
+    Date range   : 2022-01-01 to 2022-12-31
+
+    Generation logic (clinically realistic):
+
+    1. ED visits — Poisson λ=3/year per member. Each ED visit has three
+       possible outcomes:
+         - 20% → ED-triggered hospitalization starting same day (+0 or +1 day).
+                  Stay length 2-7 days (shorter, acute).
+         - 5%  → billing artifact: ED visit date falls on the admit date of
+                  an existing hospitalization. These appear as "within" in
+                  the co-occurrence analysis — the ED visit that became the
+                  admission.
+         - 75% → independent ED visit, no hospitalization.
+
+    2. Elective hospitalizations — Poisson λ=0.3/year per member.
+       Stay length 5-14 days. Not preceded by ED visit.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, pd.DataFrame]
+        (hospitalizations_df, ed_visits_df)
+    """
+    rng = np.random.default_rng(seed + 8)
+
+    total_days  = (CH08_DATE_END - CH08_DATE_START).days
+    patient_ids = [
+        f"{CH08_ID_PREFIX}{str(i).zfill(4)}"
+        for i in range(1, CH08_N_PATIENTS + 1)
+    ]
+
+    hosp_rows = []
+    ed_rows   = []
+
+    for pid in patient_ids:
+
+        # ── Step 1: Generate ED visits ────────────────────────────────────────
+        n_ed = int(rng.poisson(CH08_ED_ANNUAL_RATE))
+
+        for _ in range(n_ed):
+            ed_day  = int(rng.integers(0, total_days))
+            ed_date = CH08_DATE_START + pd.Timedelta(days=ed_day)
+
+            ed_rows.append({
+                "patient_id":    pid,
+                "ed_visit_date": ed_date,
+            })
+
+            outcome = rng.random()
+
+            if outcome < CH08_ED_TO_ADMIT_RATE:
+                # ED-triggered admission — starts same day or +1 day
+                admit_offset = int(rng.integers(0, 2))
+                admit_date   = ed_date + pd.Timedelta(days=admit_offset)
+                stay_days    = int(rng.integers(CH08_ED_STAY_MIN, CH08_ED_STAY_MAX + 1))
+                discharge_date = admit_date + pd.Timedelta(days=stay_days)
+
+                if discharge_date <= CH08_DATE_END:
+                    hosp_rows.append({
+                        "patient_id":     pid,
+                        "admit_date":     admit_date,
+                        "discharge_date": discharge_date,
+                    })
+
+            elif outcome < CH08_ED_TO_ADMIT_RATE + CH08_ARTIFACT_RATE:
+                # Billing artifact — ED visit becomes a hospitalization
+                # The ED visit date IS the admission date (same day)
+                stay_days      = int(rng.integers(CH08_ED_STAY_MIN, CH08_ED_STAY_MAX + 1))
+                discharge_date = ed_date + pd.Timedelta(days=stay_days)
+
+                if discharge_date <= CH08_DATE_END:
+                    hosp_rows.append({
+                        "patient_id":     pid,
+                        "admit_date":     ed_date,      # same day as ED visit
+                        "discharge_date": discharge_date,
+                    })
+                    # Note: the ED visit is already in ed_rows — this creates
+                    # the "within" signal where ED date == admit date
+
+        # ── Step 2: Elective hospitalizations ────────────────────────────────
+        n_elective = int(rng.poisson(CH08_ELECTIVE_ANNUAL_RATE))
+
+        for _ in range(n_elective):
+            stay_days  = int(rng.integers(CH08_ELECTIVE_STAY_MIN, CH08_ELECTIVE_STAY_MAX + 1))
+            admit_day  = int(rng.integers(0, total_days - stay_days))
+            admit_date = CH08_DATE_START + pd.Timedelta(days=admit_day)
+            discharge_date = admit_date + pd.Timedelta(days=stay_days)
+
+            if discharge_date <= CH08_DATE_END:
+                hosp_rows.append({
+                    "patient_id":     pid,
+                    "admit_date":     admit_date,
+                    "discharge_date": discharge_date,
+                })
+
+    # ── Assemble DataFrames ───────────────────────────────────────────────────
+    hosp_df = pd.DataFrame(hosp_rows) if hosp_rows else pd.DataFrame(
+        columns=["patient_id", "admit_date", "discharge_date"]
+    )
+    ed_df = pd.DataFrame(ed_rows) if ed_rows else pd.DataFrame(
+        columns=["patient_id", "ed_visit_date"]
+    )
+
+    for col in ["admit_date", "discharge_date"]:
+        hosp_df[col] = pd.to_datetime(hosp_df[col]).dt.strftime("%Y-%m-%d")
+    ed_df["ed_visit_date"] = pd.to_datetime(
+        ed_df["ed_visit_date"]
+    ).dt.strftime("%Y-%m-%d")
+
+    hosp_df = hosp_df.sample(frac=1, random_state=seed).reset_index(drop=True)
+    ed_df   = ed_df.sample(frac=1, random_state=seed).reset_index(drop=True)
+
+    return hosp_df, ed_df
+
+
 # ── Summary printer ───────────────────────────────────────────────────────────
 
 def print_data_summary(
@@ -887,6 +1022,8 @@ def print_data_summary(
     age_cov_df:   pd.DataFrame,
     ed_null_df:   pd.DataFrame,
     ed_signal_df: pd.DataFrame,
+    ch08_hosp_df: pd.DataFrame,
+    ch08_ed_df:   pd.DataFrame,
 ) -> None:
     """Print a summary of the generated datasets."""
     print("=" * 56)
@@ -938,6 +1075,14 @@ def print_data_summary(
     print("\nED visits age window — signal (simulated_ed_visits_agewindow_signal.csv):")
     print(f"  Total rows          : {len(ed_signal_df):,}")
     print(f"  Unique patient IDs  : {ed_signal_df['patient_id'].nunique():,}")
+
+    print("\nChapter 8 hospitalizations (simulated_hospitalizations_ch08.csv):")
+    print(f"  Total rows          : {len(ch08_hosp_df):,}")
+    print(f"  Unique patient IDs  : {ch08_hosp_df['patient_id'].nunique():,}")
+
+    print("\nChapter 8 ED visits (simulated_ed_visits_ch08.csv):")
+    print(f"  Total rows          : {len(ch08_ed_df):,}")
+    print(f"  Unique patient IDs  : {ch08_ed_df['patient_id'].nunique():,}")
     print("=" * 56)
 
 
@@ -971,16 +1116,25 @@ if __name__ == "__main__":
     print("Generating ED visits age window — signal simulation...")
     ed_signal_df = make_ed_visits_agewindow_signal(demog_df)
 
-    print_data_summary(hosp_df, ed_df, nf_df, cov_df, demog_df, age_cov_df, ed_null_df, ed_signal_df)
+    print("Generating Chapter 8 co-occurrence data...")
+    ch08_hosp_df, ch08_ed_df = make_ch08_data()
 
-    hosp_df.to_csv(    output_dir / "hospitalization_claims.csv",                  index=False)
-    ed_df.to_csv(      output_dir / "simulated_ed_visits.csv",                     index=False)
-    nf_df.to_csv(      output_dir / "nursing_facility_assessments.csv",            index=False)
-    cov_df.to_csv(     output_dir / "simulated_medicaid_coverage.csv",             index=False)
-    demog_df.to_csv(   output_dir / "simulated_member_demographics.csv",           index=False)
-    age_cov_df.to_csv( output_dir / "simulated_medicaid_coverage_agewindow.csv",   index=False)
-    ed_null_df.to_csv( output_dir / "simulated_ed_visits_agewindow_null.csv",      index=False)
-    ed_signal_df.to_csv(output_dir / "simulated_ed_visits_agewindow_signal.csv",   index=False)
+    print_data_summary(
+        hosp_df, ed_df, nf_df, cov_df, demog_df,
+        age_cov_df, ed_null_df, ed_signal_df,
+        ch08_hosp_df, ch08_ed_df,
+    )
+
+    hosp_df.to_csv(      output_dir / "hospitalization_claims.csv",                  index=False)
+    ed_df.to_csv(        output_dir / "simulated_ed_visits.csv",                     index=False)
+    nf_df.to_csv(        output_dir / "nursing_facility_assessments.csv",            index=False)
+    cov_df.to_csv(       output_dir / "simulated_medicaid_coverage.csv",             index=False)
+    demog_df.to_csv(     output_dir / "simulated_member_demographics.csv",           index=False)
+    age_cov_df.to_csv(   output_dir / "simulated_medicaid_coverage_agewindow.csv",   index=False)
+    ed_null_df.to_csv(   output_dir / "simulated_ed_visits_agewindow_null.csv",      index=False)
+    ed_signal_df.to_csv( output_dir / "simulated_ed_visits_agewindow_signal.csv",    index=False)
+    ch08_hosp_df.to_csv( output_dir / "simulated_hospitalizations_ch08.csv",         index=False)
+    ch08_ed_df.to_csv(   output_dir / "simulated_ed_visits_ch08.csv",                index=False)
 
     for name in [
         "hospitalization_claims.csv",
@@ -991,5 +1145,7 @@ if __name__ == "__main__":
         "simulated_medicaid_coverage_agewindow.csv",
         "simulated_ed_visits_agewindow_null.csv",
         "simulated_ed_visits_agewindow_signal.csv",
+        "simulated_hospitalizations_ch08.csv",
+        "simulated_ed_visits_ch08.csv",
     ]:
         print(f"Saved: {output_dir / name}")

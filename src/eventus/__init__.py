@@ -53,12 +53,14 @@ from eventus.cleaners.obs_period_filter import ObsPeriodFilter
 from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
 from eventus.analyzers.cohort_timeline_occurrence_analyzer import CohortTimelineOccurrenceAnalyzer
 from eventus.analyzers.event_duration_analyzer import EventDurationAnalyzer
+from eventus.analyzers.occurrence_event_analyzer import OccurrenceEventAnalyzer
 
 # ── Intermediates ─────────────────────────────────────────────────────────────
 from eventus.intermediates.cohort_timeline import CohortTimeline
 from eventus.intermediates.event_activity_over_time import EventActivityOverTime
 from eventus.intermediates.event_coverage_summary import EventCoverageSummary
 from eventus.intermediates.event_duration_result import EventDurationResult
+from eventus.intermediates.occurrence_event_result import OccurrenceEventResult
 from eventus.intermediates.occurrence_result_volume import OccurrenceResultVolume
 from eventus.intermediates.occurrence_result_timing import OccurrenceResultTiming
 from eventus.intermediates.occurrence_result_shape import OccurrenceResultShape
@@ -120,12 +122,14 @@ __all__ = [
     "CohortTimelineEventAnalyzer",
     "CohortTimelineOccurrenceAnalyzer",
     "EventDurationAnalyzer",
+    "OccurrenceEventAnalyzer",
 
     # Intermediates
     "CohortTimeline",
     "EventActivityOverTime",
     "EventCoverageSummary",
     "EventDurationResult",
+    "OccurrenceEventResult",
     "OccurrenceResultVolume",
     "OccurrenceResultTiming",
     "OccurrenceResultShape",

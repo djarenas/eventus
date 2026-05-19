@@ -1,0 +1,8 @@
+# ed_cleaner_ch08.yaml
+# OccurrencesCleanerConfig for Chapter 8 ED visit data.
+
+normalize_dates:     true
+parse_dates:         true
+drop_duplicate_rows: true
+date_floor:          "2020-01-01"
+date_ceiling:        "2025-12-31"
