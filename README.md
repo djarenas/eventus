@@ -1,12 +1,12 @@
 # eventus
 
 A domain-agnostic Python framework for longitudinal cohort analysis
-with events, occurrences, and observation periods — object-oriented,
+with episodes, events, and observation periods — object-oriented,
 configuration-driven, and auditable.
 
 Built for recurring challenges in health services research and
 insurance analytics, but applicable wherever entities, time spans,
-interval events, and point-in-time occurrences co-exist.
+interval episodes, and point-in-time events co-exist.
 
 > **Note:** eventus is an evolving research package released under
 > the MIT License — free to use, modify, and distribute (see LICENSE).
@@ -25,12 +25,12 @@ Semantics — Data Objects — Cleaners — Analyzers — Intermediates — Visu
 ```
 
 **Semantics** — map column names to concepts. Declare what your
-columns mean and what defines a unique event or occurrence. Define
+columns mean and what defines a unique episode or event. Define
 once, reuse everywhere.
 
 **Data Objects** — validated containers. If it exists, it is
 complete. Constructors raise on invalid data — no silent failures,
-no partial objects. An `Events` object guarantees every row has a
+no partial objects. An `Episodes` object guarantees every row has a
 valid entity identifier, a start date, an end date, and that
 causality holds.
 
@@ -49,7 +49,7 @@ guaranteed by the objects themselves.
 **Intermediates** — validated result objects produced by analyzers
 and consumed by visualizers. `CohortTimeline` is the central
 intermediate: one row per entity, assembling observation periods,
-events, and occurrences into a single validated object that every
+episodes, and events into a single validated object that every
 downstream component trusts.
 
 **Visualizers** — consume one intermediate and one configuration
@@ -81,7 +81,7 @@ import eventus
 import pandas as pd
 
 # 1. Declare what your columns mean
-sem = eventus.EventSemantics(
+sem = eventus.EpisodeSemantics(
     identity        = "inpatient_hospitalization",
     entity_id_col   = "patient_id",
     start_time_col  = "admit_date",
@@ -90,14 +90,14 @@ sem = eventus.EventSemantics(
 )
 
 # 2. Configure and run the cleaner
-config  = eventus.EventsCleanerConfig.build_from_yaml("hospitalization_cleaner.yaml")
-cleaner = eventus.EventsCleaner(raw_df, sem, config)
-events  = cleaner.clean()
+config  = eventus.EpisodesCleanerConfig.build_from_yaml("hospitalization_cleaner.yaml")
+cleaner = eventus.EpisodesCleaner(raw_df, sem, config)
+episodes  = cleaner.clean()
 cleaner.print_report()   # → structured audit trail, every decision recorded
 
 # 3. Define the observation period
 obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
-    entity_ids = events.data["patient_id"].unique(),
+    entity_ids = episodes.data["patient_id"].unique(),
     start      = "2022-01-01",
     end        = "2022-12-31",
     entity_col = "patient_id",
@@ -105,16 +105,16 @@ obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
 )
 
 # 4. Filter and assemble
-events = eventus.EventsFilter(events).to_obs_period(obs, clip=True).result
+episodes = eventus.EpisodesFilter(episodes).to_obs_period(obs, clip=True).result
 
 ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
-    events     = events,
+    episodes     = episodes,
 )
 
 # 5. Analyze
-analyzer    = eventus.CohortTimelineEventAnalyzer(ct, "inpatient_hospitalization")
-ct_enriched = analyzer.enrich_with_event_coverage()
+analyzer    = eventus.CohortTimelineEpisodeAnalyzer(ct, "inpatient_hospitalization")
+ct_enriched = analyzer.enrich_with_episode_coverage()
 summary     = analyzer.get_summary()
 print(summary)
 
@@ -131,67 +131,67 @@ eventus.StackedTimelinePlotter(sample, config).plot("timeline.png")
 ### Semantics
 | Class | Purpose |
 |---|---|
-| `EventSemantics` | Column mapping for interval event data |
-| `OccurrenceSemantics` | Column mapping for point-in-time occurrence data |
+| `EpisodeSemantics` | Column mapping for interval episode data |
+| `EventSemantics` | Column mapping for point-in-time event data |
 
 ### Data Objects
 | Class | Purpose |
 |---|---|
-| `Events` | Validated interval event data |
-| `Occurrences` | Validated point-in-time occurrence data |
+| `Episodes` | Validated interval episode data |
+| `Events` | Validated point-in-time event data |
 | `ObsPeriodPerEntity` | Per-entity observation windows |
 
 ### Cleaners and Filters
 | Class | Purpose |
 |---|---|
+| `EpisodesCleaner` | Clean raw episode DataFrames → `Episodes` |
 | `EventsCleaner` | Clean raw event DataFrames → `Events` |
-| `OccurrencesCleaner` | Clean raw occurrence DataFrames → `Occurrences` |
+| `EpisodesCleanerConfig` | Versioned cleaning configuration |
 | `EventsCleanerConfig` | Versioned cleaning configuration |
-| `OccurrencesCleanerConfig` | Versioned cleaning configuration |
+| `EpisodesFilter` | Subset `Episodes` by entity or date |
 | `EventsFilter` | Subset `Events` by entity or date |
-| `OccurrencesFilter` | Subset `Occurrences` by entity or date |
 
 ### Analyzers
 | Class | Purpose |
 |---|---|
-| `CohortTimelineEventAnalyzer` | Event coverage analysis from `CohortTimeline` |
-| `CohortTimelineOccurrenceAnalyzer` | Occurrence volume, timing, shape, survival |
-| `OccurrenceEventAnalyzer` | Temporal relationships between occurrences and events |
-| `EventDurationAnalyzer` | Event durations from `Events` directly |
+| `CohortTimelineEpisodeAnalyzer` | Episode coverage analysis from `CohortTimeline` |
+| `CohortTimelineEventAnalyzer` | Event volume, timing, shape, survival |
+| `EventEpisodeAnalyzer` | Temporal relationships between events and episodes |
+| `EpisodeDurationAnalyzer` | Episode durations from `Episodes` directly |
 
 ### Intermediates
 | Class | Purpose |
 |---|---|
 | `CohortTimeline` | Central per-entity table — assembles all streams |
-| `OccurrenceResultVolume` | Per-entity occurrence counts |
-| `OccurrenceResultTiming` | Time to nth occurrence |
-| `OccurrenceResultShape` | Behavioral fingerprint (gaps, burstiness, memory) |
-| `OccurrenceEventResult` | Temporal co-occurrence statistics |
-| `EventCoverageSummary` | Tiered coverage summary with validated denominators |
-| `EventDurationResult` | Per-event duration statistics |
+| `EventResultVolume` | Per-entity event counts |
+| `EventResultTiming` | Time to nth event |
+| `EventResultShape` | Behavioral fingerprint (gaps, burstiness, memory) |
+| `EventEpisodeResult` | Temporal co-event statistics |
+| `EpisodeCoverageSummary` | Tiered coverage summary with validated denominators |
+| `EpisodeDurationResult` | Per-episode duration statistics |
 | `SurvivalResult` | Kaplan-Meier survival curve |
 
 ### Visualizers
 | Class | Config |
 |---|---|
 | `StackedTimelinePlotter` | `StackedTimelineConfig` |
-| `OccurrenceResultVolumePlotter` | `OccurrenceResultVolumeConfig` |
-| `OccurrenceResultTimingPlotter` | `OccurrenceResultTimingConfig` |
-| `OccurrenceResultShapePlotter` | `OccurrenceResultShapeConfig` |
+| `EventResultVolumePlotter` | `EventResultVolumeConfig` |
+| `EventResultTimingPlotter` | `EventResultTimingConfig` |
+| `EventResultShapePlotter` | `EventResultShapeConfig` |
 | `ActivityOverTimePlotter` | `ActivityOverTimeConfig` |
 | `ArraysViolinPlotter` | `ArraysViolinConfig` |
-| `EventDurationHistogramPlotter` | `EventDurationPlotConfig` |
+| `EpisodeDurationHistogramPlotter` | `EpisodeDurationPlotConfig` |
 
 ---
 
 ## Design principles
 
-**Each class has a single responsibility.** `Events` validates.
-`EventsCleaner` cleans. Analyzers compute. Visualizers draw. No
+**Each class has a single responsibility.** `Episodes` validates.
+`EpisodesCleaner` cleans. Analyzers compute. Visualizers draw. No
 class does two jobs.
 
 **Objects trust what they receive.** An analyzer that accepts a
-validated `Events` object does not re-check for null identifiers or
+validated `Episodes` object does not re-check for null identifiers or
 causality violations — those guarantees were earned upstream and are
 carried by the object.
 
@@ -235,12 +235,12 @@ emergency department visits, and inpatient hospitalizations:
 |---|---|
 | 1 | Cleaning hospitalization records |
 | 2 | Descriptor aggregation in nursing facility data |
-| 3 | Event duration analysis |
+| 3 | Episode duration analysis |
 | 4 | Observation period construction |
 | 5 | Stacked timeline visualization |
-| 6 | Occurrence volume analysis |
-| 7 | Occurrence timing and gap analysis |
-| 8 | Occurrence-event co-occurrence analysis |
+| 6 | Event volume analysis |
+| 7 | Event timing and gap analysis |
+| 8 | Event-episode co-event analysis |
 
 Each chapter includes a without-eventus comparison script in
 `vignettes/without_eventus/`.
@@ -249,8 +249,8 @@ Each chapter includes a without-eventus comparison script in
 
 ## Future work
 
-- Co-occurrence extensions (occurrence + occurrence, event + event)
-- Descriptor-based filtering (`OccurrencesFilter.by_descriptor()`)
+- Co-event extensions (event + event, episode + episode)
+- Descriptor-based filtering (`EventsFilter.by_descriptor()`)
 - Sequential dependency / Markov chain analysis
 - Interactive visualization
 - PyPI release (`pip install eventus`)

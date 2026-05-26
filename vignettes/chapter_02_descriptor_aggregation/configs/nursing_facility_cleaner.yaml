@@ -1,5 +1,5 @@
 # nursing_facility_cleaner.yaml
-# EventsCleanerConfig for nursing facility assessment data.
+# EpisodesCleanerConfig for nursing facility assessment data.
 
 normalize_dates:     true
 coalesce_dates:      false

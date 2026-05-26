@@ -1,5 +1,5 @@
 # ed_cleaner_with_consolidation.yaml
-# OccurrencesCleanerConfig for ED visit data.
+# EventsCleanerConfig for ED visit data.
 # Used in Chapter 6 — with consolidation of same-date same-hospital records.
 
 normalize_dates:     true

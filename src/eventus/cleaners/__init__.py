@@ -1,11 +1,11 @@
+from eventus.cleaners.episodes_cleaner import EpisodesCleaner
+from eventus.cleaners.episodes_cleaner_config import EpisodesCleanerConfig
 from eventus.cleaners.events_cleaner import EventsCleaner
 from eventus.cleaners.events_cleaner_config import EventsCleanerConfig
-from eventus.cleaners.occurrences_cleaner import OccurrencesCleaner
-from eventus.cleaners.occurrences_cleaner_config import OccurrencesCleanerConfig
 
 __all__ = [
+    "EpisodesCleaner",
+    "EpisodesCleanerConfig",
     "EventsCleaner",
     "EventsCleanerConfig",
-    "OccurrencesCleaner",
-    "OccurrencesCleanerConfig",
 ]

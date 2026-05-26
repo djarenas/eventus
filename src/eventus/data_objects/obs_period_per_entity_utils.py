@@ -123,7 +123,7 @@ def warn_future_dates(
         examples = future_start[entity_col].head(3).tolist()
         warnings.warn(
             f"[ObsPeriodPerEntity] {len(future_start)} entities have "
-            f"span_start in the future. "
+            f"period_start in the future. "
             f"Example entity IDs: {examples}. "
             f"Is this intentional (prospective study)?",
             UserWarning, stacklevel=3,
@@ -134,14 +134,14 @@ def warn_future_dates(
         examples = future_end[entity_col].head(3).tolist()
         warnings.warn(
             f"[ObsPeriodPerEntity] {len(future_end)} entities have "
-            f"span_end in the future. "
+            f"period_end in the future. "
             f"Example entity IDs: {examples}. "
             f"Is this intentional (prospective study)?",
             UserWarning, stacklevel=3,
         )
 
 
-def build_calendar_spans(
+def build_calendar_periods(
     entity_ids: list,
     start:      str,
     end:        str,
@@ -150,7 +150,7 @@ def build_calendar_spans(
     end_col:    str,
 ) -> pd.DataFrame:
     """
-    Build a spans DataFrame with the same start/end dates for every entity.
+    Build a periods DataFrame with the same start/end dates for every entity.
 
     Parameters
     ----------
@@ -202,7 +202,7 @@ def build_calendar_spans(
     })
 
 
-def build_age_window_spans(
+def build_age_window_periods(
     entity_df:  pd.DataFrame,
     dob_col:    str,
     age_start:  int,
@@ -213,7 +213,7 @@ def build_age_window_spans(
     age_unit:   str = "years",
 ) -> pd.DataFrame:
     """
-    Build a spans DataFrame where each entity's window is derived
+    Build a periods DataFrame where each entity's window is derived
     from their date of birth and an age range.
 
     Parameters
@@ -273,8 +273,8 @@ def build_age_window_spans(
     return df[[entity_col, start_col, end_col]].reset_index(drop=True)
 
 
-def build_spans_from_events(
-    events_df:  pd.DataFrame,
+def build_periods_from_episodes(
+    episodes_df:  pd.DataFrame,
     entity_col: str,
     start_col:  str,
     end_col:    str,
@@ -282,29 +282,29 @@ def build_spans_from_events(
     out_end_col:   str,
 ) -> pd.DataFrame:
     """
-    Build a spans DataFrame from an Events DataFrame.
-    Each entity's span runs from their first event start
-    to their last event end.
+    Build a periods DataFrame from an Episodes DataFrame.
+    Each entity's period runs from their first episode start
+    to their last episode end.
 
     This is the broadest possible observation window — it captures
     the full range of activity for each entity. If you want a narrower
-    window, build the spans DataFrame manually.
+    window, build the periods DataFrame manually.
 
     Parameters
     ----------
-    events_df : pd.DataFrame
-        Clean events data with entity_col, start_col, end_col.
+    episodes_df : pd.DataFrame
+        Clean episodes data with entity_col, start_col, end_col.
     entity_col, start_col, end_col : str
-        Column names in events_df.
+        Column names in episodes_df.
     out_start_col, out_end_col : str
         Column names for the output DataFrame.
 
     Returns
     -------
     pd.DataFrame
-        One row per entity: first event start → last event end.
+        One row per entity: first episode start → last episode end.
     """
-    agg = events_df.groupby(entity_col).agg(
+    agg = episodes_df.groupby(entity_col).agg(
         **{out_start_col: (start_col, "min"),
            out_end_col:   (end_col,   "max")}
     ).reset_index()

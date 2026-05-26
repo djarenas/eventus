@@ -1,5 +1,5 @@
 # hospitalization_semantics.yaml
-# EventSemantics for inpatient hospitalization claims.
+# EpisodeSemantics for inpatient hospitalization claims.
 
 identity:        inpatient_hospitalization
 entity_id_col:   patient_id

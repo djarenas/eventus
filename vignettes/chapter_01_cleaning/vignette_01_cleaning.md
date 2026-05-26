@@ -40,7 +40,7 @@ depends on your research question and must be a deliberate, documented
 choice.
 
 **Problem 6 — Overlapping stays at different hospitals are not the same
-event.** Patient P0023 has two overlapping records — one at Hospital A,
+episode.** Patient P0023 has two overlapping records — one at Hospital A,
 one at Hospital B. That is a transfer, not a duplicate. A cleaner that
 merges all overlapping intervals regardless of hospital just destroyed
 a clinically meaningful distinction. The hospital is part of what
@@ -95,7 +95,7 @@ descriptor_cols:
 
 `also_defined_by: [hospital_id]` says: *"A hospitalization IS defined
 by its hospital. Two overlapping records at different hospitals are a
-transfer — different events. Two overlapping records at the same
+transfer — different episodes. Two overlapping records at the same
 hospital are the same episode recorded twice."*
 
 ```python
@@ -104,7 +104,7 @@ import pandas as pd
 
 raw_hosp_df = pd.read_csv("vignettes/data/hospitalization_claims.csv")
 
-sem = eventus.EventSemantics.build_from_yaml("configs/hospitalization_semantics.yaml")
+sem = eventus.EpisodeSemantics.build_from_yaml("configs/hospitalization_semantics.yaml")
 ```
 
 ### Step 2 — Configure the cleaner
@@ -136,9 +136,9 @@ exactly what was decided and why.
 ### Step 3 — Clean
 
 ```python
-config  = eventus.EventsCleanerConfig.build_from_yaml("configs/hospitalization_cleaner.yaml")
-cleaner = eventus.EventsCleaner(raw_hosp_df, sem, config)
-events  = cleaner.clean()
+config  = eventus.EpisodesCleanerConfig.build_from_yaml("configs/hospitalization_cleaner.yaml")
+cleaner = eventus.EpisodesCleaner(raw_hosp_df, sem, config)
+episodes  = cleaner.clean()
 cleaner.print_report()
 ```
 
@@ -169,11 +169,11 @@ cleaner.rejected   # → pd.DataFrame, one row per rejected input row
 ### Step 4 — Inspect the result
 
 ```python
-print(events)
+print(episodes)
 ```
 
 ```
-Events(
+Episodes(
   rows             : 1,486
   unique entities  : 498
   entity_col       : 'patient_id'
@@ -182,7 +182,7 @@ Events(
 )
 ```
 
-The `Events` object is validated and structurally sound. Transfers
+The `Episodes` object is validated and structurally sound. Transfers
 are preserved — overlapping stays at different hospitals were never
 merged. Same-hospital overlaps within a 1-day gap were merged into
 single episodes. `icd10_condition` values were aggregated as unique
@@ -193,7 +193,7 @@ pipe-delimited strings across merged rows.
 ## What this demonstrated
 
 - **Domain agnosticism** — column names defined once in
-  `EventSemantics`, never referenced again.
+  `EpisodeSemantics`, never referenced again.
 
 - **Config is the methods section** — every cleaning decision in a
   versioned YAML file. The file is the reproducible record of what
@@ -217,12 +217,12 @@ pipe-delimited strings across merged rows.
 shows how numeric and categorical metadata are handled during merging.
 See `vignette_02_descriptor_aggregation.md`.*
 
-*Chapter 3 — "How long were these hospitalizations?" introduces event
-duration analysis. See `vignette_03_event_duration.md`.*
+*Chapter 3 — "How long were these hospitalizations?" introduces episode
+duration analysis. See `vignette_03_episode_duration.md`.*
 
 ---
 
-## Bonus A — Cleaning Occurrence Data
+## Bonus A — Cleaning Event Data
 
 ED visit data is simpler than hospitalization data — a patient, a date,
 no duration. But the same design decisions apply. An ED visit is also
@@ -249,7 +249,7 @@ descriptor_cols:
 `also_defined_by: [hospital_id]` means two records on the same date
 for the same patient are only duplicates if they are at the same
 hospital. Two visits to different hospitals on the same day are kept
-as separate occurrences. `descriptor_cols` declares the clinical
+as separate events. `descriptor_cols` declares the clinical
 columns — available for aggregation in Chapter 6.
 
 ### The code
@@ -257,15 +257,15 @@ columns — available for aggregation in Chapter 6.
 ```python
 raw_ed_df = pd.read_csv("vignettes/data/simulated_ed_visits.csv")
 
-sem       = eventus.OccurrenceSemantics.build_from_yaml("configs/ed_semantics.yaml")
-config    = eventus.OccurrencesCleanerConfig.build_from_yaml("configs/ed_cleaner.yaml")
-cleaner   = eventus.OccurrencesCleaner(raw_ed_df, sem, config)
+sem       = eventus.EventSemantics.build_from_yaml("configs/ed_semantics.yaml")
+config    = eventus.EventsCleanerConfig.build_from_yaml("configs/ed_cleaner.yaml")
+cleaner   = eventus.EventsCleaner(raw_ed_df, sem, config)
 ed_visits = cleaner.clean()
 cleaner.print_report()
 ```
 
 ```
-Cleaning report — occurrences
+Cleaning report — events
 ────────────────────────────────────────────────────────
 Total input rows:                                5,442
 ────────────────────────────────────────────────────────
@@ -283,7 +283,7 @@ print(ed_visits)
 ```
 
 ```
-Occurrences(
+Events(
   identity        : 'ed_visit'
   rows            : 2,086
   unique entities : 448

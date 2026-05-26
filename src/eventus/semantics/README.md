@@ -40,17 +40,38 @@ DescriptorColConfig(type="numeric")    # numbers
 | `"category"` | hospital_id, icd10_condition, triage_level |
 | `"numeric"` | bmi_at_admission, wait_time_mins, length_of_stay |
 
----
+**`timeline`** — how values are carried into `CohortTimeline`
 
-### `EventSemantics`
+| type | valid `timeline` values | default |
+|---|---|---|
+| `"category"` | `"sequence"`, `"unique"`, `"none"` | `"sequence"` |
+| `"numeric"` | `"average"`, `"sequence"`, `"none"` | `"average"` |
 
-> *"I am a description of what columns mean in event data. I hold no data and do no computation."*
+- **`"sequence"`** — pipe-delimit values in visit order, preserving repetition. Use when order or frequency matters (e.g. a mobility decline pattern: `"independent | assisted | dependent"`).
+- **`"unique"`** — collect all values, deduplicate, sort alphabetically. Use when you only care what categories appeared, not how many times or in what order (e.g. stratifying by condition: `"conditionA | conditionB"`).
+- **`"average"`** — compute the mean across visits and carry a single float. Use when you want a per-member summary value (e.g. mean systolic BP).
+- **`"none"`** — do not carry into `CohortTimeline`.
+
+`"unique"` is not valid for numeric columns. `"average"` is not valid for category columns.
 
 ```python
-from eventus import EventSemantics
+DescriptorColConfig(type="category")                      # sequence (default)
+DescriptorColConfig(type="category", timeline="unique")   # e.g. for ICD-10 stratification
+DescriptorColConfig(type="numeric")                       # average (default)
+DescriptorColConfig(type="numeric", timeline="sequence")  # e.g. to track BP trend over visits
+```
+
+---
+
+### `EpisodeSemantics`
+
+> *"I am a description of what columns mean in episode data. I hold no data and do no computation."*
+
+```python
+from eventus import EpisodeSemantics
 from eventus.semantics import DescriptorColConfig
 
-sem = EventSemantics(
+sem = EpisodeSemantics(
     identity        = "inpatient_hospitalization",
     entity_id_col   = "patient_id",
     start_time_col  = "admit_date",
@@ -67,26 +88,26 @@ sem = EventSemantics(
 
 | Field | Type | Required | Purpose |
 |---|---|:---:|---|
-| `identity` | str \| None | | What kind of events these are. Flows into intermediate column names and plot titles. Letters, numbers, underscores only. |
+| `identity` | str \| None | | What kind of episodes these are. Flows into intermediate column names and plot titles. Letters, numbers, underscores only. |
 | `entity_id_col` | str | ✓ | Column identifying the entity |
-| `start_time_col` | str | ✓ | Column for event start date |
-| `end_time_col` | str | ✓ | Column for event end date |
-| `also_defined_by` | list[str] \| None | | Columns that are part of the event's identity — see below |
-| `descriptor_cols` | dict[str, DescriptorColConfig] \| None | | Columns that describe the event — see below |
-| `event_id_col` | str \| None | | Column for a unique event identifier |
-| `event_type_col` | str \| None | | Column for event type or category |
+| `start_time_col` | str | ✓ | Column for episode start date |
+| `end_time_col` | str | ✓ | Column for episode end date |
+| `also_defined_by` | list[str] \| None | | Columns that are part of the episode's identity — see below |
+| `descriptor_cols` | dict[str, DescriptorColConfig] \| None | | Columns that describe the episode — see below |
+| `episode_id_col` | str \| None | | Column for a unique episode identifier |
+| `episode_type_col` | str \| None | | Column for episode type or category |
 
 ---
 
-### `OccurrenceSemantics`
+### `EventSemantics`
 
-> *"I am a description of what columns mean in occurrence data. I hold no data and do no computation."*
+> *"I am a description of what columns mean in event data. I hold no data and do no computation."*
 
 ```python
-from eventus import OccurrenceSemantics
+from eventus import EventSemantics
 from eventus.semantics import DescriptorColConfig
 
-sem = OccurrenceSemantics(
+sem = EventSemantics(
     identity          = "ed_visit",
     entity_id_col     = "patient_id",
     date_col          = "ed_visit_date",
@@ -102,25 +123,25 @@ sem = OccurrenceSemantics(
 
 | Field | Type | Required | Purpose |
 |---|---|:---:|---|
-| `identity` | str \| None | | What kind of occurrences these are |
+| `identity` | str \| None | | What kind of events these are |
 | `entity_id_col` | str | ✓ | Column identifying the entity |
-| `date_col` | str | ✓ | Column for the occurrence date |
-| `also_defined_by` | list[str] \| None | | Columns that are part of the occurrence's identity — see below |
-| `descriptor_cols` | dict[str, DescriptorColConfig] \| None | | Columns that describe the occurrence — see below |
-| `occurrence_id_col` | str \| None | | Column for a unique occurrence identifier |
+| `date_col` | str | ✓ | Column for the event date |
+| `also_defined_by` | list[str] \| None | | Columns that are part of the event's identity — see below |
+| `descriptor_cols` | dict[str, DescriptorColConfig] \| None | | Columns that describe the event — see below |
+| `event_id_col` | str \| None | | Column for a unique event identifier |
 
 ---
 
-## `also_defined_by` — what makes this event unique
+## `also_defined_by` — what makes this episode unique
 
 `also_defined_by` answers the question: *"Beyond entity and date, what
-else defines whether two records are the same event?"*
+else defines whether two records are the same episode?"*
 
 This is one of the most important design decisions in any interval or
-occurrence analysis. It determines what the cleaner treats as a
+event analysis. It determines what the cleaner treats as a
 duplicate, and what it refuses to merge.
 
-### Events example — hospitalizations
+### Episodes example — hospitalizations
 
 A hospitalization is defined by patient + admit date + discharge date.
 But if your data has transfers between hospitals, a patient may have
@@ -128,11 +149,11 @@ two overlapping records at different hospitals. Are those the same
 hospitalization?
 
 **No.** A hospitalization at Hospital A and a hospitalization at
-Hospital B are different events — even if they overlap in time. The
-hospital is part of what defines the event.
+Hospital B are different episodes — even if they overlap in time. The
+hospital is part of what defines the episode.
 
 ```python
-EventSemantics(
+EpisodeSemantics(
     identity        = "inpatient_hospitalization",
     entity_id_col   = "patient_id",
     start_time_col  = "admit_date",
@@ -145,7 +166,7 @@ The cleaner reads `also_defined_by` and only merges overlapping
 intervals where `hospital_id` matches. Two stays at different hospitals
 are kept separate even if they overlap in time.
 
-### Occurrences example — ED visits
+### Events example — ED visits
 
 An ED visit is defined by patient + visit date. But if your data
 records visits across multiple hospitals, a patient could have two
@@ -153,10 +174,10 @@ records on the same date at different hospitals. Are those the same
 visit?
 
 **No.** A visit to Hospital A and a visit to Hospital B on the same
-day are different events — the hospital defines the occurrence.
+day are different episodes — the hospital defines the event.
 
 ```python
-OccurrenceSemantics(
+EventSemantics(
     identity        = "ed_visit",
     entity_id_col   = "patient_id",
     date_col        = "ed_visit_date",
@@ -166,20 +187,20 @@ OccurrenceSemantics(
 
 The cleaner reads `also_defined_by` and only deduplicates records
 where `hospital_id` also matches. Two visits to different hospitals
-on the same date are kept separate.
+on the same date are kept as separate events.
 
 ### What `also_defined_by` is NOT
 
-`also_defined_by` is not for columns that merely *describe* the event.
+`also_defined_by` is not for columns that merely *describe* the episode.
 A patient's BMI at admission describes the hospitalization — it doesn't
 define it. Two records with the same patient, same admit date, same
 discharge date, same hospital, but different BMI values are the same
-event recorded with different values — not two different events.
+episode recorded with different values — not two different episodes.
 
 ```python
-EventSemantics(
+EpisodeSemantics(
     ...
-    also_defined_by = ["hospital_id"],        # ✓ defines the event
+    also_defined_by = ["hospital_id"],        # ✓ defines the episode
     descriptor_cols = {
         "bmi_at_admission": DescriptorColConfig(type="numeric"),  # ✓ describes it
         "icd10_condition":  DescriptorColConfig(type="category"),
@@ -193,10 +214,10 @@ aggregates `also_defined_by` columns — those are identity columns.
 
 ---
 
-## `descriptor_cols` — what describes this event
+## `descriptor_cols` — what describes this episode
 
 `descriptor_cols` declares columns that carry analytical information
-about the event but are not part of its identity. They survive the
+about the episode but are not part of its identity. They survive the
 cleaning pipeline and are available for downstream analysis and
 stratification.
 
@@ -213,10 +234,10 @@ The type declaration tells downstream code what kind of values to
 expect — cleaners use it to choose valid aggregation strategies,
 analyzers use it for stratification logic. The actual aggregation rule
 (mean? median? unique?) is a cleaning decision declared in
-`EventsCleanerConfig.merge`, not here.
+`EpisodesCleanerConfig.merge`, not here.
 
 **`also_defined_by` and `descriptor_cols` must be disjoint.** A column
-is either part of the event's identity or a descriptor — never both.
+is either part of the episode's identity or a descriptor — never both.
 The constructor raises if they overlap.
 
 ---
@@ -245,16 +266,16 @@ is violated.
 
 ```python
 # Valid
-EventSemantics(..., identity="inpatient_hospitalization")
-OccurrenceSemantics(..., identity="ed_visit")
+EpisodeSemantics(..., identity="inpatient_hospitalization")
+EventSemantics(..., identity="ed_visit")
 
 # Raises ValueError
-EventSemantics(..., identity="inpatient hospitalization")  # spaces
-OccurrenceSemantics(..., identity="ed-visit")              # hyphens
+EpisodeSemantics(..., identity="inpatient hospitalization")  # spaces
+EventSemantics(..., identity="ed-visit")              # hyphens
 ```
 
-Identity flows into intermediate column names — `occ_ed_visit`,
-`evt_comp_inpatient_hospitalization_active_days` — so it must be safe
+Identity flows into intermediate column names — `evt_ed_visit`,
+`eps_comp_inpatient_hospitalization_active_days` — so it must be safe
 to use as part of a column name.
 
 ---
@@ -262,12 +283,12 @@ to use as part of a column name.
 ## Build from YAML
 
 ```python
+sem = EpisodeSemantics.build_from_yaml("episode_semantics.yaml")
 sem = EventSemantics.build_from_yaml("event_semantics.yaml")
-sem = OccurrenceSemantics.build_from_yaml("occurrence_semantics.yaml")
 ```
 
 ```yaml
-# event_semantics.yaml
+# episode_semantics.yaml
 identity:        inpatient_hospitalization
 entity_id_col:   patient_id
 start_time_col:  admit_date
@@ -282,7 +303,7 @@ descriptor_cols:
 ```
 
 ```yaml
-# occurrence_semantics.yaml
+# event_semantics.yaml
 identity:        ed_visit
 entity_id_col:   patient_id
 date_col:        ed_visit_date
@@ -304,16 +325,16 @@ that needs it — data objects, cleaners, analyzers. It travels with the
 data automatically.
 
 ```python
-sem     = EventSemantics(identity="inpatient_hospitalization", ...)
-events  = EventsCleaner(raw_df, sem, config).clean()
-result  = EventDurationAnalyzer(events, descriptor_cols=["icd10_condition"]).calc()
+sem     = EpisodeSemantics(identity="inpatient_hospitalization", ...)
+episodes  = EpisodesCleaner(raw_df, sem, config).clean()
+result  = EpisodeDurationAnalyzer(episodes, descriptor_cols=["icd10_condition"]).calc()
 ```
 
 The semantics object is preserved through filtering and copying:
 
 ```python
-filtered = events.filter_by_entities(some_ids)
-filtered.semantics   # same EventSemantics, unchanged
+filtered = episodes.filter_by_entities(some_ids)
+filtered.semantics   # same EpisodeSemantics, unchanged
 ```
 
 ---

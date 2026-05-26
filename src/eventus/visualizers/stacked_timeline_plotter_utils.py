@@ -103,17 +103,17 @@ def parse_segments(
     obs_start:      pd.Timestamp,
     obs_end:        pd.Timestamp,
     obs_days:       int,
-    event_identity: str | None,
+    episode_identity: str | None,
     ev_color:       str,
     poi,
 ) -> list[tuple[float, float, str]]:
     """
-    Parse pipe-delimited event strings into (left, width, color) tuples
+    Parse pipe-delimited episode strings into (left, width, color) tuples
     in day-offset coordinates.
 
-    Uses evt_{identity}_starts and evt_{identity}_ends columns if
-    event_identity is provided. Falls back to color_no_events if no
-    events are found.
+    Uses eps_{identity}_starts and eps_{identity}_ends columns if
+    episode_identity is provided. Falls back to color_no_episodes if no
+    episodes are found.
 
     Parameters
     ----------
@@ -123,11 +123,11 @@ def parse_segments(
         Observation period boundaries.
     obs_days : int
         Length of observation period in days.
-    event_identity : str | None
-        Identity of the event layer. Used to locate evt_{identity}_starts
-        and evt_{identity}_ends columns. None means no event layer.
+    episode_identity : str | None
+        Identity of the episode layer. Used to locate eps_{identity}_starts
+        and eps_{identity}_ends columns. None means no episode layer.
     ev_color : str
-        Color for active event segments.
+        Color for active episode segments.
     poi : POIConfig
         Period of interest color settings.
 
@@ -135,17 +135,17 @@ def parse_segments(
     -------
     list of (left_days, width_days, color)
     """
-    starts_col = f"evt_{event_identity}_starts" if event_identity else None
-    ends_col   = f"evt_{event_identity}_ends"   if event_identity else None
+    starts_col = f"eps_{episode_identity}_starts" if episode_identity else None
+    ends_col   = f"eps_{episode_identity}_ends"   if episode_identity else None
 
-    has_events = (
-        event_identity is not None and
+    has_episodes = (
+        episode_identity is not None and
         starts_col in row.index and
         not pd.isna(row.get(starts_col))
     )
 
-    if not has_events:
-        return [(0, obs_days, poi.color_no_events)]
+    if not has_episodes:
+        return [(0, obs_days, poi.color_no_episodes)]
 
     starts_raw = str(row[starts_col]).split(" | ")
     ends_raw   = str(row[ends_col]).split(" | ")
@@ -164,7 +164,7 @@ def parse_segments(
             ))
 
     if not intervals:
-        return [(0, obs_days, poi.color_no_events)]
+        return [(0, obs_days, poi.color_no_episodes)]
 
     intervals.sort(key=lambda x: x[0])
     segments      = []
@@ -200,9 +200,9 @@ def precompute(
     data:           pd.DataFrame,
     entity_col:     str,
     obs_lookup:     dict,
-    event_identity: str | None,
+    episode_identity: str | None,
     ev_color:       str,
-    occ_cfg_map:    dict,
+    evt_cfg_map:    dict,
     poi,
     bar_h:          float,
     jitter:         bool  = False,
@@ -215,10 +215,10 @@ def precompute(
     ----------
     obs_lookup : dict
         {entity: (obs_start, obs_end, obs_days)}
-    event_identity : str | None
-        Identity for evt_{identity}_starts/ends columns. None = no events.
+    episode_identity : str | None
+        Identity for eps_{identity}_starts/ends columns. None = no episodes.
     jitter : bool
-        Apply horizontal jitter to occurrence markers. Default False.
+        Apply horizontal jitter to event markers. Default False.
     jitter_ratio : float
         Jitter as fraction of obs_days. Default 0.01.
 
@@ -250,7 +250,7 @@ def precompute(
             obs_start      = obs_start,
             obs_end        = obs_end,
             obs_days       = obs_days,
-            event_identity = event_identity,
+            episode_identity = episode_identity,
             ev_color       = ev_color,
             poi            = poi,
         )
@@ -258,13 +258,13 @@ def precompute(
             if width > 0:
                 color_segments[color].append((left, width, i))
 
-        # ── Occurrence markers ────────────────────────────────────────
+        # ── Event markers ────────────────────────────────────────
         if row is None:
             continue
 
         jitter_magnitude = obs_days * jitter_ratio if jitter else 0.0
 
-        for col, ocfg in occ_cfg_map.items():
+        for col, ocfg in evt_cfg_map.items():
             val = row.get(col)
             if pd.isna(val):
                 continue

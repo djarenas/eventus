@@ -94,6 +94,10 @@ follows what plots actually have in common.
 format strings. Separate from `AxisLabels` because "what are the axes
 called" and "how do the axes look" are different concerns.
 
+`TimelineAxisConfig` extends `AxisConfig` with date-aware tick control:
+`mode` (`auto`/`calendar`/`normalized`), `unit` (`days`/`months`/`years`),
+`interval`, and `format`. Used only by `StackedTimelineConfig`.
+
 **Style hierarchy** — alpha is the only truly universal style field:
 
 ```
@@ -112,6 +116,16 @@ count distributions.
 
 **`CategoryConfig`** — visual identity for one category: color and
 optional display label. Used wherever plots stratify by group.
+
+**`ViolinAxisConfig`** — axis config for violin plots, extending `AxisConfig` with
+optional `y_min` and `y_max` bounds. Lives in `violin_axis_config.py` and is
+shared by all violin configs. Separate from `AxisConfig` because violins
+frequently need hard y-axis clamping that other plot types do not.
+
+**`ViolinStyleConfig`** — visual style for violin plots: bandwidth method,
+box display, point overlay, and `max_categories` limit. Lives in
+`violin_style_config.py` and is shared by `ArraysViolinConfig`,
+`BaseViolinConfig`, and `EpisodeDurationViolinConfig`.
 
 **`BinsConfig`** — standalone, composable binning configuration.
 Four bin types with friendly alternative constructors:
@@ -136,14 +150,17 @@ but ticks every 30.
 ### `StackedTimelineConfig`
 
 Configuration for `StackedTimelinePlotter`. Draws one horizontal bar
-per entity, with event coverage layers and occurrence markers overlaid.
+per entity, with episode coverage layers and event markers overlaid.
 
 ```python
 from eventus.visualizers.configs import StackedTimelineConfig
 
 config = StackedTimelineConfig.build_from_yaml("timeline.yaml")
-config = StackedTimelineConfig()   # all defaults
 ```
+
+Note: `StackedTimelineConfig` raises at construction if neither `episodes`
+nor `events` contains at least one layer — a config with no layers is not
+valid. Always provide at least one entry in `episodes` or `events`.
 
 **Sections**
 
@@ -154,8 +171,8 @@ config = StackedTimelineConfig()   # all defaults
 | `layout` | `LayoutConfig` | row height, bar height, entity labels, jitter |
 | `x_axis` | `TimelineAxisConfig` | mode (auto/calendar/normalized), tick unit and interval |
 | `poi` | `POIConfig` | observation period bar colors — before/active/gap/after |
-| `events` | `list[EventLayerConfig]` | one entry per event identity — color, alpha, label |
-| `occurrences` | `list[OccurrenceLayerConfig]` | one entry per occurrence identity — color, marker, size |
+| `episodes` | `list[EpisodeLayerConfig]` | one entry per episode identity — color, alpha, label |
+| `events` | `list[EventLayerConfig]` | one entry per event identity — color, marker, size |
 | `legend` | `LegendConfig` | show, location, font size, outside placement |
 
 **YAML example**
@@ -180,9 +197,9 @@ poi:
   color_before:    "#9E9E9E"
   color_middle:    "#F44336"
   color_after:     "#BDBDBD"
-  color_no_events: "#EEEEEE"
+  color_no_episodes: "#EEEEEE"
 
-events:
+episodes:
   - identity: inpatient_hospitalization
     color:    "#028090"
     label:    "Inpatient"
@@ -190,7 +207,7 @@ events:
     color:    "#6B4FA0"
     label:    "Coverage"
 
-occurrences:
+events:
   - identity: ed_visit
     color:    "#E05C40"
     marker:   circle
@@ -207,7 +224,7 @@ legend:
 ### `ActivityOverTimeConfig`
 
 Configuration for `ActivityOverTimePlotter`. Two-panel plot: top panel
-shows percentage of cohort with active event coverage over time; bottom
+shows percentage of cohort with active episode coverage over time; bottom
 panel shows entities entering and exiting coverage.
 
 ```python
@@ -256,14 +273,14 @@ warning.
 
 ---
 
-### `OccurrenceResultVolumeConfig`
+### `EventResultVolumeConfig`
 
-Configuration for `OccurrenceResultVolumePlotter`. Acts as an
+Configuration for `EventResultVolumePlotter`. Acts as an
 orchestrator — each attribute owns the full configuration for exactly
 one plot method.
 
 ```python
-config = OccurrenceResultVolumeConfig.build_from_yaml("volume.yaml")
+config = EventResultVolumeConfig.build_from_yaml("volume.yaml")
 ```
 
 | Attribute | Class | Plot method |
@@ -277,13 +294,13 @@ lines are snapped to the nearest bar position.
 
 ---
 
-### `OccurrenceResultTimingConfig`
+### `EventResultTimingConfig`
 
-Configuration for `OccurrenceResultTimingPlotter`. Orchestrates
-histogram configs per nth occurrence, with per-nth overrides.
+Configuration for `EventResultTimingPlotter`. Orchestrates
+histogram configs per nth event, with per-nth overrides.
 
 ```python
-config = OccurrenceResultTimingConfig.build_from_yaml("timing.yaml")
+config = EventResultTimingConfig.build_from_yaml("timing.yaml")
 ```
 
 The plotter resolves the right config for each nth via:
@@ -292,11 +309,11 @@ cfg.histogram_per_n.get(nth, cfg.histogram)
 ```
 
 This means you can configure a base histogram for all nths, then
-override specific ones — a different color for the second occurrence,
+override specific ones — a different color for the second event,
 a narrower range for the third.
 
 ```python
-config = OccurrenceResultTimingConfig.build_from_dict({
+config = EventResultTimingConfig.build_from_dict({
     "histogram": {
         "bins":  {"type": "uniform", "n_bins": 52, "min": 0, "max": 365}
     },
@@ -309,14 +326,14 @@ config = OccurrenceResultTimingConfig.build_from_dict({
 
 ---
 
-### `OccurrenceResultShapeConfig`
+### `EventResultShapeConfig`
 
-Configuration for `OccurrenceResultShapePlotter`. Orchestrates three
+Configuration for `EventResultShapePlotter`. Orchestrates three
 distinct plot methods from one config object. The canvas is shared
 across all three.
 
 ```python
-config = OccurrenceResultShapeConfig.build_from_yaml("shape.yaml")
+config = EventResultShapeConfig.build_from_yaml("shape.yaml")
 ```
 
 | Attribute | Class | Plot method |
@@ -328,6 +345,29 @@ config = OccurrenceResultShapeConfig.build_from_yaml("shape.yaml")
 `plot_fingerprint()` draws the behavioral fingerprint scatter plot —
 burstiness on the x-axis, memory on the y-axis. Quadrant lines divide
 the space into four behavioral regions. Each entity is one point.
+
+---
+
+### `EpisodeDurationViolinConfig`
+
+Configuration for `EpisodeDurationViolinPlotter`. Built on
+`BaseViolinConfig` — adds a `stratify_by` column name that tells the
+plotter which column in `EpisodeDurationResult.data` to group by.
+
+```python
+from eventus.visualizers.configs import EpisodeDurationViolinConfig
+
+config = EpisodeDurationViolinConfig.build_from_dict({
+    "stratify_by": "hospital_id",
+    "stratify": {
+        "all_data": {"color": "#AAAAAA", "label": "All"},
+        "H01":      {"color": "#028090", "label": "North"},
+    },
+})
+```
+
+The reserved key `"all_data"` always plots first if present. Missing
+keys are auto-assigned from the default palette with a warning.
 
 ---
 
@@ -383,10 +423,12 @@ not make visual decisions — the config already owns all of those.
 | Plotter | Intermediate | Config |
 |---|---|---|
 | `StackedTimelinePlotter` | `CohortTimeline` | `StackedTimelineConfig` |
-| `ActivityOverTimePlotter` | `EventActivityOverTime` | `ActivityOverTimeConfig` |
-| `OccurrenceResultVolumePlotter` | `OccurrenceResultVolume` | `OccurrenceResultVolumeConfig` |
-| `OccurrenceResultTimingPlotter` | `OccurrenceResultTiming` | `OccurrenceResultTimingConfig` |
-| `OccurrenceResultShapePlotter` | `OccurrenceResultShape` | `OccurrenceResultShapeConfig` |
+| `ActivityOverTimePlotter` | `EpisodeActivityOverTime` | `ActivityOverTimeConfig` |
+| `EpisodeDurationHistogramPlotter` | `EpisodeDurationResult` | `EpisodeDurationPlotConfig` |
+| `EpisodeDurationViolinPlotter` | `EpisodeDurationResult` | `EpisodeDurationViolinConfig` |
+| `EventResultVolumePlotter` | `EventResultVolume` | `EventResultVolumeConfig` |
+| `EventResultTimingPlotter` | `EventResultTiming` | `EventResultTimingConfig` |
+| `EventResultShapePlotter` | `EventResultShape` | `EventResultShapeConfig` |
 | `ArraysViolinPlotter` | `dict[str, np.ndarray]` | `ArraysViolinConfig` |
 
 ---
@@ -406,8 +448,8 @@ binning. No class absorbs a neighboring concern because it would be
 convenient to share. The result is a hierarchy that is predictable,
 extensible, and honest.
 
-**Orchestrator configs.** Some configs — `OccurrenceResultShapeConfig`,
-`OccurrenceResultTimingConfig`, `OccurrenceResultVolumeConfig` — act as
+**Orchestrator configs.** Some configs — `EventResultShapeConfig`,
+`EventResultTimingConfig`, `EventResultVolumeConfig` — act as
 orchestrators. Each attribute owns the full configuration for exactly
 one plot method. This means one YAML file configures an entire
 analytical visualization suite, and each method gets its own
@@ -420,7 +462,7 @@ at plot time when the figure is half-drawn.
 
 **The intermediate is the handshake.** A plotter accepts an intermediate
 type, not a specific analyzer. Any analyzer that produces an
-`OccurrenceResultShape` can feed `OccurrenceResultShapePlotter`. The
+`EventResultShape` can feed `EventResultShapePlotter`. The
 config and the intermediate are fully decoupled — the same intermediate
 can be plotted with a default config, a saved config from a previous
 analysis, or a new config built for a different publication.

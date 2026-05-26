@@ -17,7 +17,7 @@ CategoryBarConfig covers any bar chart where the categories are known upfront
 and each has its own color — e.g. prevalence breakdowns, quadrant distributions.
 
 CountDistributionBarConfig covers bar charts where the x-axis is a discrete
-integer count (n=0, n=1, ... n=max_n+) — e.g. occurrence count distributions.
+integer count (n=0, n=1, ... n=max_n+) — e.g. event count distributions.
 
 Future additions (e.g. SummaryBarConfig for single-series numeric bars) should
 also inherit BaseBarConfig and call super().__post_init__() first.

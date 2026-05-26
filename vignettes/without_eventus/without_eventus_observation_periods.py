@@ -390,7 +390,7 @@ print_summary(stats_age, "Age window 18-25")
 # - compute_age_window() required 40 lines including the Feb 29
 #   edge case. eventus handles this in one constructor argument.
 #
-# - No equivalent of EventCoverageSummary — the structured object
+# - No equivalent of EpisodeCoverageSummary — the structured object
 #   with validated denominators and named tiers does not exist.
 #   The summary is a printout that cannot be stored, compared,
 #   or passed downstream.

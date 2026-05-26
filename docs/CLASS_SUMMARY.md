@@ -12,7 +12,7 @@ Everything else describes structure or holds results.
 
 ```
 countmodels/
-├── events/
+├── episodes/
 ├── distributions/
 ├── specs/
 ├── simulators/
@@ -26,29 +26,29 @@ countmodels/
 
 ---
 
-## events/
+## episodes/
 
-### EventSemantics
-"I am a description of what columns mean in event data."
+### EpisodeSemantics
+"I am a description of what columns mean in episode data."
 Holds column name mappings. Built from YAML. Validates structure.
 Does not hold data.
 
-### Events
-"I am a collection of events that happened to people."
-Holds a DataFrame of valid events. Triages bad rows into a
+### Episodes
+"I am a collection of episodes that happened to people."
+Holds a DataFrame of valid episodes. Triages bad rows into a
 rejected attribute with reasons. Filters by person or date.
-Counts events per person.
+Counts episodes per person.
 
 ### CovariateSemantics
 "I describe what covariate columns exist, what type they are,
-what level (person or event), and how event-level covariates
+what level (person or episode), and how episode-level covariates
 should be aggregated."
 Built from YAML. Validates types, aggregations, interactions.
 Does not hold data.
 
-### EventsWithCovariates
-"I am Events that have person-level and event-level features attached."
-Inherits from Events — IS an Events. Validates covariate columns
+### EpisodesWithCovariates
+"I am Episodes that have person-level and episode-level features attached."
+Inherits from Episodes — IS an Episodes. Validates covariate columns
 exist, types are correct, person-level covariates are constant
 per person, person_id matches between semantics.
 
@@ -75,7 +75,7 @@ Does not compute, fit, simulate, or plot.
 File: count_distributions.py (contains all 9 below)
 
 ### PoissonDistribution
-"All individuals share the same constant event rate."
+"All individuals share the same constant episode rate."
 params: lambda
 
 ### PoissonGammaDistribution
@@ -235,7 +235,7 @@ Future: count_covariate_computers.py
 
 ### CountDistributionFitter (abstract base)
 "I estimate a distribution's parameters from count data."
-Takes counts via from_events() or from_counts(). Returns a
+Takes counts via from_episodes() or from_counts(). Returns a
 CountDistribution. Stores counts as np.ndarray for speed.
 
 File: count_distribution_fitters.py (base + Poisson, PoissonGamma, Geometric)
@@ -329,7 +329,7 @@ Takes a CovariateDistribution and covariates DataFrame.
 
 ### Covariate Fitters
 "I estimate covariate distribution coefficients from data."
-Takes EventsWithCovariates + CovariateSpec, returns
+Takes EpisodesWithCovariates + CovariateSpec, returns
 CovariateDistribution. Uses regression internally.
 Needs: helper_design_matrix.py for encoding and interactions.
 
@@ -355,7 +355,7 @@ Step 1: Find the right count distribution (no covariates)
     Pick top 2-3 models by BIC.
 
 Step 2: Add covariates to winning models only
-    CovariateMenu → fit_all(events_with_covariates) → CovariateCollection
+    CovariateMenu → fit_all(episodes_with_covariates) → CovariateCollection
     Compare coefficients across models.
     If effect sizes are stable → robust finding.
     If effect sizes diverge → sensitive to model choice.

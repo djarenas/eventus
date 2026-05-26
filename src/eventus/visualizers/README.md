@@ -34,7 +34,7 @@ plot.png
 ```
 
 The intermediate and the config are fully independent. The same
-`OccurrenceResultShape` can be plotted with a default config, a custom
+`EventResultShape` can be plotted with a default config, a custom
 config loaded from YAML, or a config built programmatically. The plotter
 does not care how the config was built — only that it is valid.
 
@@ -161,8 +161,8 @@ config.to_yaml("histogram_copy.yaml")   # identical to the original
 
 Full configuration for `StackedTimelinePlotter`.
 
-**Requires at least one event layer or occurrence layer** — raises at
-construction if both `events` and `occurrences` are empty lists.
+**Requires at least one episode layer or event layer** — raises at
+construction if both `episodes` and `events` are empty lists.
 
 | Section | Class | Controls |
 |---|---|---|
@@ -171,8 +171,8 @@ construction if both `events` and `occurrences` are empty lists.
 | `layout` | `LayoutConfig` | row height, max entities, entity labels, jitter |
 | `x_axis` | `TimelineAxisConfig` | mode (auto/calendar/normalized), unit, interval |
 | `poi` | `POIConfig` | observation period bar segment colors |
-| `events` | `list[EventLayerConfig]` | one per event identity — color, alpha, label |
-| `occurrences` | `list[OccurrenceLayerConfig]` | one per occurrence identity — color, marker, size |
+| `episodes` | `list[EpisodeLayerConfig]` | one per episode identity — color, alpha, label |
+| `events` | `list[EventLayerConfig]` | one per event identity — color, marker, size |
 | `legend` | `LegendConfig` | show, location, font size, outside placement |
 
 ### `ActivityOverTimeConfig`
@@ -204,9 +204,9 @@ that draws a KDE curve.
 **Sections:** `canvas`, `labels`, `axes`, `style` (`KDEStyleConfig`),
 `percentiles`.
 
-### `EventDurationPlotConfig`
+### `EpisodeDurationPlotConfig`
 
-Orchestrator config for `EventDurationHistogramPlotter`. One YAML file
+Orchestrator config for `EpisodeDurationHistogramPlotter`. One YAML file
 configures both plot methods. Canvas propagates into both sub-configs.
 
 | Attribute | Class | Plot method |
@@ -214,18 +214,18 @@ configures both plot methods. Canvas propagates into both sub-configs.
 | `histogram` | `HistogramPlotConfig` | `plot_histogram()` |
 | `kde` | `KDEPlotConfig` | `plot_kde()` |
 
-### `OccurrenceResultVolumeConfig`
+### `EventResultVolumeConfig`
 
-Orchestrator for `OccurrenceResultVolumePlotter`.
+Orchestrator for `EventResultVolumePlotter`.
 
 | Attribute | Class | Plot method |
 |---|---|---|
 | `bar` | `CategoryBarConfig` | `plot_prevalence_bar()` |
 | `count_bar` | `CountDistributionBarConfig` | `plot_count_distribution_bar()` |
 
-### `OccurrenceResultTimingConfig`
+### `EventResultTimingConfig`
 
-Orchestrator for `OccurrenceResultTimingPlotter`. Supports per-nth
+Orchestrator for `EventResultTimingPlotter`. Supports per-nth
 histogram overrides resolved at draw time:
 `cfg.histogram_per_n.get(nth, cfg.histogram)`.
 
@@ -235,9 +235,9 @@ histogram overrides resolved at draw time:
 | `histogram_per_n` | `dict[int, HistogramPlotConfig]` | per-nth overrides |
 | `facet` | `FacetConfig` | subplot height and width |
 
-### `OccurrenceResultShapeConfig`
+### `EventResultShapeConfig`
 
-Orchestrator for `OccurrenceResultShapePlotter`. Canvas shared across
+Orchestrator for `EventResultShapePlotter`. Canvas shared across
 all three plot methods.
 
 | Attribute | Class | Plot method |
@@ -261,7 +261,7 @@ each — plot order follows definition order.
 ### `StackedTimelinePlotter`
 
 One horizontal bar per entity. Observation period bar segmented into
-before/active/gap/after regions. Event coverage and occurrence markers
+before/active/gap/after regions. Episode coverage and event markers
 overlaid. Optional entity sorting by any column in the `CohortTimeline`.
 
 ```python
@@ -281,7 +281,7 @@ plotter = StackedTimelinePlotter(
 
 ### `ActivityOverTimePlotter`
 
-Two-panel plot. Top: percentage of cohort with active event coverage
+Two-panel plot. Top: percentage of cohort with active episode coverage
 at each timepoint. Bottom: entities entering and exiting coverage
 (diverging bar or scatter). Supports calendar and normalized x-axis modes.
 
@@ -291,61 +291,61 @@ plotter = ActivityOverTimePlotter(activity, config)
 plotter.plot("activity.png")
 ```
 
-**Requires:** `EventActivityOverTime` from
-`CohortTimelineEventAnalyzer.compute_activity_over_time()`.
+**Requires:** `EpisodeActivityOverTime` from
+`CohortTimelineEpisodeAnalyzer.compute_activity_over_time()`.
 
-### `EventDurationHistogramPlotter`
+### `EpisodeDurationHistogramPlotter`
 
-Histogram and KDE density curve of event durations. No stratification
-— use `EventDurationViolinPlotter` for group comparisons.
+Histogram and KDE density curve of episode durations. No stratification
+— use `EpisodeDurationViolinPlotter` for group comparisons.
 
 ```python
-result  = EventDurationAnalyzer(events).calc()
-config  = EventDurationPlotConfig.build_from_yaml("duration.yaml")
-plotter = EventDurationHistogramPlotter(result, config)
+result  = EpisodeDurationAnalyzer(episodes).calc()
+config  = EpisodeDurationPlotConfig.build_from_yaml("duration.yaml")
+plotter = EpisodeDurationHistogramPlotter(result, config)
 plotter.plot_histogram("duration_histogram.png")
 plotter.plot_kde("duration_kde.png")
 ```
 
-**Requires:** `EventDurationResult` from `EventDurationAnalyzer.calc()`.
+**Requires:** `EpisodeDurationResult` from `EpisodeDurationAnalyzer.calc()`.
 
-### `EventDurationViolinPlotter`
+### `EpisodeDurationViolinPlotter`
 
-Violin plot of event durations. Stratification is a constructor
+Violin plot of episode durations. Stratification is a constructor
 argument — the column must be in `result.descriptor_cols`.
 
 ```python
 # No stratification
-result  = EventDurationAnalyzer(events).calc()
+result  = EpisodeDurationAnalyzer(episodes).calc()
 config  = ArraysViolinConfig.build_from_yaml("duration_violin.yaml")
-plotter = EventDurationViolinPlotter(result, config)
+plotter = EpisodeDurationViolinPlotter(result, config)
 plotter.plot("durations.png")
 
 # Stratified by hospital
-result  = EventDurationAnalyzer(
-    events, descriptor_cols=["hospital_id"]
+result  = EpisodeDurationAnalyzer(
+    episodes, descriptor_cols=["hospital_id"]
 ).calc()
-plotter = EventDurationViolinPlotter(result, config, stratify_by="hospital_id")
+plotter = EpisodeDurationViolinPlotter(result, config, stratify_by="hospital_id")
 plotter.plot("durations_by_hospital.png")
 ```
 
-**Requires:** `EventDurationResult` from `EventDurationAnalyzer.calc()`.
+**Requires:** `EpisodeDurationResult` from `EpisodeDurationAnalyzer.calc()`.
 
-### `EventCoverageViolinPlotter`
+### `EpisodeCoverageViolinPlotter`
 
-Violin plots of event coverage metrics — active days vs inactive days,
+Violin plots of episode coverage metrics — active days vs inactive days,
 and inactive day breakdown — from a `CohortTimeline` enriched with
 coverage analysis columns.
 
 ```python
-ct      = CohortTimelineEventAnalyzer(ct, "inpatient").enrich_with_event_coverage()
+ct      = CohortTimelineEpisodeAnalyzer(ct, "inpatient").enrich_with_episode_coverage()
 config  = ArraysViolinConfig.build_from_yaml("coverage_violin.yaml")
-plotter = EventCoverageViolinPlotter(ct, identity="inpatient", config=config)
+plotter = EpisodeCoverageViolinPlotter(ct, identity="inpatient", config=config)
 plotter.plot_total("total.png")
 plotter.plot_inactive_breakdown("breakdown.png")
 ```
 
-**Requires:** `CohortTimeline` enriched with `evt_comp_{identity}_*` columns.
+**Requires:** `CohortTimeline` enriched with `eps_comp_{identity}_*` columns.
 
 ### `ArraysViolinPlotter`
 
@@ -359,28 +359,28 @@ plotter = ArraysViolinPlotter(arrays, config)
 plotter.plot("violin.png")
 ```
 
-### `OccurrenceResultVolumePlotter`
+### `EventResultVolumePlotter`
 
 ```python
-config  = OccurrenceResultVolumeConfig.build_from_yaml("volume.yaml")
-plotter = OccurrenceResultVolumePlotter(volume, config)
+config  = EventResultVolumeConfig.build_from_yaml("volume.yaml")
+plotter = EventResultVolumePlotter(volume, config)
 plotter.plot_prevalence_bar("prevalence.png")
 plotter.plot_count_distribution_bar("count_distribution.png")
 ```
 
-### `OccurrenceResultTimingPlotter`
+### `EventResultTimingPlotter`
 
 ```python
-config  = OccurrenceResultTimingConfig.build_from_yaml("timing.yaml")
-plotter = OccurrenceResultTimingPlotter(timing, config)
+config  = EventResultTimingConfig.build_from_yaml("timing.yaml")
+plotter = EventResultTimingPlotter(timing, config)
 plotter.plot_histogram("timing.png")
 ```
 
-### `OccurrenceResultShapePlotter`
+### `EventResultShapePlotter`
 
 ```python
-config  = OccurrenceResultShapeConfig.build_from_yaml("shape.yaml")
-plotter = OccurrenceResultShapePlotter(shape, config)
+config  = EventResultShapeConfig.build_from_yaml("shape.yaml")
+plotter = EventResultShapePlotter(shape, config)
 plotter.plot_fingerprint("fingerprint.png")
 plotter.plot_center_of_mass("center_of_mass.png")
 plotter.plot_density("density.png")
@@ -393,14 +393,14 @@ plotter.plot_density("density.png")
 | Plotter | Intermediate | Config |
 |---|---|---|
 | `StackedTimelinePlotter` | `CohortTimeline` | `StackedTimelineConfig` |
-| `ActivityOverTimePlotter` | `EventActivityOverTime` | `ActivityOverTimeConfig` |
-| `EventDurationHistogramPlotter` | `EventDurationResult` | `EventDurationPlotConfig` |
-| `EventDurationViolinPlotter` | `EventDurationResult` | `ArraysViolinConfig` |
-| `EventCoverageViolinPlotter` | `CohortTimeline` (enriched) | `ArraysViolinConfig` |
+| `ActivityOverTimePlotter` | `EpisodeActivityOverTime` | `ActivityOverTimeConfig` |
+| `EpisodeDurationHistogramPlotter` | `EpisodeDurationResult` | `EpisodeDurationPlotConfig` |
+| `EpisodeDurationViolinPlotter` | `EpisodeDurationResult` | `ArraysViolinConfig` |
+| `EpisodeCoverageViolinPlotter` | `CohortTimeline` (enriched) | `ArraysViolinConfig` |
 | `ArraysViolinPlotter` | `dict[str, np.ndarray]` | `ArraysViolinConfig` |
-| `OccurrenceResultVolumePlotter` | `OccurrenceResultVolume` | `OccurrenceResultVolumeConfig` |
-| `OccurrenceResultTimingPlotter` | `OccurrenceResultTiming` | `OccurrenceResultTimingConfig` |
-| `OccurrenceResultShapePlotter` | `OccurrenceResultShape` | `OccurrenceResultShapeConfig` |
+| `EventResultVolumePlotter` | `EventResultVolume` | `EventResultVolumeConfig` |
+| `EventResultTimingPlotter` | `EventResultTiming` | `EventResultTimingConfig` |
+| `EventResultShapePlotter` | `EventResultShape` | `EventResultShapeConfig` |
 
 ---
 
@@ -421,7 +421,7 @@ One YAML file configures an entire analytical visualization suite.
 Canvas propagates into all sub-configs for visual consistency.
 
 **Stratification belongs on the plotter, not the config.**
-`EventDurationViolinPlotter` accepts `stratify_by` as a constructor
+`EpisodeDurationViolinPlotter` accepts `stratify_by` as a constructor
 argument. The config controls visual decisions. Which column to group
 by is a data-wiring decision. These are different concerns.
 

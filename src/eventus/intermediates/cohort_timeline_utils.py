@@ -26,7 +26,7 @@ OBS_DURATION_COL = "obs_duration_days"
 # ------------------------------------------------------------------ #
 
 _RESERVED_IDENTITY_FRAGMENTS_ERROR = {
-    "comp",   # corrupts the occ_comp_ prefix: occ_comp_comp_x_n is unparseable
+    "comp",   # corrupts the evt_comp_ prefix: evt_comp_comp_x_n is unparseable
 }
 
 _RESERVED_IDENTITY_FRAGMENTS_WARN = {
@@ -40,51 +40,51 @@ _RESERVED_IDENTITY_FRAGMENTS_WARN = {
 # Column name helpers
 # ------------------------------------------------------------------ #
 
-def evt_starts_col(identity: str) -> str:
-    return f"evt_{identity}_starts"
+def eps_starts_col(identity: str) -> str:
+    return f"eps_{identity}_starts"
 
-def evt_ends_col(identity: str) -> str:
-    return f"evt_{identity}_ends"
+def eps_ends_col(identity: str) -> str:
+    return f"eps_{identity}_ends"
+
+def eps_descriptor_col(identity: str, col: str) -> str:
+    """Column name for a descriptor carried from an Episodes object."""
+    return f"eps_{identity}_{col}"
+
+def evt_col(identity: str) -> str:
+    return f"evt_{identity}"
 
 def evt_descriptor_col(identity: str, col: str) -> str:
     """Column name for a descriptor carried from an Events object."""
     return f"evt_{identity}_{col}"
 
-def occ_col(identity: str) -> str:
-    return f"occ_{identity}"
-
-def occ_descriptor_col(identity: str, col: str) -> str:
-    """Column name for a descriptor carried from an Occurrences object."""
-    return f"occ_{identity}_{col}"
-
-def occ_comp_col(identity: str, stat: str) -> str:
-    return f"occ_comp_{identity}_{stat}"
+def evt_comp_col(identity: str, stat: str) -> str:
+    return f"evt_comp_{identity}_{stat}"
 
 # ------------------------------------------------------------------ #
 # Schema inference
 # ------------------------------------------------------------------ #
 
-def infer_event_identities(columns: list[str]) -> list[str]:
+def infer_episode_identities(columns: list[str]) -> list[str]:
     """
-    Return sorted list of event identities where both
-    evt_{id}_starts AND evt_{id}_ends columns exist.
+    Return sorted list of episode identities where both
+    eps_{id}_starts AND eps_{id}_ends columns exist.
     """
     starts_ids = set()
     ends_ids   = set()
     for col in columns:
-        if col.startswith("evt_") and col.endswith("_starts"):
+        if col.startswith("eps_") and col.endswith("_starts"):
             starts_ids.add(col[4:-7])
-        if col.startswith("evt_") and col.endswith("_ends"):
+        if col.startswith("eps_") and col.endswith("_ends"):
             ends_ids.add(col[4:-5])
     return sorted(starts_ids & ends_ids)
 
 
-def infer_event_descriptor_cols(
+def infer_episode_descriptor_cols(
     columns:    list[str],
     identities: list[str],
 ) -> dict[str, list[str]]:
     """
-    Return a dict mapping each event identity to its list of
+    Return a dict mapping each episode identity to its list of
     descriptor column names carried in the CohortTimeline.
 
     e.g. {"inpatient_hospitalization": ["hospital_id", "icd10_condition"]}
@@ -92,16 +92,16 @@ def infer_event_descriptor_cols(
     Parameters
     ----------
     columns    : All column names in the CohortTimeline DataFrame.
-    identities : Known event identities from infer_event_identities().
+    identities : Known episode identities from infer_episode_identities().
     """
     result = {identity: [] for identity in identities}
     for col in columns:
-        if not col.startswith("evt_"):
+        if not col.startswith("eps_"):
             continue
         # Exclude _starts and _ends columns
         if col.endswith("_starts") or col.endswith("_ends"):
             continue
-        suffix = col[4:]  # strip "evt_"
+        suffix = col[4:]  # strip "eps_"
         for identity in identities:
             prefix = identity + "_"
             if suffix.startswith(prefix):
@@ -110,25 +110,25 @@ def infer_event_descriptor_cols(
     return result
 
 
-def infer_occurrence_identities(columns: list[str]) -> list[str]:
+def infer_event_identities(columns: list[str]) -> list[str]:
     """
-    Return sorted list of raw occurrence identities.
+    Return sorted list of raw event identities.
 
-    Raw occurrence columns are occ_{identity} — the date pipe-delimited
+    Raw event columns are evt_{identity} — the date pipe-delimited
     column. Excludes:
-      - occ_comp_* computed columns
-      - occ_{identity}_{descriptor} descriptor columns
+      - evt_comp_* computed columns
+      - evt_{identity}_{descriptor} descriptor columns
 
-    To distinguish occ_{identity} from occ_{identity}_{descriptor}, we
-    build the set of all occ_* column suffixes and keep only those that
-    are not a prefix of another occ_* column (i.e. no other column starts
-    with occ_{suffix}_).
+    To distinguish evt_{identity} from evt_{identity}_{descriptor}, we
+    build the set of all evt_* column suffixes and keep only those that
+    are not a prefix of another evt_* column (i.e. no other column starts
+    with evt_{suffix}_).
     """
-    # All occ_* columns that are not occ_comp_*
+    # All evt_* columns that are not evt_comp_*
     candidates = [
         col[4:] for col in columns
-        if col.startswith("occ_")
-        and not col.startswith("occ_comp_")
+        if col.startswith("evt_")
+        and not col.startswith("evt_comp_")
     ]
 
     # A candidate is a pure identity if no other candidate starts with it + "_"
@@ -152,12 +152,12 @@ def infer_occurrence_identities(columns: list[str]) -> list[str]:
     return sorted(set(identities))
 
 
-def infer_occurrence_descriptor_cols(
+def infer_event_descriptor_cols(
     columns:    list[str],
     identities: list[str],
 ) -> dict[str, list[str]]:
     """
-    Return a dict mapping each occurrence identity to its list of
+    Return a dict mapping each event identity to its list of
     descriptor column names carried in the CohortTimeline.
 
     e.g. {"ed_visit": ["icd10_condition", "systolic_bp", "hospital_id"]}
@@ -165,13 +165,13 @@ def infer_occurrence_descriptor_cols(
     Parameters
     ----------
     columns    : All column names in the CohortTimeline DataFrame.
-    identities : Known occurrence identities from infer_occurrence_identities().
+    identities : Known event identities from infer_event_identities().
     """
     result = {identity: [] for identity in identities}
     for col in columns:
-        if not col.startswith("occ_") or col.startswith("occ_comp_"):
+        if not col.startswith("evt_") or col.startswith("evt_comp_"):
             continue
-        suffix = col[4:]  # strip "occ_"
+        suffix = col[4:]  # strip "evt_"
         for identity in identities:
             prefix = identity + "_"
             if suffix.startswith(prefix):
@@ -180,28 +180,8 @@ def infer_occurrence_descriptor_cols(
     return result
 
 
-def infer_computed_occurrence_identities(
-    columns:              list[str],
-    occurrence_identities: list[str],
-) -> list[str]:
-    """
-    Return sorted list of occurrence identities that have been computed
-    (i.e. have at least one occ_comp_{identity}_{stat} column present).
-
-    Matches against known occurrence_identities to correctly handle
-    multi-fragment stat names (e.g. "time_to_1", "mean_gap").
-    """
-    return sorted({
-        identity
-        for col in columns
-        if col.startswith("occ_comp_")
-        for identity in occurrence_identities
-        if col[9:].startswith(identity + "_")
-    })
-
-
 def infer_computed_event_identities(
-    columns:          list[str],
+    columns:              list[str],
     event_identities: list[str],
 ) -> list[str]:
     """
@@ -209,13 +189,33 @@ def infer_computed_event_identities(
     (i.e. have at least one evt_comp_{identity}_{stat} column present).
 
     Matches against known event_identities to correctly handle
-    multi-fragment stat names (e.g. "active_days", "first_start").
+    multi-fragment stat names (e.g. "time_to_1", "mean_gap").
     """
     return sorted({
         identity
         for col in columns
         if col.startswith("evt_comp_")
         for identity in event_identities
+        if col[9:].startswith(identity + "_")
+    })
+
+
+def infer_computed_episode_identities(
+    columns:          list[str],
+    episode_identities: list[str],
+) -> list[str]:
+    """
+    Return sorted list of episode identities that have been computed
+    (i.e. have at least one eps_comp_{identity}_{stat} column present).
+
+    Matches against known episode_identities to correctly handle
+    multi-fragment stat names (e.g. "active_days", "first_start").
+    """
+    return sorted({
+        identity
+        for col in columns
+        if col.startswith("eps_comp_")
+        for identity in episode_identities
         if col[9:].startswith(identity + "_")
     })
 
@@ -226,7 +226,7 @@ def infer_computed_event_identities(
 def validate_identity_name(identity: str) -> None:
     """
     Raise if identity contains reserved fragments that would corrupt the
-    occ_comp_ column namespace. Warn if fragments may cause ambiguity.
+    evt_comp_ column namespace. Warn if fragments may cause ambiguity.
 
     Checks whole fragments only (split on "_") so "computer_time" is safe
     while "comp_time" correctly raises on "comp".
@@ -236,17 +236,17 @@ def validate_identity_name(identity: str) -> None:
     hard_conflicts = fragments & _RESERVED_IDENTITY_FRAGMENTS_ERROR
     if hard_conflicts:
         raise ValueError(
-            f"{_ERROR} occurrence identity '{identity}' contains reserved "
+            f"{_ERROR} event identity '{identity}' contains reserved "
             f"fragment(s) {sorted(hard_conflicts)} which would corrupt the "
-            f"occ_comp_ column namespace. Consider renaming the identity."
+            f"evt_comp_ column namespace. Consider renaming the identity."
         )
 
     soft_conflicts = fragments & _RESERVED_IDENTITY_FRAGMENTS_WARN
     if soft_conflicts:
         warnings.warn(
-            f"{_ERROR} occurrence identity '{identity}' contains reserved "
+            f"{_ERROR} event identity '{identity}' contains reserved "
             f"fragment(s) {sorted(soft_conflicts)} which may cause "
-            f"occ_comp_ columns to be ambiguous when inferred. "
+            f"evt_comp_ columns to be ambiguous when inferred. "
             f"Consider renaming the identity.",
             UserWarning,
             stacklevel=3,
@@ -293,13 +293,13 @@ def validate_obs_period_cols(columns: list[str]) -> None:
         )
 
 
-def validate_event_cols(columns: list[str]) -> None:
+def validate_episode_cols(columns: list[str]) -> None:
     starts_ids = set()
     ends_ids   = set()
     for col in columns:
-        if col.startswith("evt_") and col.endswith("_starts"):
+        if col.startswith("eps_") and col.endswith("_starts"):
             starts_ids.add(col[4:-7])
-        if col.startswith("evt_") and col.endswith("_ends"):
+        if col.startswith("eps_") and col.endswith("_ends"):
             ends_ids.add(col[4:-5])
 
     unpaired_starts = starts_ids - ends_ids
@@ -307,67 +307,67 @@ def validate_event_cols(columns: list[str]) -> None:
 
     if unpaired_starts:
         raise ValueError(
-            f"{_ERROR} Event identities have '_starts' but no '_ends': "
-            f"{sorted(unpaired_starts)}. Event columns must be paired."
+            f"{_ERROR} Episode identities have '_starts' but no '_ends': "
+            f"{sorted(unpaired_starts)}. Episode columns must be paired."
         )
     if unpaired_ends:
         raise ValueError(
-            f"{_ERROR} Event identities have '_ends' but no '_starts': "
-            f"{sorted(unpaired_ends)}. Event columns must be paired."
+            f"{_ERROR} Episode identities have '_ends' but no '_starts': "
+            f"{sorted(unpaired_ends)}. Episode columns must be paired."
         )
 
     known_identities    = starts_ids & ends_ids
+    computed_identities = infer_computed_episode_identities(columns, list(known_identities))
+    orphaned = [i for i in computed_identities if i not in known_identities]
+    if orphaned:
+        raise ValueError(
+            f"{_ERROR} Computed episode identities have no corresponding "
+            f"eps_{{identity}}_starts/ends columns: {orphaned}. "
+            f"Every eps_comp_{{identity}}_* column requires a matching "
+            f"eps_{{identity}}_starts and eps_{{identity}}_ends column."
+        )
+
+
+def validate_event_cols(columns: list[str]) -> None:
+    known_identities    = set(infer_event_identities(columns))
     computed_identities = infer_computed_event_identities(columns, list(known_identities))
     orphaned = [i for i in computed_identities if i not in known_identities]
     if orphaned:
         raise ValueError(
             f"{_ERROR} Computed event identities have no corresponding "
-            f"evt_{{identity}}_starts/ends columns: {orphaned}. "
+            f"evt_{{identity}} column: {orphaned}. "
             f"Every evt_comp_{{identity}}_* column requires a matching "
-            f"evt_{{identity}}_starts and evt_{{identity}}_ends column."
-        )
-
-
-def validate_occurrence_cols(columns: list[str]) -> None:
-    known_identities    = set(infer_occurrence_identities(columns))
-    computed_identities = infer_computed_occurrence_identities(columns, list(known_identities))
-    orphaned = [i for i in computed_identities if i not in known_identities]
-    if orphaned:
-        raise ValueError(
-            f"{_ERROR} Computed occurrence identities have no corresponding "
-            f"occ_{{identity}} column: {orphaned}. "
-            f"Every occ_comp_{{identity}}_* column requires a matching "
-            f"occ_{{identity}} column."
+            f"evt_{{identity}} column."
         )
 
 
 def validate_no_duplicate_identities(
-    event_identities:      list[str],
-    occurrence_identities: list[str],
+    episode_identities:      list[str],
+    event_identities: list[str],
 ) -> None:
+    if len(episode_identities) != len(set(episode_identities)):
+        dupes = sorted(set(i for i in episode_identities
+                           if episode_identities.count(i) > 1))
+        raise ValueError(
+            f"{_ERROR} Duplicate episode identities: {dupes}."
+        )
     if len(event_identities) != len(set(event_identities)):
         dupes = sorted(set(i for i in event_identities
                            if event_identities.count(i) > 1))
         raise ValueError(
             f"{_ERROR} Duplicate event identities: {dupes}."
         )
-    if len(occurrence_identities) != len(set(occurrence_identities)):
-        dupes = sorted(set(i for i in occurrence_identities
-                           if occurrence_identities.count(i) > 1))
-        raise ValueError(
-            f"{_ERROR} Duplicate occurrence identities: {dupes}."
-        )
 
 
 def validate_at_least_one_layer(
     has_obs_period:        bool,
-    event_identities:      list[str],
-    occurrence_identities: list[str],
+    episode_identities:      list[str],
+    event_identities: list[str],
 ) -> None:
-    if not has_obs_period and not event_identities and not occurrence_identities:
+    if not has_obs_period and not episode_identities and not event_identities:
         raise ValueError(
             f"{_ERROR} At least one layer must be present: an observation "
-            f"period, at least one event identity, or at least one occurrence "
+            f"period, at least one episode identity, or at least one event "
             f"identity."
         )
 
@@ -396,12 +396,12 @@ def build_obs_period_df(obs_period, entity_col: str) -> pd.DataFrame:
     return result.reset_index(drop=True)
 
 
-def build_entity_spine(events_list: list, occ_list: list, entity_col: str) -> pd.DataFrame:
+def build_entity_spine(episodes_list: list, evt_list: list, entity_col: str) -> pd.DataFrame:
     """
     Build a minimal entity spine when no obs period is provided.
-    Uses the first available events or occurrences object.
+    Uses the first available episodes or events object.
     """
-    source = events_list[0] if events_list else occ_list[0]
+    source = episodes_list[0] if episodes_list else evt_list[0]
     return (
         source.data[[entity_col]]
         .drop_duplicates()
@@ -410,53 +410,150 @@ def build_entity_spine(events_list: list, occ_list: list, entity_col: str) -> pd
     )
 
 
-def attach_event_columns(
+def attach_episode_columns(
     result:      pd.DataFrame,
     evt:         object,
     entity_col:  str,
 ) -> pd.DataFrame:
     """
-    Pipe-delimit starts, ends, and descriptor columns for one Events
+    Pipe-delimit starts, ends, and descriptor columns for one Episodes
     object and merge into result.
 
     Produces:
-      evt_{identity}_starts       — pipe-delimited start dates (always)
-      evt_{identity}_ends         — pipe-delimited end dates (always)
-      evt_{identity}_{col}        — pipe-delimited also_defined_by columns
-      evt_{identity}_{col}        — aggregated descriptor columns
+      eps_{identity}_starts       — pipe-delimited start dates (always)
+      eps_{identity}_ends         — pipe-delimited end dates (always)
+      eps_{identity}_{col}        — pipe-delimited also_defined_by columns
+      eps_{identity}_{col}        — aggregated descriptor columns
                                     per DescriptorColConfig.timeline:
-                                    "sequence" — pipe-delimit in event order
+                                    "sequence" — pipe-delimit in episode order
                                     "unique"   — unique values, sorted
-                                    "average"  — mean across events (numeric)
+                                    "average"  — mean across episodes (numeric)
                                     "none"     — not carried
     """
     identity  = evt.semantics.identity
     start_col = evt.semantics.start_time_col
     end_col   = evt.semantics.end_time_col
-    starts_out = evt_starts_col(identity)
-    ends_out   = evt_ends_col(identity)
+    starts_out = eps_starts_col(identity)
+    ends_out   = eps_ends_col(identity)
 
     also_defined_by = evt.semantics.also_defined_by or []
     descriptor_cols = evt.semantics.descriptor_cols or {}
 
-    evt_data = evt.data.copy()
-    evt_data[start_col] = pd.to_datetime(evt_data[start_col]).dt.normalize()
-    evt_data[end_col]   = pd.to_datetime(evt_data[end_col]).dt.normalize()
-    evt_sorted = evt_data.sort_values([entity_col, start_col])
+    eps_data = evt.data.copy()
+    eps_data[start_col] = pd.to_datetime(eps_data[start_col]).dt.normalize()
+    eps_data[end_col]   = pd.to_datetime(eps_data[end_col]).dt.normalize()
+    eps_sorted = eps_data.sort_values([entity_col, start_col])
 
     # ── Starts and ends ───────────────────────────────────────────────────
     starts_pipe = (
-        evt_sorted.groupby(entity_col)[start_col]
+        eps_sorted.groupby(entity_col)[start_col]
         .apply(lambda s: " | ".join(d.strftime("%Y-%m-%d") for d in s))
         .rename(starts_out)
     )
     ends_pipe = (
-        evt_sorted.groupby(entity_col)[end_col]
+        eps_sorted.groupby(entity_col)[end_col]
         .apply(lambda s: " | ".join(d.strftime("%Y-%m-%d") for d in s))
         .rename(ends_out)
     )
     result = result.merge(starts_pipe, on=entity_col, how="left")
     result = result.merge(ends_pipe,   on=entity_col, how="left")
+
+    # ── also_defined_by columns — always sequence, always atomic ─────────
+    for col in also_defined_by:
+        if col not in eps_data.columns:
+            continue
+        out = eps_descriptor_col(identity, col)
+        pipe_col = (
+            eps_sorted.groupby(entity_col)[col]
+            .apply(lambda s: " | ".join(str(v) for v in s))
+            .rename(out)
+        )
+        result = result.merge(pipe_col, on=entity_col, how="left")
+
+    # ── descriptor_cols — aggregated per timeline rule ────────────────────
+    for col, cfg in descriptor_cols.items():
+        if col not in eps_data.columns:
+            continue
+        if cfg.timeline == "none":
+            continue
+
+        out = eps_descriptor_col(identity, col)
+
+        if cfg.timeline == "sequence":
+            pipe_col = (
+                eps_sorted.groupby(entity_col)[col]
+                .apply(lambda s: " | ".join(
+                    str(v) for v in s if pd.notna(v)
+                ))
+                .rename(out)
+            )
+            result = result.merge(pipe_col, on=entity_col, how="left")
+
+        elif cfg.timeline == "unique":
+            pipe_col = (
+                eps_sorted.groupby(entity_col)[col]
+                .apply(lambda s: " | ".join(
+                    sorted(set(
+                        str(v).strip()
+                        for v in s
+                        if pd.notna(v) and str(v).strip()
+                    ))
+                ))
+                .rename(out)
+            )
+            result = result.merge(pipe_col, on=entity_col, how="left")
+
+        elif cfg.timeline == "average":
+            import numpy as np
+            avg_col = (
+                eps_sorted.groupby(entity_col)[col]
+                .apply(lambda s: float(np.mean(
+                    [float(v) for v in s if pd.notna(v)]
+                )) if s.notna().any() else float("nan"))
+                .rename(out)
+            )
+            result = result.merge(avg_col, on=entity_col, how="left")
+
+    return result
+
+
+def attach_event_columns(
+    result:     pd.DataFrame,
+    occ:        object,
+    entity_col: str,
+) -> pd.DataFrame:
+    """
+    Pipe-delimit event dates and descriptor columns for one
+    Events object and merge into result.
+
+    Produces:
+      evt_{identity}              — pipe-delimited dates (always)
+      evt_{identity}_{col}        — pipe-delimited also_defined_by columns
+      evt_{identity}_{col}        — aggregated descriptor columns
+                                    per DescriptorColConfig.timeline:
+                                    "sequence" — pipe-delimit in visit order
+                                    "unique"   — unique values, sorted
+                                    "average"  — mean across visits (numeric)
+                                    "none"     — not carried
+    """
+    identity  = occ.semantics.identity
+    date_col  = occ.semantics.date_col
+    out_col   = evt_col(identity)
+
+    also_defined_by = occ.semantics.also_defined_by or []
+    descriptor_cols = occ.semantics.descriptor_cols or {}
+
+    evt_data = occ.data.copy()
+    evt_data[date_col] = pd.to_datetime(evt_data[date_col]).dt.normalize()
+    evt_sorted = evt_data.sort_values([entity_col, date_col])
+
+    # ── Dates ────────────────────────────────────────────────────────────
+    pipe_dates = (
+        evt_sorted.groupby(entity_col)[date_col]
+        .apply(lambda s: " | ".join(d.strftime("%Y-%m-%d") for d in s))
+        .rename(out_col)
+    )
+    result = result.merge(pipe_dates, on=entity_col, how="left")
 
     # ── also_defined_by columns — always sequence, always atomic ─────────
     for col in also_defined_by:
@@ -517,128 +614,31 @@ def attach_event_columns(
     return result
 
 
-def attach_occurrence_columns(
-    result:     pd.DataFrame,
-    occ:        object,
-    entity_col: str,
-) -> pd.DataFrame:
-    """
-    Pipe-delimit occurrence dates and descriptor columns for one
-    Occurrences object and merge into result.
-
-    Produces:
-      occ_{identity}              — pipe-delimited dates (always)
-      occ_{identity}_{col}        — pipe-delimited also_defined_by columns
-      occ_{identity}_{col}        — aggregated descriptor columns
-                                    per DescriptorColConfig.timeline:
-                                    "sequence" — pipe-delimit in visit order
-                                    "unique"   — unique values, sorted
-                                    "average"  — mean across visits (numeric)
-                                    "none"     — not carried
-    """
-    identity  = occ.semantics.identity
-    date_col  = occ.semantics.date_col
-    out_col   = occ_col(identity)
-
-    also_defined_by = occ.semantics.also_defined_by or []
-    descriptor_cols = occ.semantics.descriptor_cols or {}
-
-    occ_data = occ.data.copy()
-    occ_data[date_col] = pd.to_datetime(occ_data[date_col]).dt.normalize()
-    occ_sorted = occ_data.sort_values([entity_col, date_col])
-
-    # ── Dates ────────────────────────────────────────────────────────────
-    pipe_dates = (
-        occ_sorted.groupby(entity_col)[date_col]
-        .apply(lambda s: " | ".join(d.strftime("%Y-%m-%d") for d in s))
-        .rename(out_col)
-    )
-    result = result.merge(pipe_dates, on=entity_col, how="left")
-
-    # ── also_defined_by columns — always sequence, always atomic ─────────
-    for col in also_defined_by:
-        if col not in occ_data.columns:
-            continue
-        out = occ_descriptor_col(identity, col)
-        pipe_col = (
-            occ_sorted.groupby(entity_col)[col]
-            .apply(lambda s: " | ".join(str(v) for v in s))
-            .rename(out)
-        )
-        result = result.merge(pipe_col, on=entity_col, how="left")
-
-    # ── descriptor_cols — aggregated per timeline rule ────────────────────
-    for col, cfg in descriptor_cols.items():
-        if col not in occ_data.columns:
-            continue
-        if cfg.timeline == "none":
-            continue
-
-        out = occ_descriptor_col(identity, col)
-
-        if cfg.timeline == "sequence":
-            pipe_col = (
-                occ_sorted.groupby(entity_col)[col]
-                .apply(lambda s: " | ".join(
-                    str(v) for v in s if pd.notna(v)
-                ))
-                .rename(out)
-            )
-            result = result.merge(pipe_col, on=entity_col, how="left")
-
-        elif cfg.timeline == "unique":
-            pipe_col = (
-                occ_sorted.groupby(entity_col)[col]
-                .apply(lambda s: " | ".join(
-                    sorted(set(
-                        str(v).strip()
-                        for v in s
-                        if pd.notna(v) and str(v).strip()
-                    ))
-                ))
-                .rename(out)
-            )
-            result = result.merge(pipe_col, on=entity_col, how="left")
-
-        elif cfg.timeline == "average":
-            import numpy as np
-            avg_col = (
-                occ_sorted.groupby(entity_col)[col]
-                .apply(lambda s: float(np.mean(
-                    [float(v) for v in s if pd.notna(v)]
-                )) if s.notna().any() else float("nan"))
-                .rename(out)
-            )
-            result = result.merge(avg_col, on=entity_col, how="left")
-
-    return result
-
-
-def attach_occ_comp_columns(
+def attach_evt_comp_columns(
     data:       pd.DataFrame,
     stats_df:   pd.DataFrame,
     identity:   str,
 ) -> pd.DataFrame:
     """
-    Attach computed occurrence stat columns (occ_comp_{identity}_{stat})
+    Attach computed event stat columns (evt_comp_{identity}_{stat})
     to data. Overwrites any existing columns with the same names.
     """
     result = data.copy()
     for stat_col in stats_df.columns:
-        result[occ_comp_col(identity, stat_col)] = stats_df[stat_col].values
+        result[evt_comp_col(identity, stat_col)] = stats_df[stat_col].values
     return result
 
 
 def validate_components(
     obs_period:  object,
-    events_list: list,
-    occ_list:    list,
+    episodes_list: list,
+    evt_list:    list,
 ) -> None:
     """
     Type, identity, and name checks on raw components before assembly.
     """
+    from eventus.data_objects.episodes import Episodes
     from eventus.data_objects.events import Events
-    from eventus.data_objects.occurrences import Occurrences
     from eventus.data_objects.obs_period_per_entity import ObsPeriodPerEntity
 
     if obs_period is not None and not isinstance(obs_period, ObsPeriodPerEntity):
@@ -646,37 +646,37 @@ def validate_components(
             f"{_ERROR} obs_period must be an ObsPeriodPerEntity object, "
             f"got {type(obs_period).__name__}"
         )
-    for i, evt in enumerate(events_list):
-        if not isinstance(evt, Events):
+    for i, evt in enumerate(episodes_list):
+        if not isinstance(evt, Episodes):
             raise TypeError(
-                f"{_ERROR} events[{i}] must be an Events object, "
+                f"{_ERROR} episodes[{i}] must be an Episodes object, "
                 f"got {type(evt).__name__}"
             )
         if not evt.semantics.identity:
             raise ValueError(
-                f"{_ERROR} events[{i}] has no identity. "
-                f"Set identity in EventSemantics."
+                f"{_ERROR} episodes[{i}] has no identity. "
+                f"Set identity in EpisodeSemantics."
             )
-    for i, o in enumerate(occ_list):
-        if not isinstance(o, Occurrences):
+    for i, o in enumerate(evt_list):
+        if not isinstance(o, Events):
             raise TypeError(
-                f"{_ERROR} occurrences[{i}] must be an Occurrences object, "
+                f"{_ERROR} events[{i}] must be an Events object, "
                 f"got {type(o).__name__}"
             )
         if not o.semantics.identity:
             raise ValueError(
-                f"{_ERROR} occurrences[{i}] has no identity. "
-                f"Set identity in OccurrenceSemantics."
+                f"{_ERROR} events[{i}] has no identity. "
+                f"Set identity in EventSemantics."
             )
         validate_identity_name(o.semantics.identity)
 
 
-def resolve_entity_col(obs_period, events_list: list, occ_list: list) -> str:
+def resolve_entity_col(obs_period, episodes_list: list, evt_list: list) -> str:
     if obs_period is not None:
         return obs_period.semantics.entity_id_col
-    if events_list:
-        return events_list[0].semantics.entity_id_col
-    return occ_list[0].semantics.entity_id_col
+    if episodes_list:
+        return episodes_list[0].semantics.entity_id_col
+    return evt_list[0].semantics.entity_id_col
 
 
 def normalize_to_list(obj, expected_type, label: str) -> list:

@@ -1,7 +1,7 @@
 """
 stacked_timeline_plotter.py
 StackedTimelinePlotter — visualize entities' timelines within their
-observation period, with event segments and occurrence markers.
+observation period, with episode segments and event markers.
 
 This class is pure orchestration. All computation lives in
 stacked_timeline_plotter_utils.py.
@@ -32,7 +32,7 @@ _MARKER_MAP = {
 }
 
 # Valid sort columns — identity-independent ones only.
-# Identity-prefixed columns (evt_{identity}_active_days etc.) are
+# Identity-prefixed columns (eps_{identity}_active_days etc.) are
 # accepted dynamically in _validate_sort_args.
 _SORT_DATE = {
     "obs_start",
@@ -48,7 +48,7 @@ class StackedTimelinePlotter:
     Visualize entities' timelines within their observation period.
 
     One horizontal bar per entity. The bar spans their observation period.
-    Event segments and occurrence markers are overlaid from a CohortTimeline.
+    Episode segments and event markers are overlaid from a CohortTimeline.
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ class StackedTimelinePlotter:
         cohort_timeline.data. Common values:
         'obs_duration_days', 'obs_start', 'obs_end',
         or identity-prefixed columns like
-        'evt_inpatient_hospitalization_active_days'.
+        'eps_inpatient_hospitalization_active_days'.
         Default None — entities appear in cohort_timeline order.
     ascending : bool | list[bool]
         Sort direction. Default True.
@@ -172,7 +172,7 @@ class StackedTimelinePlotter:
         destroying original column data.
 
         Date columns (obs_start, obs_end) are parsed as datetime in-place.
-        Event starts/ends (pipe-delimited) are sorted by extracting the
+        Episode starts/ends (pipe-delimited) are sorted by extracting the
         first date into a temporary _sort_{col} column, which is dropped
         after sorting. Numeric columns are cast to float.
         """
@@ -182,7 +182,7 @@ class StackedTimelinePlotter:
         for col in sort_by:
             if col in _SORT_DATE:
                 data[col] = pd.to_datetime(data[col], errors="coerce")
-            elif (col.startswith("evt_") and
+            elif (col.startswith("eps_") and
                   (col.endswith("_starts") or col.endswith("_ends"))):
                 # Pipe-delimited date strings — extract first date for sorting
                 # into a temp column, leave original intact
@@ -235,13 +235,13 @@ class StackedTimelinePlotter:
         max_days   = max(d for _, _, d in obs_lookup.values())
 
         # ── Resolve layer configs ─────────────────────────────────────
-        ev_cfg  = self._resolve_event_config()
-        occ_map = self._resolve_occ_configs()
+        ev_cfg  = self._resolve_episode_config()
+        evt_map = self._resolve_evt_configs()
 
-        # ── Resolve event identity for column lookup ──────────────────
-        event_identity = None
+        # ── Resolve episode identity for column lookup ──────────────────
+        episode_identity = None
         if ev_cfg is not None:
-            event_identity = ev_cfg.identity
+            episode_identity = ev_cfg.identity
 
         # ── Precompute segments and markers ───────────────────────────
         bar_h = cfg.layout.bar_height_ratio
@@ -250,9 +250,9 @@ class StackedTimelinePlotter:
             data           = data,
             entity_col     = ec,
             obs_lookup     = obs_lookup,
-            event_identity = event_identity,
-            ev_color       = ev_cfg.color if ev_cfg else cfg.poi.color_no_events,
-            occ_cfg_map    = occ_map,
+            episode_identity = episode_identity,
+            ev_color       = ev_cfg.color if ev_cfg else cfg.poi.color_no_episodes,
+            evt_cfg_map    = evt_map,
             poi            = cfg.poi,
             bar_h          = bar_h,
             jitter         = cfg.layout.jitter,
@@ -278,7 +278,7 @@ class StackedTimelinePlotter:
                 cfg.poi.color_before,
                 cfg.poi.color_middle,
                 cfg.poi.color_after,
-                cfg.poi.color_no_events,
+                cfg.poi.color_no_episodes,
             }
             for y, xranges in by_y.items():
                 ax.broken_barh(
@@ -288,7 +288,7 @@ class StackedTimelinePlotter:
                     zorder     = 1 if color in poi_colors else 2,
                 )
 
-        # ── Draw occurrence markers ───────────────────────────────────
+        # ── Draw event markers ───────────────────────────────────
         for (color, marker, size, alpha), points in marker_groups.items():
             if not points:
                 continue
@@ -351,7 +351,7 @@ class StackedTimelinePlotter:
 
         if cfg.legend.show:
             legend_kwargs = dict(
-                handles  = self._build_legend_handles(ev_cfg, occ_map),
+                handles  = self._build_legend_handles(ev_cfg, evt_map),
                 fontsize = cfg.legend.font_size,
                 frameon  = True,
             )
@@ -370,38 +370,38 @@ class StackedTimelinePlotter:
     # Config resolution helpers
     # ------------------------------------------------------------------ #
 
-    def _resolve_event_config(self):
-        """Return the first EventLayerConfig from config, or None."""
-        if not self._cohort_timeline.event_identities:
+    def _resolve_episode_config(self):
+        """Return the first EpisodeLayerConfig from config, or None."""
+        if not self._cohort_timeline.episode_identities:
             return None
-        if not self._config.events:
+        if not self._config.episodes:
             warnings.warn(
-                "[StackedTimelinePlotter] cohort_timeline has event columns "
-                "but no events entry found in config. "
+                "[StackedTimelinePlotter] cohort_timeline has episode columns "
+                "but no episodes entry found in config. "
                 "Only the observation period bar will be drawn. "
-                "Add an events entry to show event segments.",
+                "Add an episodes entry to show episode segments.",
                 UserWarning, stacklevel=3,
             )
             return None
-        return self._config.events[0]
+        return self._config.episodes[0]
 
-    def _resolve_occ_configs(self):
-        """Return {col: OccurrenceLayerConfig} for configured identities."""
-        occ_map = {}
-        for ocfg in self._config.occurrences:
-            col = f"occ_{ocfg.identity}"
+    def _resolve_evt_configs(self):
+        """Return {col: EventLayerConfig} for configured identities."""
+        evt_map = {}
+        for ocfg in self._config.events:
+            col = f"evt_{ocfg.identity}"
             if col not in self._cohort_timeline.data.columns:
                 warnings.warn(
-                    f"[StackedTimelinePlotter] occurrences has "
+                    f"[StackedTimelinePlotter] events has "
                     f"identity '{ocfg.identity}' but column '{col}' was "
                     f"not found in cohort_timeline — skipping.",
                     UserWarning, stacklevel=3,
                 )
                 continue
-            occ_map[col] = ocfg
-        return occ_map
+            evt_map[col] = ocfg
+        return evt_map
 
-    def _build_legend_handles(self, ev_cfg, occ_cfg_map) -> list:
+    def _build_legend_handles(self, ev_cfg, evt_cfg_map) -> list:
         """Build legend handle list from resolved layer configs."""
         cfg     = self._config
         poi     = cfg.poi
@@ -409,7 +409,7 @@ class StackedTimelinePlotter:
 
         if cfg.legend.show_poi_in_legend:
             handles.append(mpatches.Patch(
-                facecolor=poi.color_no_events, label="No events"
+                facecolor=poi.color_no_episodes, label="No episodes"
             ))
         handles.append(mpatches.Patch(
             facecolor=poi.color_before, label="Inactive before"
@@ -426,7 +426,7 @@ class StackedTimelinePlotter:
         handles.append(mpatches.Patch(
             facecolor=poi.color_after, label="Inactive after"
         ))
-        for col, ocfg in occ_cfg_map.items():
+        for col, ocfg in evt_cfg_map.items():
             handles.append(Line2D(
                 [0], [0],
                 marker          = _MARKER_MAP.get(ocfg.marker, "o"),
@@ -445,8 +445,8 @@ class StackedTimelinePlotter:
         return (
             f"StackedTimelinePlotter(\n"
             f"  entities             : {len(self._cohort_timeline):,}\n"
-            f"  event_identities     : {self._cohort_timeline.event_identities}\n"
-            f"  occurrence_identities: {self._cohort_timeline.occurrence_identities}\n"
+            f"  episode_identities     : {self._cohort_timeline.episode_identities}\n"
+            f"  event_identities: {self._cohort_timeline.event_identities}\n"
             f"  x_axis               : '{self._config.x_axis.mode}'\n"
             f")"
         )

@@ -88,7 +88,7 @@ AGE_COVERAGE_END    = pd.Timestamp("2025-12-31")
 # Age window ED visit properties
 ED_AGE_ANNUAL_RATE  = 1.0   # Poisson lambda — expected ED visits per year
 
-# Chapter 8 — co-occurrence analysis
+# Chapter 8 — co-event analysis
 CH08_N_PATIENTS          = 800
 CH08_ID_PREFIX           = "C"          # C0001-C0800, distinct from P pool
 CH08_DATE_START          = pd.Timestamp("2022-01-01")
@@ -894,7 +894,7 @@ def make_ed_visits_agewindow_signal(
 
 def make_ch08_data(seed: int = SEED) -> tuple:
     """
-    Generate hospitalizations and ED visits for Chapter 8 co-occurrence analysis.
+    Generate hospitalizations and ED visits for Chapter 8 co-event analysis.
 
     Patient pool : C0001-C0800 — distinct from the P pool used elsewhere.
     Date range   : 2022-01-01 to 2022-12-31
@@ -907,7 +907,7 @@ def make_ch08_data(seed: int = SEED) -> tuple:
                   Stay length 2-7 days (shorter, acute).
          - 5%  → billing artifact: ED visit date falls on the admit date of
                   an existing hospitalization. These appear as "within" in
-                  the co-occurrence analysis — the ED visit that became the
+                  the co-event analysis — the ED visit that became the
                   admission.
          - 75% → independent ED visit, no hospitalization.
 
@@ -1116,7 +1116,7 @@ if __name__ == "__main__":
     print("Generating ED visits age window — signal simulation...")
     ed_signal_df = make_ed_visits_agewindow_signal(demog_df)
 
-    print("Generating Chapter 8 co-occurrence data...")
+    print("Generating Chapter 8 co-event data...")
     ch08_hosp_df, ch08_ed_df = make_ch08_data()
 
     print_data_summary(

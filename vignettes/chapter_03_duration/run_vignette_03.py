@@ -15,17 +15,17 @@ HERE       = pathlib.Path(__file__).parent
 OUTPUT_DIR = HERE / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# ── Re-run Chapter 2 cleaning to get clean events ────────────────────────────
+# ── Re-run Chapter 2 cleaning to get clean episodes ────────────────────────────
 
 raw_df  = pd.read_csv(HERE.parent / "data" / "nursing_facility_assessments.csv")
-sem     = eventus.EventSemantics.build_from_yaml(HERE.parent / "chapter_02_descriptor_aggregation" / "configs" / "nursing_facility_semantics.yaml")
-config  = eventus.EventsCleanerConfig.build_from_yaml(HERE.parent / "chapter_02_descriptor_aggregation" / "configs" / "nursing_facility_cleaner.yaml")
-events  = eventus.EventsCleaner(raw_df, sem, config).clean()
+sem     = eventus.EpisodeSemantics.build_from_yaml(HERE.parent / "chapter_02_descriptor_aggregation" / "configs" / "nursing_facility_semantics.yaml")
+config  = eventus.EpisodesCleanerConfig.build_from_yaml(HERE.parent / "chapter_02_descriptor_aggregation" / "configs" / "nursing_facility_cleaner.yaml")
+episodes  = eventus.EpisodesCleaner(raw_df, sem, config).clean()
 
 # ── Step 1 — Compute durations ────────────────────────────────────────────────
 
-result = eventus.EventDurationAnalyzer(
-    events,
+result = eventus.EpisodeDurationAnalyzer(
+    episodes,
     descriptor_cols = ["facility_id"],
 ).calc()
 
@@ -33,8 +33,8 @@ print(result)
 
 # ── Step 2 — Histogram and KDE ────────────────────────────────────────────────
 
-hist_config = eventus.EventDurationPlotConfig.build_from_yaml(HERE / "configs" / "duration_plot_config.yaml")
-plotter     = eventus.EventDurationHistogramPlotter(result, hist_config)
+hist_config = eventus.EpisodeDurationPlotConfig.build_from_yaml(HERE / "configs" / "duration_plot_config.yaml")
+plotter     = eventus.EpisodeDurationHistogramPlotter(result, hist_config)
 
 plotter.plot_histogram(str(OUTPUT_DIR / "duration_histogram.png"))
 plotter.plot_kde(str(OUTPUT_DIR / "duration_kde.png"))
@@ -43,7 +43,7 @@ plotter.plot_kde(str(OUTPUT_DIR / "duration_kde.png"))
 
 violin_config = eventus.ArraysViolinConfig.build_from_yaml(HERE / "configs" / "duration_violin_config.yaml")
 
-eventus.EventDurationViolinPlotter(
+eventus.EpisodeDurationViolinPlotter(
     result,
     violin_config,
     stratify_by = "facility_id",

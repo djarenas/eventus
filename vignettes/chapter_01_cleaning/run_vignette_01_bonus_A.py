@@ -14,9 +14,9 @@ import pandas as pd
 HERE      = pathlib.Path(__file__).parent
 raw_ed_df = pd.read_csv(HERE.parent / "data" / "simulated_ed_visits.csv")
 
-sem       = eventus.OccurrenceSemantics.build_from_yaml(HERE / "configs" / "ed_semantics.yaml")
-config    = eventus.OccurrencesCleanerConfig.build_from_yaml(HERE / "configs" / "ed_cleaner.yaml")
-cleaner   = eventus.OccurrencesCleaner(raw_ed_df, sem, config)
+sem       = eventus.EventSemantics.build_from_yaml(HERE / "configs" / "ed_semantics.yaml")
+config    = eventus.EventsCleanerConfig.build_from_yaml(HERE / "configs" / "ed_cleaner.yaml")
+cleaner   = eventus.EventsCleaner(raw_ed_df, sem, config)
 ed_visits = cleaner.clean()
 
 cleaner.print_report()

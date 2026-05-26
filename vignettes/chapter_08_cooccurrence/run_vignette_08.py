@@ -1,8 +1,8 @@
 """
-run_vignette_08.py — Chapter 8: Occurrence-Event Co-occurrence Analysis
+run_vignette_08.py — Chapter 8: Event-Episode Co-event Analysis
 
-Explores the temporal relationship between ED visits (occurrences)
-and hospitalizations (events) in a 2022 Medicaid cohort.
+Explores the temporal relationship between ED visits (events)
+and hospitalizations (episodes) in a 2022 Medicaid cohort.
 
 Scientific questions:
   - What proportion of ED visits happen during a hospitalization?
@@ -10,7 +10,7 @@ Scientific questions:
   - How many days from hospital discharge to the next ED visit?
 
 Usage:
-    python vignettes/chapter_08_cooccurrence/run_vignette_08.py
+    python vignettes/chapter_08_coevent/run_vignette_08.py
 
 Generate synthetic data first if needed:
     python vignettes/data/generate_vignette_data.py
@@ -28,9 +28,9 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # ── Step 1 — Clean hospitalizations ──────────────────────────────────────────
 
 hosp_raw    = pd.read_csv(DATA_DIR / "simulated_hospitalizations_ch08.csv")
-hosp_sem    = eventus.EventSemantics.build_from_yaml(CONFIGS / "hospitalization_semantics_ch08.yaml")
-hosp_config = eventus.EventsCleanerConfig.build_from_yaml(CONFIGS / "hospitalization_cleaner_ch08.yaml")
-hosp_cleaner = eventus.EventsCleaner(hosp_raw, hosp_sem, hosp_config)
+hosp_sem    = eventus.EpisodeSemantics.build_from_yaml(CONFIGS / "hospitalization_semantics_ch08.yaml")
+hosp_config = eventus.EpisodesCleanerConfig.build_from_yaml(CONFIGS / "hospitalization_cleaner_ch08.yaml")
+hosp_cleaner = eventus.EpisodesCleaner(hosp_raw, hosp_sem, hosp_config)
 hospitalizations = hosp_cleaner.clean()
 
 hosp_cleaner.print_report()
@@ -39,9 +39,9 @@ print(hospitalizations)
 # ── Step 2 — Clean ED visits ──────────────────────────────────────────────────
 
 ed_raw    = pd.read_csv(DATA_DIR / "simulated_ed_visits_ch08.csv")
-ed_sem    = eventus.OccurrenceSemantics.build_from_yaml(CONFIGS / "ed_semantics_ch08.yaml")
-ed_config = eventus.OccurrencesCleanerConfig.build_from_yaml(CONFIGS / "ed_cleaner_ch08.yaml")
-ed_cleaner = eventus.OccurrencesCleaner(ed_raw, ed_sem, ed_config)
+ed_sem    = eventus.EventSemantics.build_from_yaml(CONFIGS / "ed_semantics_ch08.yaml")
+ed_config = eventus.EventsCleanerConfig.build_from_yaml(CONFIGS / "ed_cleaner_ch08.yaml")
+ed_cleaner = eventus.EventsCleaner(ed_raw, ed_sem, ed_config)
 ed_visits = ed_cleaner.clean()
 
 ed_cleaner.print_report()
@@ -61,8 +61,8 @@ obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
 
 # ── Step 4 — Filter to obs period ─────────────────────────────────────────────
 
-hospitalizations = eventus.EventsFilter(hospitalizations).to_obs_period(obs, clip=True).result
-ed_visits        = eventus.OccurrencesFilter(ed_visits).to_obs_period(obs).result
+hospitalizations = eventus.EpisodesFilter(hospitalizations).to_obs_period(obs, clip=True).result
+ed_visits        = eventus.EventsFilter(ed_visits).to_obs_period(obs).result
 
 print(f"\nHospitalizations in 2022 : {len(hospitalizations):,}")
 print(f"ED visits in 2022        : {len(ed_visits):,}")
@@ -71,8 +71,8 @@ print(f"ED visits in 2022        : {len(ed_visits):,}")
 
 ct = eventus.CohortTimeline.build_from_components(
     obs_period  = obs,
-    events      = hospitalizations,
-    occurrences = ed_visits,
+    episodes      = hospitalizations,
+    events = ed_visits,
 )
 
 print(ct)
@@ -87,9 +87,9 @@ eventus.StackedTimelinePlotter(ct_sample, timeline_config).plot(
     str(OUTPUT_DIR / "stacked_timeline_ch08.png")
 )
 
-# ── Step 7 — Co-occurrence analysis ──────────────────────────────────────────
+# ── Step 7 — Co-event analysis ──────────────────────────────────────────
 
-analyzer = eventus.OccurrenceEventAnalyzer(ct, "ed_visit", "inpatient_hospitalization")
+analyzer = eventus.EventEpisodeAnalyzer(ct, "ed_visit", "inpatient_hospitalization")
 result   = analyzer.compute()
 
 print(result)
@@ -97,21 +97,21 @@ print(result)
 # ── Step 8 — Plot gap distributions ──────────────────────────────────────────
 
 violin_config = eventus.ArraysViolinConfig.build_from_yaml(
-    CONFIGS / "cooccurrence_violin_config.yaml"
+    CONFIGS / "coevent_violin_config.yaml"
 )
 
-# occ → next event (ED visit to next hospitalization)
-occ_to_evt = result.data["mean_days_occ_to_event"].dropna().values
-# event → next occ (discharge to next ED visit)
-evt_to_occ = result.data["mean_days_event_to_occ"].dropna().values
+# occ → next episode (ED visit to next hospitalization)
+evt_to_evt = result.data["mean_days_evt_to_episode"].dropna().values
+# episode → next occ (discharge to next ED visit)
+eps_to_occ = result.data["mean_days_episode_to_occ"].dropna().values
 
 arrays = {
-    "ED → next\nhospitalization": occ_to_evt,
-    "Discharge → next\nED visit":  evt_to_occ,
+    "ED → next\nhospitalization": evt_to_evt,
+    "Discharge → next\nED visit":  eps_to_occ,
 }
 
 eventus.ArraysViolinPlotter(arrays, violin_config).plot(
-    str(OUTPUT_DIR / "cooccurrence_gaps_violin.png")
+    str(OUTPUT_DIR / "coevent_gaps_violin.png")
 )
 
 print(f"\nOutputs saved to: {OUTPUT_DIR}")

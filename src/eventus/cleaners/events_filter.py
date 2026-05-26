@@ -46,7 +46,7 @@ class EventsFilter:
     >>> # Filter to an observation period
     >>> filtered = (
     ...     EventsFilter(events)
-    ...     .to_obs_period(obs, clip=True)
+    ...     .to_obs_period(obs)
     ...     .result
     ... )
     """
@@ -86,8 +86,8 @@ class EventsFilter:
         EventsFilter
             Wrapping a new Events with only the matching rows.
         """
-        col     = self._events.semantics.entity_id_col
-        mask    = self._events.data[col].isin(entity_ids)
+        col      = self._events.semantics.entity_id_col
+        mask     = self._events.data[col].isin(entity_ids)
         filtered = self._events.data[mask].copy()
         return EventsFilter(
             Events._construct_from_cleaned(filtered, self._events.semantics)
@@ -103,8 +103,7 @@ class EventsFilter:
         """
         Keep only events within the given date range.
 
-        Filters on event start date against the start bound and
-        event end date against the end bound.
+        Filters on the single event date column.
 
         Parameters
         ----------
@@ -158,21 +157,20 @@ class EventsFilter:
                 f"start ({start.date()}) must be before end ({end.date()})."
             )
 
-        sc  = self._events.semantics.start_time_col
-        ec  = self._events.semantics.end_time_col
+        dc  = self._events.semantics.date_col
         df  = self._events.data.copy()
 
         if start is not None:
             if start_bound == DateBoundary.INCLUSIVE:
-                df = df[df[sc] >= start]
+                df = df[df[dc] >= start]
             else:
-                df = df[df[sc] > start]
+                df = df[df[dc] > start]
 
         if end is not None:
             if end_bound == DateBoundary.INCLUSIVE:
-                df = df[df[ec] <= end]
+                df = df[df[dc] <= end]
             else:
-                df = df[df[ec] < end]
+                df = df[df[dc] < end]
 
         return EventsFilter(
             Events._construct_from_cleaned(df, self._events.semantics)
@@ -181,27 +179,22 @@ class EventsFilter:
     def to_obs_period(
         self,
         obs_period,
-        clip:        bool  = True,
         start_bound: DateBoundary = _DEFAULT_BOUND,
         end_bound:   DateBoundary = _DEFAULT_BOUND,
     ) -> "EventsFilter":
         """
         Filter events to each entity's observation period.
 
-        Only entities present in obs_period are kept. Events outside
-        the entity's obs window are dropped. Events that partially
-        overlap the window are either clipped to the boundary or
-        dropped entirely, controlled by the clip parameter.
+        Only entities present in obs_period are kept. Events
+        outside the entity's obs window are dropped. Unlike episodes,
+        events are point-in-time so there is no clipping —
+        they either fall inside the window or they don't.
 
         Parameters
         ----------
         obs_period : ObsPeriodPerEntity
             One row per entity defining the observation window.
             entity_id_col must match events.semantics.entity_id_col.
-        clip : bool
-            If True (default), events that partially overlap the obs
-            window are clipped to the boundary.
-            If False, events that partially overlap are dropped.
         start_bound : DateBoundary
             INCLUSIVE (>=) or EXCLUSIVE (>) for the obs_start boundary.
             Default INCLUSIVE.
@@ -212,8 +205,8 @@ class EventsFilter:
         Returns
         -------
         EventsFilter
-            Wrapping a new Events filtered and optionally clipped
-            to each entity's observation period.
+            Wrapping a new Events filtered to each entity's
+            observation period.
 
         Raises
         ------
@@ -240,8 +233,7 @@ class EventsFilter:
 
         obs_start_col = obs_period.semantics.start_time_col
         obs_end_col   = obs_period.semantics.end_time_col
-        evt_start_col = self._events.semantics.start_time_col
-        evt_end_col   = self._events.semantics.end_time_col
+        date_col      = self._events.semantics.date_col
 
         # Merge obs window onto events
         obs_lookup = obs_period.data.set_index(obs_entity_col)[
@@ -253,48 +245,23 @@ class EventsFilter:
 
         df = self._events.data.merge(
             obs_lookup,
-            left_on  = evt_entity_col,
+            left_on     = evt_entity_col,
             right_index = True,
-            how      = "inner",  # drops entities not in obs_period
+            how         = "inner",  # drops entities not in obs_period
         )
 
-        # Apply start bound
+        # Apply bounds — events are point-in-time, no clipping needed
         if start_bound == DateBoundary.INCLUSIVE:
-            overlaps_start = df[evt_end_col] >= df["_obs_start"]
+            inside_start = df[date_col] >= df["_obs_start"]
         else:
-            overlaps_start = df[evt_end_col] > df["_obs_start"]
+            inside_start = df[date_col] > df["_obs_start"]
 
-        # Apply end bound
         if end_bound == DateBoundary.INCLUSIVE:
-            overlaps_end = df[evt_start_col] <= df["_obs_end"]
+            inside_end = df[date_col] <= df["_obs_end"]
         else:
-            overlaps_end = df[evt_start_col] < df["_obs_end"]
+            inside_end = df[date_col] < df["_obs_end"]
 
-        if clip:
-            # Keep overlapping events and clip to obs boundaries
-            df = df[overlaps_start & overlaps_end].copy()
-            if start_bound == DateBoundary.INCLUSIVE:
-                df[evt_start_col] = df[[evt_start_col, "_obs_start"]].max(axis=1)
-            else:
-                df[evt_start_col] = df[[evt_start_col, "_obs_start"]].max(axis=1)
-            if end_bound == DateBoundary.INCLUSIVE:
-                df[evt_end_col] = df[[evt_end_col, "_obs_end"]].min(axis=1)
-            else:
-                df[evt_end_col] = df[[evt_end_col, "_obs_end"]].min(axis=1)
-        else:
-            # Drop events that partially overlap — keep only fully contained
-            if start_bound == DateBoundary.INCLUSIVE:
-                fully_inside_start = df[evt_start_col] >= df["_obs_start"]
-            else:
-                fully_inside_start = df[evt_start_col] > df["_obs_start"]
-
-            if end_bound == DateBoundary.INCLUSIVE:
-                fully_inside_end = df[evt_end_col] <= df["_obs_end"]
-            else:
-                fully_inside_end = df[evt_end_col] < df["_obs_end"]
-
-            df = df[fully_inside_start & fully_inside_end].copy()
-
+        df = df[inside_start & inside_end].copy()
         df = df.drop(columns=["_obs_start", "_obs_end"]).reset_index(drop=True)
 
         return EventsFilter(

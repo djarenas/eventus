@@ -8,8 +8,8 @@ Section dataclasses (all validated on construction):
     LayoutConfig           — row/bar geometry, style, entity display, jitter
     TimelineAxisConfig     — x-axis mode, tick unit/interval/format, tick_font_size
     POIConfig              — period-of-interest bar colors and boundaries
-    EventLayerConfig       — visual settings for one event identity layer
-    OccurrenceLayerConfig  — visual settings for one occurrence identity layer
+    EpisodeLayerConfig       — visual settings for one episode identity layer
+    EventLayerConfig  — visual settings for one event identity layer
     LegendConfig           — legend display and placement
 
 Inherited from BasePlotConfig:
@@ -158,17 +158,17 @@ class POIConfig:
     Period-of-interest bar settings.
 
     The bar is divided into segments:
-        color_before     — inactive days before the first event
-        color_active     — days covered by events (driven by EventLayerConfig)
-        color_middle     — inactive gaps between events
-        color_after      — inactive days after the last event
-        color_no_events  — full bar color when the entity has no events at all
+        color_before     — inactive days before the first episode
+        color_active     — days covered by episodes (driven by EpisodeLayerConfig)
+        color_middle     — inactive gaps between episodes
+        color_after      — inactive days after the last episode
+        color_no_episodes  — full bar color when the entity has no episodes at all
     """
     color:           str   = "#D6E0EA"
     color_before:    str   = "#9E9E9E"
     color_middle:    str   = "#F44336"
     color_after:     str   = "#BDBDBD"
-    color_no_events: str   = "#EEEEEE"
+    color_no_episodes: str   = "#EEEEEE"
     alpha:           float = 0.6
     show_boundaries: bool  = True
     boundary_color:  str   = "#6B7C93"
@@ -182,7 +182,7 @@ class POIConfig:
             ("poi.color_before",    self.color_before),
             ("poi.color_middle",    self.color_middle),
             ("poi.color_after",     self.color_after),
-            ("poi.color_no_events", self.color_no_events),
+            ("poi.color_no_episodes", self.color_no_episodes),
             ("poi.boundary_color",  self.boundary_color),
         ]:
             validate_hex(value, field_name, self._PREFIX)
@@ -194,23 +194,23 @@ class POIConfig:
 
 
 @dataclass
-class EventLayerConfig:
-    """Visual settings for one event identity layer."""
+class EpisodeLayerConfig:
+    """Visual settings for one episode identity layer."""
     identity: str
     color:    str        = _DEFAULT_PALETTE[0]
     alpha:    float      = 0.85
     label:    str | None = None
 
-    _PREFIX = "[StackedTimelineConfig] Event Layers"
+    _PREFIX = "[StackedTimelineConfig] Episode Layers"
 
     def __post_init__(self) -> None:
-        validate_hex(self.color, f"events['{self.identity}'].color", self._PREFIX)
+        validate_hex(self.color, f"episodes['{self.identity}'].color", self._PREFIX)
         self.alpha = validate_alpha(self.alpha, self._PREFIX)
 
 
 @dataclass
-class OccurrenceLayerConfig:
-    """Visual settings for one occurrence identity layer."""
+class EventLayerConfig:
+    """Visual settings for one event identity layer."""
     identity: str
     color:    str        = _DEFAULT_PALETTE[1]
     marker:   str        = "circle"
@@ -218,19 +218,19 @@ class OccurrenceLayerConfig:
     alpha:    float      = 0.9
     label:    str | None = None
 
-    _PREFIX = "[StackedTimelineConfig] Event Layers"
+    _PREFIX = "[StackedTimelineConfig] Episode Layers"
 
     def __post_init__(self) -> None:
-        validate_hex(self.color, f"occurrences['{self.identity}'].color", self._PREFIX)
+        validate_hex(self.color, f"events['{self.identity}'].color", self._PREFIX)
         validate_choice(
             self.marker, _VALID_MARKERS,
-            f"occurrences['{self.identity}'].marker", self._PREFIX,
+            f"events['{self.identity}'].marker", self._PREFIX,
         )
         try:
             validate_positive_integer(self.size, self._PREFIX)
         except Exception as e:
-            raise ValueError(f"error with size in occurrence layer: {e}")
-        validate_alpha(self.alpha,   f"occurrences['{self.identity}'].alpha", self._PREFIX)
+            raise ValueError(f"error with size in event layer: {e}")
+        validate_alpha(self.alpha,   f"events['{self.identity}'].alpha", self._PREFIX)
 
 
 @dataclass
@@ -266,7 +266,7 @@ class StackedTimelineConfig(BasePlotConfig):
         config = StackedTimelineConfig.build_from_dict({
             "canvas": {"figsize": [18, 10]},
             "layout":  {"row_height": 0.6, "jitter": True},
-            "events":  [{"identity": "inpatient", "color": "#028090"}],
+            "episodes":  [{"identity": "inpatient", "color": "#028090"}],
         })
     """
     # Attribute Declarations
@@ -276,26 +276,26 @@ class StackedTimelineConfig(BasePlotConfig):
     layout:      LayoutConfig                 = field(default_factory=LayoutConfig)
     x_axis:      TimelineAxisConfig           = field(default_factory=TimelineAxisConfig)
     poi:         POIConfig                    = field(default_factory=POIConfig)
-    events:      list[EventLayerConfig]       = field(default_factory=list)
-    occurrences: list[OccurrenceLayerConfig]  = field(default_factory=list)
+    episodes:      list[EpisodeLayerConfig]       = field(default_factory=list)
+    events: list[EventLayerConfig]  = field(default_factory=list)
     legend:      LegendConfig                 = field(default_factory=LegendConfig)
 
     _PREFIX:   ClassVar[str]      = _PREFIX
     _SECTIONS: ClassVar[set[str]] = {
-        "labels", "layout", "x_axis", "poi", "events", "occurrences", "legend",
+        "labels", "layout", "x_axis", "poi", "episodes", "events", "legend",
     }
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        if not isinstance(self.episodes, list):
+            raise err(_PREFIX, f"episodes must be a list, got {type(self.episodes).__name__}")
         if not isinstance(self.events, list):
             raise err(_PREFIX, f"events must be a list, got {type(self.events).__name__}")
-        if not isinstance(self.occurrences, list):
-            raise err(_PREFIX, f"occurrences must be a list, got {type(self.occurrences).__name__}")
-        if not self.events and not self.occurrences:
+        if not self.episodes and not self.events:
             raise ValueError(
-                f"[{_PREFIX}] at least one event layer or occurrence layer "
-                f"must be configured. Add an entry to 'events' or "
-                f"'occurrences' in your config."
+                f"[{_PREFIX}] at least one episode layer or event layer "
+                f"must be configured. Add an entry to 'episodes' or "
+                f"'events' in your config."
             )
 
     @classmethod
@@ -304,13 +304,13 @@ class StackedTimelineConfig(BasePlotConfig):
         data: dict[str, Any],
         canvas: CanvasConfig,
     ) -> "StackedTimelineConfig":
-        events = [
-            EventLayerConfig(**e)
-            for e in (data.get("events") or [])
+        episodes = [
+            EpisodeLayerConfig(**e)
+            for e in (data.get("episodes") or [])
         ]
-        occurrences = [
-            OccurrenceLayerConfig(**o)
-            for o in (data.get("occurrences") or [])
+        events = [
+            EventLayerConfig(**o)
+            for o in (data.get("events") or [])
         ]
         return cls(
             canvas     = canvas,
@@ -318,25 +318,25 @@ class StackedTimelineConfig(BasePlotConfig):
             layout      = build_section(LayoutConfig,          data.get("layout"),  _PREFIX),
             x_axis      = build_section(TimelineAxisConfig,    data.get("x_axis"),  _PREFIX),
             poi         = build_section(POIConfig,             data.get("poi"),     _PREFIX),
-            events      = events,
-            occurrences = occurrences,
+            episodes      = episodes,
+            events = events,
             legend      = build_section(LegendConfig,          data.get("legend"),  _PREFIX),
         )
 
     # ── Lookup helpers ────────────────────────────────────────────────────────
 
+    def get_episode_config(self, identity: str) -> EpisodeLayerConfig | None:
+        """Return the EpisodeLayerConfig for the given identity, or None."""
+        return next((e for e in self.episodes if e.identity == identity), None)
+
     def get_event_config(self, identity: str) -> EventLayerConfig | None:
         """Return the EventLayerConfig for the given identity, or None."""
-        return next((e for e in self.events if e.identity == identity), None)
-
-    def get_occurrence_config(self, identity: str) -> OccurrenceLayerConfig | None:
-        """Return the OccurrenceLayerConfig for the given identity, or None."""
-        return next((o for o in self.occurrences if o.identity == identity), None)
+        return next((o for o in self.events if o.identity == identity), None)
 
     def __repr__(self) -> str:
-        n_ev    = len(self.events)
-        n_occ   = len(self.occurrences)
-        ev_color = self.events[0].color if n_ev else "auto"
+        n_ev    = len(self.episodes)
+        n_occ   = len(self.events)
+        ev_color = self.episodes[0].color if n_ev else "auto"
         return (
             f"StackedTimelineConfig(\n"
             f"  canvas     : figsize={self.canvas.figsize}, dpi={self.canvas.dpi}\n"
@@ -346,8 +346,8 @@ class StackedTimelineConfig(BasePlotConfig):
             f"unit={self.x_axis.unit}, interval={self.x_axis.interval}\n"
             f"  poi         : before={self.poi.color_before}, "
             f"active={ev_color}, middle={self.poi.color_middle}\n"
-            f"  events      : {n_ev} layer(s)\n"
-            f"  occurrences : {n_occ} layer(s)\n"
+            f"  episodes      : {n_ev} layer(s)\n"
+            f"  events : {n_occ} layer(s)\n"
             f"  legend      : show={self.legend.show}, "
             f"outside={self.legend.outside}\n"
             f")"

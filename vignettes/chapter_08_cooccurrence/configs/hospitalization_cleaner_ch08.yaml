@@ -1,5 +1,5 @@
 # hospitalization_cleaner_ch08.yaml
-# EventsCleanerConfig for Chapter 8 hospitalization data.
+# EpisodesCleanerConfig for Chapter 8 hospitalization data.
 # Clean synthetic data — minimal cleaning needed.
 
 normalize_dates:      true

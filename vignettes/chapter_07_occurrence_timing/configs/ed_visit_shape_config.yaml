@@ -1,5 +1,5 @@
 # ed_visit_shape_config.yaml
-# OccurrenceResultShapeConfig for Chapter 7 — gap distribution ages 18-21
+# EventResultShapeConfig for Chapter 7 — gap distribution ages 18-21
 
 canvas:
   figsize:   [10, 6]

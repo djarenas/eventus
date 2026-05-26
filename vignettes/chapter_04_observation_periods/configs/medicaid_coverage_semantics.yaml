@@ -1,5 +1,5 @@
 # medicaid_coverage_semantics.yaml
-# EventSemantics for Medicaid coverage periods.
+# EpisodeSemantics for Medicaid coverage periods.
 
 identity:       medicaid_coverage
 entity_id_col:  patient_id

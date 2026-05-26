@@ -91,9 +91,9 @@ the plot call.
 demog_df = pd.read_csv("data/simulated_member_demographics.csv")
 raw_df   = pd.read_csv("data/simulated_medicaid_coverage_agewindow.csv")
 
-sem     = eventus.EventSemantics.build_from_yaml("configs/medicaid_coverage_semantics.yaml")
-config  = eventus.EventsCleanerConfig.build_from_yaml("configs/medicaid_coverage_cleaner.yaml")
-events  = eventus.EventsCleaner(raw_df, sem, config).clean()
+sem     = eventus.EpisodeSemantics.build_from_yaml("configs/medicaid_coverage_semantics.yaml")
+config  = eventus.EpisodesCleanerConfig.build_from_yaml("configs/medicaid_coverage_cleaner.yaml")
+episodes  = eventus.EpisodesCleaner(raw_df, sem, config).clean()
 
 obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
     entity_df  = demog_df,
@@ -104,8 +104,8 @@ obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
     identity   = "age_18_to_25",
 )
 
-events = eventus.EventsFilter(events).to_obs_period(obs, clip=True).result
-ct     = eventus.CohortTimeline.build_from_components(obs_period=obs, events=events)
+episodes = eventus.EpisodesFilter(episodes).to_obs_period(obs, clip=True).result
+ct     = eventus.CohortTimeline.build_from_components(obs_period=obs, episodes=episodes)
 ```
 
 ### Step 2 — Sample for visualization
@@ -148,9 +148,9 @@ poi:
   color_before:    "#FAFAF9"   # before 18th birthday — light grey
   color_middle:    "#F6C3A4"   # gap in coverage — orange
   color_after:     "#FAFAF9"   # after 25th birthday — light grey
-  color_no_events: "#FAF9F9"   # never covered — near white
+  color_no_episodes: "#FAF9F9"   # never covered — near white
 
-events:
+episodes:
   - identity: medicaid_coverage
     color:    "#9FC0F6"        # active coverage — blue
     alpha:    0.85
@@ -232,6 +232,6 @@ visible as a pattern.
 
 ---
 
-*Chapter 6 — Full pipeline: combining events, occurrences, and
+*Chapter 6 — Full pipeline: combining episodes, events, and
 observation periods into a single cohort analysis.
 See `vignette_06_full_pipeline.md`.*

@@ -1,0 +1,142 @@
+# event_result_shape_config.yaml
+#
+# Full configuration for EventResultShapePlotter.
+# Load with: EventResultShapeConfig.build_from_yaml("event_result_shape_config.yaml")
+#
+# Three sections — one per plot method:
+#   center_of_mass → plot_center_of_mass()
+#   density        → plot_density()
+#   scatter        → plot_fingerprint()
+#
+# The canvas is shared across all methods.
+# All sections are optional — omit any section to use its defaults.
+# Within a section, omit any field to use its default value.
+
+
+# ── Canvas ────────────────────────────────────────────────────────────────────
+# Shared across all plot methods.
+
+canvas:
+  figsize:   [10, 7]   # [width, height] in inches. Default: [12, 7]
+  dpi:       120
+  font_size: 12
+
+
+# ── Center of mass ────────────────────────────────────────────────────────────
+# Controls plot_center_of_mass() — distribution of center_of_mass values.
+# center_of_mass is normalized to [0, 1]: 0=front-loaded, 1=back-loaded.
+# This is a full HistogramPlotConfig.
+
+center_of_mass:
+
+  labels:
+    title:    null                                          # null → auto-generated
+    subtitle: null
+    xlabel:   "Center of mass (0=front-loaded, 1=back-loaded)"
+    ylabel:   "Entities"
+    units:    null
+
+  axes:
+    x_ticks:         null
+    y_ticks:         null
+    x_tick_rotation: 0.0
+    y_tick_rotation: 0.0
+    x_tick_format:   null
+    y_tick_format:   null
+    tick_font_size:  null
+
+  # x range is fixed [0, 1] — center_of_mass is always normalized
+  bins:
+    type:   uniform
+    n_bins: 20
+    min:    0.0
+    max:    1.0
+
+  style:
+    color:     "#028090"
+    alpha:     0.85
+    show_grid: true
+    edgecolor: "#FFFFFF"
+
+  percentile_lines:
+    show:        true
+    values:      [25, 50, 75]
+    color:       "#333333"
+    linestyle:   dashed       # dashed | dotted | solid
+    show_labels: true
+
+  stratification:
+    style:          overlay
+    max_categories: 10
+    categories:     {}
+
+
+# ── Density ───────────────────────────────────────────────────────────────────
+# Controls plot_density() — distribution of density values.
+# density = n events / obs_duration_days per entity.
+# This is a full HistogramPlotConfig.
+
+density:
+
+  labels:
+    title:    null                              # null → auto-generated
+    subtitle: null
+    xlabel:   "Density (events per day)"
+    ylabel:   "Entities"
+    units:    null
+
+  axes:
+    x_ticks:         null
+    y_ticks:         null
+    x_tick_rotation: 0.0
+    y_tick_rotation: 0.0
+    x_tick_format:   null
+    y_tick_format:   null
+    tick_font_size:  null
+
+  # min: 0.0 is fixed — density is always >= 0.
+  # max: null → auto from data (density range varies by domain).
+  bins:
+    type:   uniform
+    n_bins: 20
+    min:    0.0
+    max:    null
+
+  style:
+    color:     "#6B4FA0"
+    alpha:     0.85
+    show_grid: true
+    edgecolor: "#FFFFFF"
+
+  percentile_lines:
+    show:        true
+    values:      [25, 50, 75, 90]
+    color:       "#333333"
+    linestyle:   dashed
+    show_labels: true
+
+  stratification:
+    style:          overlay
+    max_categories: 10
+    categories:     {}
+
+
+# ── Scatter ───────────────────────────────────────────────────────────────────
+# Controls plot_fingerprint() — burstiness vs memory scatter.
+# Only entities with n >= 4 events are plotted.
+
+scatter:
+
+  labels:
+    title:    null   # null → auto-generated from identity
+    subtitle: null
+    xlabel:   null   # null → "Burstiness  (< 0 regular  ·  > 0 bursty)"
+    ylabel:   null   # null → "Memory  (< 0 alternating  ·  > 0 persistent)"
+    units:    null
+
+  color:               "#028090"
+  alpha:               0.7      # Marker transparency. Range [0, 1]
+  size:                40       # Marker size in points
+  show_grid:           true
+  show_quadrant_lines: true     # Reference lines at burstiness=0 and memory=0
+  quadrant_line_color: "#AAAAAA"  # Ignored if show_quadrant_lines: false

@@ -1,16 +1,16 @@
 """
 merge_config.py
 MergeConfig — configuration for merging overlapping or adjacent
-event intervals within EventsCleaner.
+episode intervals within EpisodesCleaner.
 
-If merge is None in EventsCleanerConfig, no merging is performed.
+If merge is None in EpisodesCleanerConfig, no merging is performed.
 If merge is a MergeConfig, merging is performed with the declared rules.
 
 merge_mandates (which columns must match to allow merging) are declared
-in EventSemantics.also_defined_by — not here. MergeConfig only declares
+in EpisodeSemantics.also_defined_by — not here. MergeConfig only declares
 the gap threshold and how to aggregate descriptor columns.
 
-Example YAML (nested inside EventsCleanerConfig):
+Example YAML (nested inside EpisodesCleanerConfig):
 
     merge:
       meaningful_gap_days: 1
@@ -33,10 +33,10 @@ _ALL_VALID_RULES      = _VALID_CATEGORY_RULES | _VALID_NUMERIC_RULES
 @dataclass
 class MergeConfig:
     """
-    Configuration for merging overlapping or adjacent event intervals.
+    Configuration for merging overlapping or adjacent episode intervals.
 
     Which columns must match before two intervals can be merged is
-    declared in EventSemantics.also_defined_by — that is a semantic
+    declared in EpisodeSemantics.also_defined_by — that is a semantic
     property of the data, not a cleaning strategy.
 
     MergeConfig declares:
@@ -54,7 +54,7 @@ class MergeConfig:
 
     descriptor_cols : dict[str, str]
         Aggregation rules for descriptor columns during merging.
-        Keys are column names declared in EventSemantics.descriptor_cols.
+        Keys are column names declared in EpisodeSemantics.descriptor_cols.
         Values are aggregation rules:
             For category columns: "sequence" or "unique"
             For numeric columns:  "mean", "median", "min", "max", "variance"
@@ -99,19 +99,19 @@ class MergeConfig:
         descriptor_cols: dict,
     ) -> None:
         """
-        Validate MergeConfig against EventSemantics at cleaner construction.
+        Validate MergeConfig against EpisodeSemantics at cleaner construction.
 
         Checks:
-          - descriptor_cols keys are declared in EventSemantics.descriptor_cols
+          - descriptor_cols keys are declared in EpisodeSemantics.descriptor_cols
           - descriptor_cols keys do not overlap with also_defined_by
           - aggregation rules are compatible with column types
 
         Parameters
         ----------
         also_defined_by : list[str]
-            From EventSemantics.also_defined_by.
+            From EpisodeSemantics.also_defined_by.
         descriptor_cols : dict[str, DescriptorColConfig]
-            From EventSemantics.descriptor_cols.
+            From EpisodeSemantics.descriptor_cols.
         """
         sem_descriptors  = set(descriptor_cols.keys() if descriptor_cols else [])
         sem_also_defined = set(also_defined_by or [])
@@ -121,8 +121,8 @@ class MergeConfig:
         if undeclared:
             raise ValueError(
                 f"{_ERROR}: descriptor_cols keys not declared in "
-                f"EventSemantics.descriptor_cols: {sorted(undeclared)}. "
-                f"Declare them in EventSemantics first."
+                f"EpisodeSemantics.descriptor_cols: {sorted(undeclared)}. "
+                f"Declare them in EpisodeSemantics first."
             )
 
         # Descriptor cols cannot overlap with also_defined_by

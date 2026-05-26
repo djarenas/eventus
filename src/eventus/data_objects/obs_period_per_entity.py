@@ -2,10 +2,10 @@
 obs_period_per_entity.py
 ObsPeriodPerEntity — one observation window per entity.
 
-The third level of the event hierarchy:
-    Events
+The third level of the episode hierarchy:
+    Episodes
         ↓ (one row per entity)
-    EventsPerEntity
+    EpisodesPerEntity
         ↓ (semantic meaning: observation window)
     ObsPeriodPerEntity
 
@@ -22,8 +22,8 @@ import pandas as pd
 
 # Add the inner package folder directly to sys.path  
 
-from eventus.data_objects.events_per_entity import EventsPerEntity
-from eventus.semantics.event_semantics import EventSemantics
+from eventus.data_objects.episodes_per_entity import EpisodesPerEntity
+from eventus.semantics.episode_semantics import EpisodeSemantics
 
 _ERROR_PREFIX = "[ObsPeriodPerEntity] Error"
 
@@ -33,27 +33,27 @@ _OBS_END_COL   = "obs_end"
 _DEFAULT_IDENTITY = "general_entity"
 
 
-class ObsPeriodPerEntity(EventsPerEntity):
+class ObsPeriodPerEntity(EpisodesPerEntity):
     """
     One observation window per entity.
 
-    Each row defines the period within which that entity's events
-    and occurrences are analyzed. Four construction paths:
+    Each row defines the period within which that entity's episodes
+    and events are analyzed. Four construction paths:
 
     - Direct construction from a DataFrame (full control)
     - construct_from_calendar()   — same dates for all entities
     - construct_from_age_window() — per-entity dates derived from date of birth
-    - construct_from_events()     — first event start to last event end
+    - construct_from_episodes()     — first episode start to last episode end
 
     Classmethods produce output with standard column names:
         obs_start, obs_end
-    Direct construction accepts any column names via EventSemantics.
+    Direct construction accepts any column names via EpisodeSemantics.
 
     Parameters
     ----------
     data : pd.DataFrame
         One row per entity with start and end date columns.
-    semantics : EventSemantics
+    semantics : EpisodeSemantics
         Column mapping. identity attribute names the obs period.
         Only letters, numbers, and underscores allowed.
     identity : str | None
@@ -63,11 +63,11 @@ class ObsPeriodPerEntity(EventsPerEntity):
     Examples
     --------
     >>> # Direct — full control over column names
-    >>> obs = ObsPeriodPerEntity(spans_df, sem, identity="medicaid_2022")
+    >>> obs = ObsPeriodPerEntity(periods_df, sem, identity="medicaid_2022")
 
     >>> # Calendar period — output has obs_start, obs_end
     >>> obs = ObsPeriodPerEntity.construct_from_calendar(
-    ...     entity_ids = events.data["patient_id"].unique(),
+    ...     entity_ids = episodes.data["patient_id"].unique(),
     ...     start      = "2022-01-01",
     ...     end        = "2022-12-31",
     ...     entity_col = "patient_id",
@@ -84,8 +84,8 @@ class ObsPeriodPerEntity(EventsPerEntity):
     ...     identity   = "age_65_to_70",
     ... )
 
-    >>> # From events — reuses events.semantics column names
-    >>> obs = ObsPeriodPerEntity.construct_from_events(events, identity="hospitalization_window")
+    >>> # From episodes — reuses episodes.semantics column names
+    >>> obs = ObsPeriodPerEntity.construct_from_episodes(episodes, identity="hospitalization_window")
     """
 
     _DEFAULT_IDENTITY = _DEFAULT_IDENTITY
@@ -93,7 +93,7 @@ class ObsPeriodPerEntity(EventsPerEntity):
     def __init__(
         self,
         data:      pd.DataFrame,
-        semantics: EventSemantics,
+        semantics: EpisodeSemantics,
         identity:  str | None = None,
     ) -> None:
         from .obs_period_per_entity_utils import validate_identity
@@ -121,9 +121,9 @@ class ObsPeriodPerEntity(EventsPerEntity):
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _default_semantics(entity_col: str) -> EventSemantics:
+    def _default_semantics(entity_col: str) -> EpisodeSemantics:
         """Build standard semantics with obs_start / obs_end column names."""
-        return EventSemantics(
+        return EpisodeSemantics(
             entity_id_col  = entity_col,
             start_time_col = _OBS_START_COL,
             end_time_col   = _OBS_END_COL,
@@ -165,12 +165,12 @@ class ObsPeriodPerEntity(EventsPerEntity):
             Output columns: {entity_col}, obs_start, obs_end.
         """
         from .obs_period_per_entity_utils import (
-            build_calendar_spans, warn_future_dates
+            build_calendar_periods, warn_future_dates
         )
 
         semantics = cls._default_semantics(entity_col)
 
-        df = build_calendar_spans(
+        df = build_calendar_periods(
             entity_ids = entity_ids,
             start      = start,
             end        = end,
@@ -249,14 +249,14 @@ class ObsPeriodPerEntity(EventsPerEntity):
         with a warning.
         """
         from .obs_period_per_entity_utils import (
-            validate_age_window, build_age_window_spans, warn_future_dates
+            validate_age_window, build_age_window_periods, warn_future_dates
         )
 
         validate_age_window(age_start, age_end, age_unit)
 
         semantics = cls._default_semantics(entity_col)
 
-        df = build_age_window_spans(
+        df = build_age_window_periods(
             entity_df  = entity_df,
             dob_col    = dob_col,
             age_start  = age_start,
@@ -276,15 +276,15 @@ class ObsPeriodPerEntity(EventsPerEntity):
         return obj
 
     @classmethod
-    def construct_from_events(
+    def construct_from_episodes(
         cls,
-        events,
+        episodes,
         identity: str | None = None,
     ) -> "ObsPeriodPerEntity":
         """
-        Build an ObsPeriodPerEntity from an Events object.
-        Each entity's span runs from their first event start
-        to their last event end. Reuses the Events column names.
+        Build an ObsPeriodPerEntity from an Episodes object.
+        Each entity's period runs from their first episode start
+        to their last episode end. Reuses the Episodes column names.
 
         This is the broadest possible observation window — it captures
         the full range of activity for each entity. If a narrower
@@ -292,8 +292,8 @@ class ObsPeriodPerEntity(EventsPerEntity):
 
         Parameters
         ----------
-        events : Events
-            A validated Events object. Column names are reused
+        episodes : Episodes
+            A validated Episodes object. Column names are reused
             in the output ObsPeriodPerEntity.
         identity : str | None
             Name for this observation period. Default 'general_entity'.
@@ -301,37 +301,37 @@ class ObsPeriodPerEntity(EventsPerEntity):
         Returns
         -------
         ObsPeriodPerEntity
-            Output uses same column names as events.semantics.
+            Output uses same column names as episodes.semantics.
         """
-        from .events import Events
+        from .episodes import Episodes
         from .obs_period_per_entity_utils import (
-            build_spans_construct_from_events, warn_future_dates
+            build_periods_from_episodes, warn_future_dates
         )
 
-        if not isinstance(events, Events):
+        if not isinstance(episodes, Episodes):
             raise TypeError(
-                f"{_ERROR_PREFIX}: construct_from_events requires an Events object, "
-                f"got {type(events).__name__}"
+                f"{_ERROR_PREFIX}: construct_from_episodes requires an Episodes object, "
+                f"got {type(episodes).__name__}"
             )
 
-        df = build_spans_construct_from_events(
-            events_df      = events.data,
-            entity_col     = events.semantics.entity_id_col,
-            start_col      = events.semantics.start_time_col,
-            end_col        = events.semantics.end_time_col,
-            out_start_col  = events.semantics.start_time_col,
-            out_end_col    = events.semantics.end_time_col,
+        df = build_periods_from_episodes(
+            episodes_df      = episodes.data,
+            entity_col     = episodes.semantics.entity_id_col,
+            start_col      = episodes.semantics.start_time_col,
+            end_col        = episodes.semantics.end_time_col,
+            out_start_col  = episodes.semantics.start_time_col,
+            out_end_col    = episodes.semantics.end_time_col,
         )
 
         warn_future_dates(
             df,
-            events.semantics.start_time_col,
-            events.semantics.end_time_col,
-            events.semantics.entity_id_col,
+            episodes.semantics.start_time_col,
+            episodes.semantics.end_time_col,
+            episodes.semantics.entity_id_col,
         )
 
-        obj = cls(df, events.semantics, identity=identity)
-        obj._construction_path = "construct_from_events"
+        obj = cls(df, episodes.semantics, identity=identity)
+        obj._construction_path = "construct_from_episodes"
         return obj
 
     # ------------------------------------------------------------------ #

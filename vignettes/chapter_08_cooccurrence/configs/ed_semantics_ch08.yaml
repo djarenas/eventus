@@ -1,5 +1,5 @@
 # ed_semantics_ch08.yaml
-# OccurrenceSemantics for Chapter 8 ED visit data.
+# EventSemantics for Chapter 8 ED visit data.
 # No descriptor cols — focused on temporal relationship analysis.
 
 identity:        ed_visit

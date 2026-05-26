@@ -1,8 +1,8 @@
 # duration_plot_config.yaml
-# EventDurationPlotConfig for Chapter 3 — Stay Duration Analysis
+# EpisodeDurationPlotConfig for Chapter 3 — Stay Duration Analysis
 #
 # Load with:
-#   config = eventus.EventDurationPlotConfig.build_from_yaml("configs/duration_plot_config.yaml")
+#   config = eventus.EpisodeDurationPlotConfig.build_from_yaml("configs/duration_plot_config.yaml")
 
 canvas:
   figsize: [10, 6]

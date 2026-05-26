@@ -10,7 +10,7 @@ Plot order is determined by the order categories are defined — in code
 or in YAML. First defined = leftmost violin.
 
 Section dataclasses:
-    ViolinAxisConfig   — tick control + y_min / y_max  (violin_style_config.py)
+    ViolinAxisConfig   — tick control + y_min / y_max  (violin_axis_config.py)
     ViolinStyleConfig  — bandwidth, box, points         (violin_style_config.py)
     PercentilesConfig  — reference lines                (percentiles_config.py)
     CategoryConfig     — per-key color + label          (category_config.py)
@@ -37,10 +37,8 @@ from eventus.visualizers.configs.plot_config_utils import (
     build_section,
     err,
 )
-from eventus.visualizers.configs.violin_style_config import (
-    ViolinAxisConfig,
-    ViolinStyleConfig,
-)
+from eventus.visualizers.configs.violin_axis_config import ViolinAxisConfig
+from eventus.visualizers.configs.violin_style_config import ViolinStyleConfig
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 

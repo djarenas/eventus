@@ -1,5 +1,5 @@
 # hospitalization_cleaner.yaml
-# EventsCleanerConfig for inpatient hospitalization claims.
+# EpisodesCleanerConfig for inpatient hospitalization claims.
 # Used in vignette Chapter 1.
 
 normalize_dates:     true

@@ -1,24 +1,26 @@
 """
 violin_config.py
 
-Shared violin plot configuration classes and EventDurationViolinConfig.
+Shared violin plot configuration classes and EpisodeDurationViolinConfig.
 
 Section dataclasses (all validated on construction):
-    ViolinAxisConfig    — x/y tick control + y_min / y_max bounds
-    ViolinStyleConfig   — bandwidth, box, point, and category display settings
+    ViolinAxisConfig    — x/y tick control + y_min / y_max bounds  (violin_axis_config.py)
+    ViolinStyleConfig   — bandwidth, box, point display settings     (violin_style_config.py)
 
 Base config:
     BaseViolinConfig    — canvas, stratify, labels, axes, style, percentiles
                           Base class for all violin configs; not instantiated directly.
 
 Concrete config:
-    EventDurationViolinConfig — adds stratify_by column name
+    EpisodeDurationViolinConfig — adds stratify_by column name
 
 Imported from shared modules:
-    AxisLabels          — title, subtitle, xlabel, ylabel, units (base_plot_config.py)
-    PercentilesConfig   — percentile reference lines              (percentiles_config.py)
-    CategoryConfig      — per-category color + label             (category_config.py)
-    parse_categories    — dict parser for CategoryConfig entries  (category_config.py)
+    ViolinAxisConfig    — axis config with y_min / y_max            (violin_axis_config.py)
+    ViolinStyleConfig   — style settings                            (violin_style_config.py)
+    AxisLabels          — title, subtitle, xlabel, ylabel, units    (base_plot_config.py)
+    PercentilesConfig   — percentile reference lines                (percentiles_config.py)
+    CategoryConfig      — per-category color + label               (category_config.py)
+    parse_categories    — dict parser for CategoryConfig entries    (category_config.py)
 
 Inherited from BasePlotConfig:
     canvas: CanvasConfig  — figsize, dpi, font_size
@@ -31,7 +33,6 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from eventus.visualizers.configs.base_plot_config import (
-    AxisConfig,
     AxisLabels,
     BasePlotConfig,
     CanvasConfig,
@@ -42,74 +43,13 @@ from eventus.visualizers.configs.plot_config_utils import (
     _DEFAULT_PALETTE,
     build_section,
     err,
-    validate_alpha,
-    validate_choice,
-    validate_float,
-    validate_positive_float,
-    validate_positive_integer,
 )
+from eventus.visualizers.configs.violin_axis_config import ViolinAxisConfig
+from eventus.visualizers.configs.violin_style_config import ViolinStyleConfig
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_PREFIX        = "ViolinConfig"
-_VALID_BW      = {"scott", "silverman"}
-
-
-# ── Section dataclasses ───────────────────────────────────────────────────────
-
-@dataclass
-class ViolinAxisConfig(AxisConfig):
-    """
-    Axis configuration for violin plots.
-    Extends AxisConfig with optional y-axis bounds.
-    """
-    # --- Inherited from AxisConfig ---
-    # x_ticks:         list[float] | None
-    # y_ticks:         list[float] | None
-    # x_tick_rotation: float
-    # y_tick_rotation: float
-    # x_tick_format:   str | None
-    # y_tick_format:   str | None
-    # tick_font_size:  int | None
-
-    y_min: float | None = None
-    y_max: float | None = None
-
-    _PREFIX: ClassVar[str] = "ViolinAxisConfig"
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.y_min is not None:
-            self.y_min = validate_float(self.y_min, self._PREFIX, "y_min")
-        if self.y_max is not None:
-            self.y_max = validate_float(self.y_max, self._PREFIX, "y_max")
-        if self.y_min is not None and self.y_max is not None:
-            if self.y_min >= self.y_max:
-                raise err(
-                    self._PREFIX,
-                    f"y_min ({self.y_min}) must be less than y_max ({self.y_max})",
-                )
-
-
-@dataclass
-class ViolinStyleConfig:
-    """Visual style for violin plots."""
-    bandwidth:      str   = "scott"
-    show_box:       bool  = True
-    show_points:    bool  = False
-    point_alpha:    float = 0.3
-    point_size:     float = 3.0
-    max_categories: int   = 4
-
-    _PREFIX: ClassVar[str] = "ViolinStyleConfig"
-
-    def __post_init__(self) -> None:
-        validate_choice(self.bandwidth, _VALID_BW, "style.bandwidth", self._PREFIX)
-        self.point_alpha = validate_alpha(self.point_alpha,       self._PREFIX, "point_alpha")
-        self.point_size  = validate_positive_float(self.point_size,  self._PREFIX, "point_size")
-        self.max_categories = validate_positive_integer(self.max_categories, self._PREFIX, "max_categories")
-        if self.max_categories < 1:
-            raise err(self._PREFIX, f"style.max_categories must be >= 1, got {self.max_categories}")
+_PREFIX = "ViolinConfig"
 
 
 # ── Base violin config ────────────────────────────────────────────────────────
@@ -188,9 +128,9 @@ class BaseViolinConfig(BasePlotConfig):
         return cls(
             canvas      = canvas,
             stratify    = parse_categories(data.get("stratify")),
-            labels      = build_section(AxisLabels,       data.get("labels"),      cls._PREFIX),
-            axes        = build_section(ViolinAxisConfig, data.get("axes"),        cls._PREFIX),
-            style       = build_section(ViolinStyleConfig, data.get("style"),      cls._PREFIX),
+            labels      = build_section(AxisLabels,        data.get("labels"),      cls._PREFIX),
+            axes        = build_section(ViolinAxisConfig,  data.get("axes"),        cls._PREFIX),
+            style       = build_section(ViolinStyleConfig, data.get("style"),       cls._PREFIX),
             percentiles = build_section(PercentilesConfig, data.get("percentiles"), cls._PREFIX),
         )
 
@@ -198,22 +138,22 @@ class BaseViolinConfig(BasePlotConfig):
 # ── Concrete config ───────────────────────────────────────────────────────────
 
 @dataclass
-class EventDurationViolinConfig(BaseViolinConfig):
+class EpisodeDurationViolinConfig(BaseViolinConfig):
     """
-    Full configuration for EventsDurationViolinPlotter.
+    Full configuration for EpisodeDurationViolinPlotter.
 
-    stratify_by names the column in events.data to group by.
+    stratify_by names the column in episodes.data to group by.
     Category keys in stratify are the raw values found in that column.
     The reserved key 'all_data' always plots first if present.
 
     Example (minimal):
-        config = EventDurationViolinConfig()
+        config = EpisodeDurationViolinConfig()
 
     Example (from YAML):
-        config = EventDurationViolinConfig.build_from_yaml("my_config.yaml")
+        config = EpisodeDurationViolinConfig.build_from_yaml("my_config.yaml")
 
     Example (from dict):
-        config = EventDurationViolinConfig.build_from_dict({
+        config = EpisodeDurationViolinConfig.build_from_dict({
             "canvas":      {"figsize": [10, 6]},
             "stratify_by": "hospital_id",
             "stratify": {
@@ -232,7 +172,7 @@ class EventDurationViolinConfig(BaseViolinConfig):
 
     stratify_by: str | None = None
 
-    _PREFIX:   ClassVar[str]      = "EventDurationViolinConfig"
+    _PREFIX:   ClassVar[str]      = "EpisodeDurationViolinConfig"
     _SECTIONS: ClassVar[set[str]] = {
         "stratify_by", "stratify", "labels", "axes", "style", "percentiles",
     }
@@ -275,7 +215,7 @@ class EventDurationViolinConfig(BaseViolinConfig):
         cls,
         data: dict[str, Any],
         canvas: CanvasConfig,
-    ) -> "EventDurationViolinConfig":
+    ) -> "EpisodeDurationViolinConfig":
         return cls(
             canvas       = canvas,
             stratify_by  = data.get("stratify_by"),
@@ -288,7 +228,7 @@ class EventDurationViolinConfig(BaseViolinConfig):
 
     def __repr__(self) -> str:
         return (
-            f"EventDurationViolinConfig(\n"
+            f"EpisodeDurationViolinConfig(\n"
             f"  canvas       : figsize={self.canvas.figsize}, dpi={self.canvas.dpi}\n"
             f"  stratify_by  : {self.stratify_by!r}\n"
             f"  stratify     : {self.category_keys}\n"

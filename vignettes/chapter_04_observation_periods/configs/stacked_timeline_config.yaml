@@ -23,9 +23,9 @@ poi:
   color_before:    "#BDBDBD"   # not yet covered
   color_middle:    "#F44336"   # gap in coverage
   color_after:     "#BDBDBD"   # no longer covered
-  color_no_events: "#EEEEEE"   # never covered
+  color_no_episodes: "#EEEEEE"   # never covered
 
-events:
+episodes:
   - identity: medicaid_coverage
     color:    "#028090"        # active coverage periods
 

@@ -128,10 +128,10 @@ construction, before any data is touched.
 ```python
 raw_df  = pd.read_csv("vignettes/data/nursing_facility_assessments.csv")
 
-sem     = eventus.EventSemantics.build_from_yaml("configs/nursing_facility_semantics.yaml")
-config  = eventus.EventsCleanerConfig.build_from_yaml("configs/nursing_facility_cleaner.yaml")
-cleaner = eventus.EventsCleaner(raw_df, sem, config)
-events  = cleaner.clean()
+sem     = eventus.EpisodeSemantics.build_from_yaml("configs/nursing_facility_semantics.yaml")
+config  = eventus.EpisodesCleanerConfig.build_from_yaml("configs/nursing_facility_cleaner.yaml")
+cleaner = eventus.EpisodesCleaner(raw_df, sem, config)
+episodes  = cleaner.clean()
 cleaner.print_report()
 ```
 
@@ -150,13 +150,13 @@ Clean rows:                                        227   (22.3%)
 ### Step 4 — Inspect the result
 
 ```python
-print(events)
-print(events.data[["resident_id", "facility_id",
+print(episodes)
+print(episodes.data[["resident_id", "facility_id",
                    "systolic_bp", "bmi", "mobility_status"]].head(3))
 ```
 
 ```
-Events(
+Episodes(
   rows             : 227
   unique entities  : 200
   entity_col       : 'resident_id'
@@ -172,7 +172,7 @@ Events(
 ```
 
 Note that NF0043 appears twice — two separate stays at the same
-facility. `also_defined_by` prevents merging across facilities, but
+facility. `also_defined_by` prepisodes merging across facilities, but
 two non-overlapping stays at the same facility are kept as separate
 episodes. Each is correct.
 
@@ -183,7 +183,7 @@ episodes. Each is correct.
 - **Aggregation rules are scientific decisions** — they belong in a
   versioned config file, not buried in a groupby lambda.
 
-- **Type declarations prevent silent errors** — declaring
+- **Type declarations prepisode silent errors** — declaring
   `type: numeric` or `type: category` in semantics lets the cleaner
   validate that the aggregation rule is appropriate before any data
   is touched.
@@ -198,5 +198,5 @@ episodes. Each is correct.
 
 ---
 
-*Chapter 3 — "How long were these stays?" introduces event duration
-analysis. See `vignette_03_event_duration.md`.*
+*Chapter 3 — "How long were these stays?" introduces episode duration
+analysis. See `vignette_03_episode_duration.md`.*

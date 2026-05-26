@@ -67,7 +67,7 @@ must recompute them every time they are needed.
 > | Bad input validation | ✗ | ✓ | No pre-analysis checks vs cleaner as required gate |
 > | Per-row audit trail | ✗ | ✓ | Aggregate counts only vs `cleaner.rejected` |
 > | Specific errors raised | ✗ | ✓ | pandas UserWarning vs raises with actionable message |
-> | Structured result object | ✗ | ✓ | Printout only vs `EventCoverageSummary` |
+> | Structured result object | ✗ | ✓ | Printout only vs `EpisodeCoverageSummary` |
 > | Enriched columns carry forward | ✗ | ✓ | Recompute every time vs `ct_enriched` |
 >
 > **275 lines vs ~20 lines with eventus.** The script produces correct
@@ -86,10 +86,10 @@ must recompute them every time they are needed.
 
 ```python
 raw_df  = pd.read_csv("vignettes/data/simulated_medicaid_coverage.csv")
-sem     = eventus.EventSemantics.build_from_yaml("configs/medicaid_coverage_semantics.yaml")
-config  = eventus.EventsCleanerConfig.build_from_yaml("configs/medicaid_coverage_cleaner.yaml")
-cleaner = eventus.EventsCleaner(raw_df, sem, config)
-events  = cleaner.clean()
+sem     = eventus.EpisodeSemantics.build_from_yaml("configs/medicaid_coverage_semantics.yaml")
+config  = eventus.EpisodesCleanerConfig.build_from_yaml("configs/medicaid_coverage_cleaner.yaml")
+cleaner = eventus.EpisodesCleaner(raw_df, sem, config)
+episodes  = cleaner.clean()
 cleaner.print_report()
 ```
 
@@ -97,7 +97,7 @@ cleaner.print_report()
 
 ```python
 obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
-    entity_ids = events.data["patient_id"].unique(),
+    entity_ids = episodes.data["patient_id"].unique(),
     start      = "2022-01-01",
     end        = "2022-12-31",
     entity_col = "patient_id",
@@ -124,38 +124,38 @@ attribute records how this object was built — part of the audit trail.
 ### Step 3 — Filter and assemble
 
 ```python
-events = eventus.EventsFilter(events).to_obs_period(obs, clip=True).result
+episodes = eventus.EpisodesFilter(episodes).to_obs_period(obs, clip=True).result
 
 ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
-    events     = events,
+    episodes     = episodes,
 )
 ```
 
 ### Step 4 — Enrich with coverage analysis
 
 ```python
-from eventus.analyzers import CohortTimelineEventAnalyzer
+from eventus.analyzers import CohortTimelineEpisodeAnalyzer
 
-analyzer    = CohortTimelineEventAnalyzer(ct, "medicaid_coverage")
-ct_enriched = analyzer.enrich_with_event_coverage()
+analyzer    = CohortTimelineEpisodeAnalyzer(ct, "medicaid_coverage")
+ct_enriched = analyzer.enrich_with_episode_coverage()
 ```
 
-`enrich_with_event_coverage()` adds seven computed columns to the
+`enrich_with_episode_coverage()` adds seven computed columns to the
 `CohortTimeline`. These columns are now part of the object — available
 for sorting, filtering, and visualization without recomputing:
 
 ```
-evt_comp_medicaid_coverage_active_days
-evt_comp_medicaid_coverage_inactive_days
-evt_comp_medicaid_coverage_inactive_days_before_first_event
-evt_comp_medicaid_coverage_inactive_days_after_last_event
-evt_comp_medicaid_coverage_inactive_days_middle
-evt_comp_medicaid_coverage_first_start
-evt_comp_medicaid_coverage_last_end
+eps_comp_medicaid_coverage_active_days
+eps_comp_medicaid_coverage_inactive_days
+eps_comp_medicaid_coverage_inactive_days_before_first_episode
+eps_comp_medicaid_coverage_inactive_days_after_last_episode
+eps_comp_medicaid_coverage_inactive_days_middle
+eps_comp_medicaid_coverage_first_start
+eps_comp_medicaid_coverage_last_end
 ```
 
-The naming convention `evt_comp_` marks these as computed event
+The naming convention `eps_comp_` marks these as computed episode
 columns. The identity `medicaid_coverage` is carried from the
 semantics object through the entire pipeline.
 
@@ -167,7 +167,7 @@ print(summary)
 ```
 
 ```
-EventCoverageSummary:
+EpisodeCoverageSummary:
   identity : medicaid_coverage
   entities : 495
   coverage prevalence  (denominator: all entities)
@@ -239,7 +239,7 @@ filter, same assembly, same enrichment, same summary call.
 ### The summary
 
 ```
-EventCoverageSummary:
+EpisodeCoverageSummary:
   identity : medicaid_coverage
   entities : 500
   coverage prevalence  (denominator: all entities)
@@ -281,12 +281,12 @@ uncovered for about 3.
   period statistics as validated properties.
 
 - **The enriched `CohortTimeline` carries computed columns forward** —
-  `enrich_with_event_coverage()` adds seven `evt_comp_*` columns to
+  `enrich_with_episode_coverage()` adds seven `eps_comp_*` columns to
   the object. They are available for every downstream step without
-  recomputing. The naming convention `evt_comp_{identity}_{stat}` is
-  meaningful — computed event columns, namespaced by identity.
+  recomputing. The naming convention `eps_comp_{identity}_{stat}` is
+  meaningful — computed episode columns, namespaced by identity.
 
-- **`EventCoverageSummary` validates its denominators** — three tiers,
+- **`EpisodeCoverageSummary` validates its denominators** — three tiers,
   each with an explicit denominator. Tier 1 uses the full cohort. Tiers
   2 and 3 use only members with any coverage. These cannot be
   accidentally mixed.
@@ -315,7 +315,7 @@ uncovered for about 3.
   eventus raises at construction with a specific, actionable message
   before any data is touched. "Silent wrong output that propagates
   into downstream analyses" is the failure mode the script-based
-  paradigm cannot prevent.
+  paradigm cannot prepisode.
 
 - **A disclaimer on the 275-line script.** It is not meant to be
   optimized — it is meant to be honest. A more experienced pandas

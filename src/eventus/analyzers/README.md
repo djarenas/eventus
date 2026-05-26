@@ -14,16 +14,17 @@ have been caught earlier.
 ## The analyzer family
 
 ```
-CohortTimelineEventAnalyzer      — event coverage analytics
-CohortTimelineOccurrenceAnalyzer — occurrence analytics
-EventDurationAnalyzer            — event duration analytics
+CohortTimelineEpisodeAnalyzer      — episode coverage analytics
+CohortTimelineEventAnalyzer        — event analytics
+EpisodeDurationAnalyzer            — episode duration analytics
+EventEpisodeAnalyzer               — event-episode temporal relationships
 ```
 
 Each analyzer takes one or two validated inputs, computes quantities,
 and produces one typed intermediate. The chain is always:
 
 ```
-Validated input (CohortTimeline / Events)
+Validated input (CohortTimeline / Episodes)
     ↓
 Analyzer
     ↓
@@ -43,21 +44,21 @@ result object carrying the computed data, ready for visualization or
 further analysis. The `CohortTimeline` is not modified.
 
 ```python
-volume  = analyzer.compute_volume()   # → OccurrenceResultVolume
-timing  = analyzer.compute_timing(3)  # → OccurrenceResultTiming
-shape   = analyzer.compute_shape()    # → OccurrenceResultShape
+volume  = analyzer.compute_volume()   # → EventResultVolume
+timing  = analyzer.compute_timing(3)  # → EventResultTiming
+shape   = analyzer.compute_shape()    # → EventResultShape
 ```
 
 **`enrich_with_*` methods** return a new `CohortTimeline` with
-computed columns attached as `occ_comp_{identity}_{stat}` columns.
+computed columns attached as `evt_comp_{identity}_{stat}` columns.
 Use these when you want the computed stats baked into the central
 table — for example, to sort entities in `StackedTimelinePlotter` by
 a computed metric, or to pass enriched data to further analyses.
 
 ```python
-ct = analyzer.enrich_with_volume()    # → CohortTimeline with occ_comp_{identity}_n
-ct = analyzer.enrich_with_timing(3)   # → CohortTimeline with occ_comp_{identity}_time_to_*
-ct = analyzer.enrich_with_shape()     # → CohortTimeline with occ_comp_{identity}_mean_gap, ...
+ct = analyzer.enrich_with_volume()    # → CohortTimeline with evt_comp_{identity}_n
+ct = analyzer.enrich_with_timing(3)   # → CohortTimeline with evt_comp_{identity}_time_to_*
+ct = analyzer.enrich_with_shape()     # → CohortTimeline with evt_comp_{identity}_mean_gap, ...
 ```
 
 The original `CohortTimeline` is never mutated. Both patterns produce
@@ -65,49 +66,49 @@ new objects.
 
 ---
 
-## `CohortTimelineEventAnalyzer`
+## `CohortTimelineEpisodeAnalyzer`
 
-Computes event coverage analytics for one event identity within a
+Computes episode coverage analytics for one episode identity within a
 `CohortTimeline`.
 
 ```python
-from eventus.analyzers import CohortTimelineEventAnalyzer
+from eventus.analyzers import CohortTimelineEpisodeAnalyzer
 
-analyzer = CohortTimelineEventAnalyzer(cohort_timeline, identity="inpatient_hospitalization")
+analyzer = CohortTimelineEpisodeAnalyzer(cohort_timeline, identity="inpatient_hospitalization")
 ```
 
 **Raises at construction if:**
 - `cohort_timeline` has no observation period
-- `identity` is not in `cohort_timeline.event_identities`
+- `identity` is not in `cohort_timeline.episode_identities`
 
 ### Methods
 
-**`enrich_with_event_coverage()`** → `CohortTimeline`
+**`enrich_with_episode_coverage()`** → `CohortTimeline`
 
-Enriches with `evt_comp_{identity}_*` coverage columns. Always
+Enriches with `eps_comp_{identity}_*` coverage columns. Always
 overwrites existing columns. Returns a new `CohortTimeline`.
 
 ```python
-ct = analyzer.enrich_with_event_coverage()
+ct = analyzer.enrich_with_episode_coverage()
 ```
 
 Coverage columns added:
 
 | Column | Description |
 |---|---|
-| `evt_comp_{identity}_active_days` | Days covered by events within obs period |
-| `evt_comp_{identity}_inactive_days` | Days not covered |
-| `evt_comp_{identity}_inactive_days_before_first_event` | Gap before first event |
-| `evt_comp_{identity}_inactive_days_after_last_event` | Gap after last event |
-| `evt_comp_{identity}_inactive_days_middle` | Sum of gaps between events |
-| `evt_comp_{identity}_first_start` | Date of first event start |
-| `evt_comp_{identity}_last_end` | Date of last event end |
+| `eps_comp_{identity}_active_days` | Days covered by episodes within obs period |
+| `eps_comp_{identity}_inactive_days` | Days not covered |
+| `eps_comp_{identity}_inactive_days_before_first_episode` | Gap before first episode |
+| `eps_comp_{identity}_inactive_days_after_last_episode` | Gap after last episode |
+| `eps_comp_{identity}_inactive_days_middle` | Sum of gaps between episodes |
+| `eps_comp_{identity}_first_start` | Date of first episode start |
+| `eps_comp_{identity}_last_end` | Date of last episode end |
 
-**`compute_activity_over_time(granularity, mode)`** → `EventActivityOverTime`
+**`compute_activity_over_time(granularity, mode)`** → `EpisodeActivityOverTime`
 
 Per-timepoint activity statistics. Auto-enriches with coverage columns
 internally if not already present — the caller does not need to call
-`enrich_with_event_coverage()` first.
+`enrich_with_episode_coverage()` first.
 
 ```python
 activity = analyzer.compute_activity_over_time(
@@ -120,7 +121,7 @@ activity = analyzer.compute_activity_over_time(
 `calendar` — day 0 is the shared cohort `obs_start`. Raises if
 `obs_start` is not uniform across entities.
 
-**`get_summary(percentiles)`** → `EventCoverageSummary`
+**`get_summary(percentiles)`** → `EpisodeCoverageSummary`
 
 Tiered coverage summary. Auto-enriches internally if needed.
 
@@ -141,14 +142,14 @@ denominator:
 ### Full example
 
 ```python
-from eventus.analyzers import CohortTimelineEventAnalyzer
+from eventus.analyzers import CohortTimelineEpisodeAnalyzer
 from eventus.visualizers import ActivityOverTimePlotter
 from eventus.visualizers.configs import ActivityOverTimeConfig
 
-analyzer = CohortTimelineEventAnalyzer(ct, "inpatient_hospitalization")
+analyzer = CohortTimelineEpisodeAnalyzer(ct, "inpatient_hospitalization")
 
 # Enrich timeline for stacked plotter
-ct_enriched = analyzer.enrich_with_event_coverage()
+ct_enriched = analyzer.enrich_with_episode_coverage()
 
 # Compute timeseries for activity plot
 activity = analyzer.compute_activity_over_time(granularity="month", mode="calendar")
@@ -161,55 +162,55 @@ print(analyzer.get_summary())
 
 ---
 
-## `CohortTimelineOccurrenceAnalyzer`
+## `CohortTimelineEventAnalyzer`
 
-Computes occurrence statistics for one occurrence identity within a
+Computes event statistics for one event identity within a
 `CohortTimeline`.
 
 ```python
-from eventus.analyzers import CohortTimelineOccurrenceAnalyzer
+from eventus.analyzers import CohortTimelineEventAnalyzer
 
-analyzer = CohortTimelineOccurrenceAnalyzer(cohort_timeline, identity="ed_visit")
+analyzer = CohortTimelineEventAnalyzer(cohort_timeline, identity="ed_visit")
 ```
 
 **Raises at construction if:**
 - `cohort_timeline` has no observation period
-- `identity` is not in `cohort_timeline.occurrence_identities`
+- `identity` is not in `cohort_timeline.event_identities`
 
 ### `compute_*` methods — typed result objects
 
-**`compute_volume()`** → `OccurrenceResultVolume`
+**`compute_volume()`** → `EventResultVolume`
 
-Per-entity occurrence counts within the observation period. Zero is valid.
+Per-entity event counts within the observation period. Zero is valid.
 
 ```python
 volume = analyzer.compute_volume()
 print(volume)
-# → OccurrenceResultVolume with n_with_any, n_with_multiple
+# → EventResultVolume with n_with_any, n_with_multiple
 ```
 
-**`compute_timing(max_n)`** → `OccurrenceResultTiming`
+**`compute_timing(max_n)`** → `EventResultTiming`
 
-Per-entity timing of the nth occurrence relative to `obs_start`, up to
-`max_n`. NaN where the entity has fewer than nth occurrences.
+Per-entity timing of the nth event relative to `obs_start`, up to
+`max_n`. NaN where the entity has fewer than nth events.
 
 ```python
 timing = analyzer.compute_timing(max_n=3)
-# → OccurrenceResultTiming with time_to_1, time_to_2, time_to_3, recency_days
+# → EventResultTiming with time_to_1, time_to_2, time_to_3, recency_days
 ```
 
-**`compute_shape()`** → `OccurrenceResultShape`
+**`compute_shape()`** → `EventResultShape`
 
 Per-entity behavioral fingerprint — gap statistics, burstiness, memory,
-density, center of mass. NaN where the minimum occurrence threshold is
+density, center of mass. NaN where the minimum event threshold is
 not met.
 
 ```python
 shape = analyzer.compute_shape()
-# → OccurrenceResultShape with mean_gap, burstiness, memory, density, ...
+# → EventResultShape with mean_gap, burstiness, memory, density, ...
 ```
 
-Minimum occurrence thresholds:
+Minimum event thresholds:
 
 | Stat | Minimum n |
 |---|---|
@@ -220,68 +221,68 @@ Minimum occurrence thresholds:
 
 **`compute_survival(ci_method)`** → `SurvivalResult`
 
-Kaplan-Meier survival curve for time to first occurrence. Entities with
-no occurrence are right-censored at their `obs_duration_days`. Excluding
+Kaplan-Meier survival curve for time to first event. Entities with
+no event are right-censored at their `obs_duration_days`. Excluding
 them would silently bias the curve.
 
 ```python
 survival = analyzer.compute_survival(ci_method="greenwood")
 print(f"Median survival: {survival.median_survival} days")
-print(f"Event rate: {survival.event_rate_pct}%")
+print(f"Episode rate: {survival.episode_rate_pct}%")
 ```
 
 ### `enrich_with_*` methods — enriched CohortTimeline
 
 **`enrich_with_volume()`** → `CohortTimeline`
 
-Adds `occ_comp_{identity}_n` column.
+Adds `evt_comp_{identity}_n` column.
 
 **`enrich_with_timing(max_n)`** → `CohortTimeline`
 
-Adds `occ_comp_{identity}_time_to_1` ... `occ_comp_{identity}_time_to_{max_n}`
-and `occ_comp_{identity}_recency_days`.
+Adds `evt_comp_{identity}_time_to_1` ... `evt_comp_{identity}_time_to_{max_n}`
+and `evt_comp_{identity}_recency_days`.
 
 **`enrich_with_shape()`** → `CohortTimeline`
 
-Adds `occ_comp_{identity}_mean_gap`, `std_gap`, `cv_gap`, `min_gap`,
+Adds `evt_comp_{identity}_mean_gap`, `std_gap`, `cv_gap`, `min_gap`,
 `max_gap`, `burstiness`, `memory`, `density`, `center_of_mass`.
 
 ### Full example
 
 ```python
-from eventus.analyzers import CohortTimelineOccurrenceAnalyzer
-from eventus.visualizers.occurrences import (
-    OccurrenceResultVolumePlotter,
-    OccurrenceResultTimingPlotter,
-    OccurrenceResultShapePlotter,
+from eventus.analyzers import CohortTimelineEventAnalyzer
+from eventus.visualizers.events import (
+    EventResultVolumePlotter,
+    EventResultTimingPlotter,
+    EventResultShapePlotter,
 )
 from eventus.visualizers.configs import (
-    OccurrenceResultVolumeConfig,
-    OccurrenceResultTimingConfig,
-    OccurrenceResultShapeConfig,
+    EventResultVolumeConfig,
+    EventResultTimingConfig,
+    EventResultShapeConfig,
 )
 
-analyzer = CohortTimelineOccurrenceAnalyzer(ct, "ed_visit")
+analyzer = CohortTimelineEventAnalyzer(ct, "ed_visit")
 
 # Volume
 volume = analyzer.compute_volume()
-OccurrenceResultVolumePlotter(
+EventResultVolumePlotter(
     volume,
-    OccurrenceResultVolumeConfig.build_from_yaml("volume.yaml"),
+    EventResultVolumeConfig.build_from_yaml("volume.yaml"),
 ).plot_prevalence_bar("prevalence.png")
 
 # Timing
 timing = analyzer.compute_timing(max_n=3)
-OccurrenceResultTimingPlotter(
+EventResultTimingPlotter(
     timing,
-    OccurrenceResultTimingConfig.build_from_yaml("timing.yaml"),
+    EventResultTimingConfig.build_from_yaml("timing.yaml"),
 ).plot_histogram("timing.png")
 
 # Shape
 shape = analyzer.compute_shape()
-OccurrenceResultShapePlotter(
+EventResultShapePlotter(
     shape,
-    OccurrenceResultShapeConfig.build_from_yaml("shape.yaml"),
+    EventResultShapeConfig.build_from_yaml("shape.yaml"),
 ).plot_fingerprint("fingerprint.png")
 
 # Survival
@@ -290,54 +291,54 @@ print(survival)
 
 # Enrich timeline for stacked plotter
 ct = analyzer.enrich_with_volume()
-ct = CohortTimelineOccurrenceAnalyzer(ct, "ed_visit").enrich_with_timing(3)
+ct = CohortTimelineEventAnalyzer(ct, "ed_visit").enrich_with_timing(3)
 ```
 
 ---
 
-## `EventDurationAnalyzer`
+## `EpisodeDurationAnalyzer`
 
-Computes event durations from a validated `Events` object. Works
-directly on `Events` — does not require a `CohortTimeline`.
+Computes episode durations from a validated `Episodes` object. Works
+directly on `Episodes` — does not require a `CohortTimeline`.
 
 ```python
-from eventus.analyzers import EventDurationAnalyzer
+from eventus.analyzers import EpisodeDurationAnalyzer
 
-analyzer = EventDurationAnalyzer(events)
-result   = analyzer.calc()   # → EventDurationResult
+analyzer = EpisodeDurationAnalyzer(episodes)
+result   = analyzer.calc()   # → EpisodeDurationResult
 ```
 
 ### `descriptor_cols`
 
-Optional columns from `Events.data` to carry through to the result.
+Optional columns from `Episodes.data` to carry through to the result.
 These become available for stratification at the visualizer level.
-Nulls in descriptor columns are allowed — they are per-event attributes
+Nulls in descriptor columns are allowed — they are per-episode attributes
 that may not be present for every row.
 
 ```python
 # Lean — duration_days only
-analyzer = EventDurationAnalyzer(events)
+analyzer = EpisodeDurationAnalyzer(episodes)
 
 # Explicit descriptor columns
-analyzer = EventDurationAnalyzer(
-    events,
+analyzer = EpisodeDurationAnalyzer(
+    episodes,
     descriptor_cols = ["hospital_id", "bmi_at_admission"],
 )
 
 # Carry everything
-analyzer = EventDurationAnalyzer(events, descriptor_cols="all")
+analyzer = EpisodeDurationAnalyzer(episodes, descriptor_cols="all")
 ```
 
-### `calc()` → `EventDurationResult`
+### `calc()` → `EpisodeDurationResult`
 
-Returns an `EventDurationResult` — one row per event with `duration_days`
-and any descriptor columns. Zero-duration events (same-day start and
+Returns an `EpisodeDurationResult` — one row per episode with `duration_days`
+and any descriptor columns. Zero-duration episodes (same-day start and
 end) are valid and are not filtered.
 
 ```python
 result = analyzer.calc()
 print(result)
-# → EventDurationResult with n_events, n_entities, mean/median duration
+# → EpisodeDurationResult with n_episodes, n_entities, mean/median duration
 
 # Build arrays for violin plotting
 arrays = result.build_arrays()
@@ -351,28 +352,112 @@ arrays = result.build_arrays(stratify_by="hospital_id")
 ### Full example
 
 ```python
-from eventus.analyzers import EventDurationAnalyzer
-from eventus.visualizers import EventDurationHistogramPlotter
-from eventus.visualizers.violins import EventDurationViolinPlotter
-from eventus.visualizers.configs import EventDurationPlotConfig, ArraysViolinConfig
+from eventus.analyzers import EpisodeDurationAnalyzer
+from eventus.visualizers import EpisodeDurationHistogramPlotter
+from eventus.visualizers.violins import EpisodeDurationViolinPlotter
+from eventus.visualizers.configs import EpisodeDurationPlotConfig, ArraysViolinConfig
 
 # With descriptors for stratification
-result = EventDurationAnalyzer(
-    events,
+result = EpisodeDurationAnalyzer(
+    episodes,
     descriptor_cols = ["hospital_id"],
 ).calc()
 
 # Histogram and KDE
-hist_config = EventDurationPlotConfig.build_from_yaml("duration.yaml")
-plotter     = EventDurationHistogramPlotter(result, hist_config)
+hist_config = EpisodeDurationPlotConfig.build_from_yaml("duration.yaml")
+plotter     = EpisodeDurationHistogramPlotter(result, hist_config)
 plotter.plot_histogram("duration_histogram.png")
 plotter.plot_kde("duration_kde.png")
 
 # Violin stratified by hospital
 violin_config = ArraysViolinConfig.build_from_yaml("duration_violin.yaml")
-EventDurationViolinPlotter(
+EpisodeDurationViolinPlotter(
     result, violin_config, stratify_by="hospital_id"
 ).plot("durations_by_hospital.png")
+```
+
+---
+
+## `EventEpisodeAnalyzer`
+
+Computes per-entity temporal relationship statistics between one event
+identity and one episode identity within a `CohortTimeline`. Works on
+both streams simultaneously — no configuration required. There are no
+thresholds or windows to declare; the computation is nearest-neighbor
+gaps within the observation period.
+
+```python
+from eventus.analyzers import EventEpisodeAnalyzer
+
+analyzer = EventEpisodeAnalyzer(
+    cohort_timeline  = ct,
+    event_identity   = "ed_visit",
+    episode_identity = "inpatient_hospitalization",
+)
+```
+
+**Raises at construction if:**
+- `cohort_timeline` has no observation period
+- `event_identity` is not in `cohort_timeline.event_identities`
+- `episode_identity` is not in `cohort_timeline.episode_identities`
+
+### `compute()` → `EventEpisodeResult`
+
+Returns an `EventEpisodeResult` — one row per entity with within counts
+and nearest-neighbor gap statistics in both directions.
+
+```python
+result = analyzer.compute()
+print(result)
+```
+
+**Statistics computed per entity:**
+
+| Column | Description |
+|---|---|
+| `n_evt_total` | Total events within obs period |
+| `n_episodes_total` | Total episodes within obs period |
+| `n_evt_within` | Events that fell inside any episode interval |
+| `pct_evt_within` | `n_evt_within / n_evt_total`. NaN if no events |
+| `mean_days_evt_to_episode` | Mean gap: event → nearest episode start after it |
+| `median_days_evt_to_episode` | Median gap: event → nearest episode start after it |
+| `std_days_evt_to_episode` | Std gap (NaN if < 2 qualifying pairs) |
+| `mean_days_episode_to_occ` | Mean gap: episode discharge → nearest event after it |
+| `median_days_episode_to_occ` | Median gap: episode discharge → nearest event after it |
+| `std_days_episode_to_occ` | Std gap (NaN if < 2 qualifying pairs) |
+
+**NaN semantics**
+
+NaN in gap statistics is scientifically meaningful — absent signal, not
+missing data. NaN may mean: entity had no events, entity had no episodes,
+entity had both but no qualifying temporal pairs in the observation period,
+or entity had only one qualifying pair (std only). All are valid outcomes.
+
+### Full example
+
+```python
+from eventus.analyzers import EventEpisodeAnalyzer
+from eventus.visualizers.violins import ArraysViolinPlotter
+from eventus.visualizers.configs import ArraysViolinConfig
+
+analyzer = EventEpisodeAnalyzer(ct, "ed_visit", "inpatient_hospitalization")
+result   = analyzer.compute()
+
+print(result)
+# EventEpisodeResult:
+#   identity_occ     : ed_visit
+#   identity_episode : inpatient_hospitalization
+#   entities         : 800
+#   n_with_both      : 436 (54.5%)
+#   ...
+
+# Visualize gap distributions as violin plots
+config  = ArraysViolinConfig.build_from_yaml("coevent_violin.yaml")
+arrays  = {
+    "evt → episode": result.data["median_days_evt_to_episode"].dropna().values,
+    "episode → evt": result.data["median_days_episode_to_occ"].dropna().values,
+}
+ArraysViolinPlotter(arrays, config).plot("coevent_gaps.png")
 ```
 
 ---
@@ -384,16 +469,16 @@ are internal and not part of the public API.
 
 | File | Contains |
 |---|---|
-| `cohort_timeline_event_analyzer_utils.py` | Coverage computation, activity timeseries, summary tiers |
-| `cohort_timeline_occurrence_analyzer_utils.py` | Guards, per-entity stat helpers, cohort summary |
-| `occurrence_primitives_utils.py` | `parse_dates()`, `compute_gaps()` — shared across all occurrence computation |
-| `occurrence_stats_utils.py` | `compute_volume_stats()`, `compute_timing_stats()`, `compute_shape_stats()` |
-| `events_duration_utils.py` | `compute_durations()` |
+| `cohort_timeline_episode_analyzer_utils.py` | Coverage computation, activity timeseries, summary tiers |
+| `event_primitives_utils.py` | `parse_dates()`, `compute_gaps()` — shared across all event computation |
+| `event_stats_utils.py` | `compute_volume_stats()`, `compute_timing_stats()`, `compute_shape_stats()` |
+| `event_episode_analyzer_utils.py` | Per-entity event-episode gap computation, within proportion |
+| `episodes_duration_utils.py` | `compute_durations()` |
 
-`occurrence_primitives_utils.py` deserves special mention. `parse_dates()`
-parses pipe-delimited occurrence date strings into sorted lists of
+`event_primitives_utils.py` deserves special mention. `parse_dates()`
+parses pipe-delimited event date strings into sorted lists of
 timestamps filtered to the observation window. `compute_gaps()` computes
-consecutive inter-occurrence gap lengths. Every occurrence stat —
+consecutive inter-event gap lengths. Every event stat —
 volume, timing, shape — builds on these two primitives.
 
 ---
@@ -405,7 +490,7 @@ structurally sound. The analyzer trusts it and computes. Cleaning is
 the responsibility of the cleaners and filters upstream.
 
 **Analyzers do not mutate.** Every method returns a new object. The
-input `CohortTimeline` or `Events` is never changed.
+input `CohortTimeline` or `Episodes` is never changed.
 
 **`compute_*` vs `enrich_with_*`** is a deliberate design choice, not
 a duplication. `compute_*` is for analysis and visualization —
@@ -413,16 +498,16 @@ the result travels to a plotter. `enrich_with_*` is for pipeline
 composition — the result bakes into the `CohortTimeline` for further
 enrichment or display in the stacked timeline.
 
-**Lazy enrichment in `CohortTimelineEventAnalyzer`.** `compute_activity_over_time()`
+**Lazy enrichment in `CohortTimelineEpisodeAnalyzer`.** `compute_activity_over_time()`
 and `get_summary()` call `_ensure_coverage()` internally. If coverage
 columns are not yet present they are computed on the fly. This means
-the caller does not need to manually call `enrich_with_event_coverage()`
+the caller does not need to manually call `enrich_with_episode_coverage()`
 before calling these methods — the analyzer handles it. Calling
-`enrich_with_event_coverage()` explicitly is still useful when you want
+`enrich_with_episode_coverage()` explicitly is still useful when you want
 the enriched `CohortTimeline` for downstream use.
 
-**`EventDurationAnalyzer` works on `Events`, not `CohortTimeline`.**
-Duration is a property of an event, not of an entity's observation
+**`EpisodeDurationAnalyzer` works on `Episodes`, not `CohortTimeline`.**
+Duration is a property of an episode, not of an entity's observation
 period. It does not require an obs period to be meaningful. This is
-why it operates at the `Events` level rather than the `CohortTimeline`
+why it operates at the `Episodes` level rather than the `CohortTimeline`
 level.

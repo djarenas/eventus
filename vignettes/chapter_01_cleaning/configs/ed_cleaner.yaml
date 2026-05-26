@@ -1,7 +1,7 @@
 # ed_cleaner.yaml
-# OccurrencesCleanerConfig for ED visit data.
+# EventsCleanerConfig for ED visit data.
 # Used in Chapter 1 Bonus A.
-# No consolidation — demonstrates basic occurrence cleaning only.
+# No consolidation — demonstrates basic event cleaning only.
 # See ed_cleaner_with_consolidation.yaml for Chapter 6.
 
 normalize_dates:     true

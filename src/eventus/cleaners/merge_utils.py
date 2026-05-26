@@ -1,13 +1,13 @@
 """
 merge_utils.py
-Utility functions for merging overlapping or adjacent event intervals.
+Utility functions for merging overlapping or adjacent episode intervals.
 """
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
-from eventus.semantics.event_semantics import EventSemantics
+from eventus.semantics.episode_semantics import EpisodeSemantics
 from eventus.cleaners.merge_config import MergeConfig
 
 
@@ -51,13 +51,13 @@ def _aggregate_col(
     values:        list[str],
     col:           str,
     merge_cfg:     MergeConfig,
-    semantics:     EventSemantics,
+    semantics:     EpisodeSemantics,
 ) -> str | float | None:
     """
     Aggregate values for one descriptor column.
 
     Uses the aggregation rule from MergeConfig and the type from
-    EventSemantics.descriptor_cols.
+    EpisodeSemantics.descriptor_cols.
     Falls back to sequence for columns not declared in MergeConfig.
     """
     rule = merge_cfg.descriptor_cols.get(col)
@@ -89,7 +89,7 @@ def _build_merged_row(
     start_col:      str,
     end_col:        str,
     merge_cfg:      MergeConfig,
-    semantics:      EventSemantics,
+    semantics:      EpisodeSemantics,
     agg_cols:       list[str],
 ) -> dict:
     """Build one merged row dict from collected values."""
@@ -102,18 +102,18 @@ def _build_merged_row(
 
 # ── Main merge function ───────────────────────────────────────────────────────
 
-def merge_overlapping_events(
-    events_df: pd.DataFrame,
-    semantics: EventSemantics,
+def merge_overlapping_episodes(
+    episodes_df: pd.DataFrame,
+    semantics: EpisodeSemantics,
     merge_cfg: MergeConfig,
 ) -> pd.DataFrame:
     """
-    Merge overlapping or adjacent events per entity into non-overlapping
+    Merge overlapping or adjacent episodes per entity into non-overlapping
     intervals.
 
     Two intervals are eligible for merging only if:
       - They belong to the same entity, AND
-      - All EventSemantics.also_defined_by columns have the same value, AND
+      - All EpisodeSemantics.also_defined_by columns have the same value, AND
       - The gap between them is <= merge_cfg.meaningful_gap_days
 
     Descriptor columns declared in merge_cfg.descriptor_cols are
@@ -122,9 +122,9 @@ def merge_overlapping_events(
 
     Parameters
     ----------
-    events_df : pd.DataFrame
-        Valid events — no nulls in core columns.
-    semantics : EventSemantics
+    episodes_df : pd.DataFrame
+        Valid episodes — no nulls in core columns.
+    semantics : EpisodeSemantics
         Declares column names, also_defined_by, and descriptor_cols.
     merge_cfg : MergeConfig
         Gap threshold and descriptor aggregation rules.
@@ -132,7 +132,7 @@ def merge_overlapping_events(
     Returns
     -------
     pd.DataFrame
-        Non-overlapping events, limited to semantics-declared columns.
+        Non-overlapping episodes, limited to semantics-declared columns.
     """
     entity_col      = semantics.entity_id_col
     start_col       = semantics.start_time_col
@@ -142,17 +142,17 @@ def merge_overlapping_events(
     # Columns to aggregate — descriptor_cols only
     descriptor_keys = list(semantics.descriptor_cols.keys()) \
         if semantics.descriptor_cols else []
-    agg_cols = [col for col in descriptor_keys if col in events_df.columns]
+    agg_cols = [col for col in descriptor_keys if col in episodes_df.columns]
 
     # Group by entity + also_defined_by
     group_cols = [entity_col] + [
-        col for col in also_defined_by if col in events_df.columns
+        col for col in also_defined_by if col in episodes_df.columns
     ]
 
     keep_cols = list(dict.fromkeys(
         [entity_col, start_col, end_col] + also_defined_by + agg_cols
     ))
-    df = events_df[[c for c in keep_cols if c in events_df.columns]].copy()
+    df = episodes_df[[c for c in keep_cols if c in episodes_df.columns]].copy()
 
     gap_threshold = pd.Timedelta(days=merge_cfg.meaningful_gap_days)
     merged_rows   = []

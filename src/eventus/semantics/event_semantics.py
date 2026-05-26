@@ -1,23 +1,23 @@
 """
 event_semantics.py
 EventSemantics — maps generic concepts to specific column names
-in event (interval) data.
+in event (point-in-time) data.
 """
 from __future__ import annotations
 
 import re
 import yaml
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from eventus.semantics.descriptor_col_config import DescriptorColConfig
 
 _ERROR_PREFIX = "[EventSemantics] Error"
 
-REQUIRED_FIELDS = {"entity_id_col", "start_time_col", "end_time_col"}
+REQUIRED_FIELDS = {"entity_id_col", "date_col"}
 OPTIONAL_FIELDS = {
     "identity", "also_defined_by", "descriptor_cols",
-    "event_id_col", "event_type_col",
+    "event_id_col",
 }
 ALL_FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 
@@ -35,65 +35,56 @@ class EventSemantics:
     Parameters
     ----------
     identity : str | None
-        What kind of events these are. Letters, numbers, and underscores
-        only. Flows into intermediate column names and plot titles.
-        e.g. 'inpatient_hospitalization', 'medicaid_coverage'.
+        What kind of events these are. Letters, numbers, and
+        underscores only. Flows into intermediate column names and
+        plot titles. e.g. 'ed_visit', 'hepatitis_b_vaccination'.
 
     entity_id_col : str
         Column identifying the entity (patient, member, etc.).
 
-    start_time_col : str
-        Column for event start date.
-
-    end_time_col : str
-        Column for event end date.
+    date_col : str
+        Column for the event date.
 
     also_defined_by : list[str] | None
-        Columns that are part of the event's identity — two intervals
-        can only be merged if all also_defined_by columns match.
-        e.g. ["hospital_id"] means a hospitalization IS defined by
-        its hospital — stays at different hospitals are never merged
-        even if they overlap in time.
+        Columns that are part of the event's identity — two
+        events on the same date can only be deduplicated if all
+        also_defined_by columns match.
+        e.g. ["hospital_id"] means an ED visit IS defined by its
+        hospital — visits at different hospitals on the same date
+        are never deduplicated even if they share entity and date.
 
     descriptor_cols : dict[str, DescriptorColConfig] | None
         Columns that describe the event but are not part of its
-        identity. Aggregated during merging according to rules
-        declared in EventsCleanerConfig.merge.
-        e.g. {"icd10_condition": DescriptorColConfig(type="category")}
+        identity. Available for downstream analysis and stratification.
+        e.g. {"triage_level": DescriptorColConfig(type="category")}
 
     event_id_col : str | None
         Optional column for a unique event identifier.
 
-    event_type_col : str | None
-        Optional column for event type or category.
-
     Examples
     --------
     >>> sem = EventSemantics(
-    ...     identity        = "inpatient_hospitalization",
-    ...     entity_id_col   = "patient_id",
-    ...     start_time_col  = "admit_date",
-    ...     end_time_col    = "discharge_date",
-    ...     also_defined_by = ["hospital_id"],
-    ...     descriptor_cols = {
-    ...         "icd10_condition": DescriptorColConfig(type="category"),
-    ...         "bmi_at_admission": DescriptorColConfig(type="numeric"),
+    ...     identity          = "ed_visit",
+    ...     entity_id_col     = "patient_id",
+    ...     date_col          = "ed_visit_date",
+    ...     also_defined_by   = ["hospital_id"],
+    ...     descriptor_cols   = {
+    ...         "triage_level":   DescriptorColConfig(type="category"),
+    ...         "wait_time_mins": DescriptorColConfig(type="numeric"),
     ...     },
     ... )
     """
 
-    identity:        str | None                          = None
-    entity_id_col:   str                                 = ""
-    start_time_col:  str                                 = ""
-    end_time_col:    str                                 = ""
-    also_defined_by: list[str] | None                    = None
-    descriptor_cols: dict[str, DescriptorColConfig] | None = None
-    event_id_col:    str | None                          = None
-    event_type_col:  str | None                          = None
+    identity:          str | None                          = None
+    entity_id_col:     str                                 = ""
+    date_col:          str                                 = ""
+    also_defined_by:   list[str] | None                    = None
+    descriptor_cols:   dict[str, DescriptorColConfig] | None = None
+    event_id_col: str | None                          = None
 
     def __post_init__(self) -> None:
         # Validate required string fields
-        for attr in ("entity_id_col", "start_time_col", "end_time_col"):
+        for attr in ("entity_id_col", "date_col"):
             val = getattr(self, attr)
             if not isinstance(val, str) or not val.strip():
                 raise ValueError(
@@ -107,7 +98,7 @@ class EventSemantics:
                 raise ValueError(
                     f"{_ERROR_PREFIX}: identity {self.identity!r} contains "
                     f"invalid characters. Use only letters, numbers, and "
-                    f"underscores e.g. 'inpatient_hospitalization'"
+                    f"underscores e.g. 'ed_visit'"
                 )
 
         # Validate also_defined_by
@@ -162,16 +153,15 @@ class EventSemantics:
 
         Example YAML
         ------------
-        identity:        inpatient_hospitalization
+        identity:        ed_visit
         entity_id_col:   patient_id
-        start_time_col:  admit_date
-        end_time_col:    discharge_date
+        date_col:        ed_visit_date
         also_defined_by:
           - hospital_id
         descriptor_cols:
-          icd10_condition:
+          triage_level:
             type: category
-          bmi_at_admission:
+          wait_time_mins:
             type: numeric
         """
         with open(path, "r") as f:
@@ -198,23 +188,20 @@ class EventSemantics:
             )
 
         # Parse descriptor_cols
-        descriptor_cols = None
         if "descriptor_cols" in cfg and cfg["descriptor_cols"]:
-            descriptor_cols = {
+            cfg["descriptor_cols"] = {
                 col: DescriptorColConfig.from_dict(dcfg)
                 for col, dcfg in cfg["descriptor_cols"].items()
             }
-            cfg["descriptor_cols"] = descriptor_cols
 
         return cls(**cfg)
 
     def to_yaml(self, path) -> None:
         """Save this semantics to a YAML file."""
         out: dict[str, Any] = {
-            "identity":       self.identity,
-            "entity_id_col":  self.entity_id_col,
-            "start_time_col": self.start_time_col,
-            "end_time_col":   self.end_time_col,
+            "identity":     self.identity,
+            "entity_id_col": self.entity_id_col,
+            "date_col":     self.date_col,
         }
         if self.also_defined_by:
             out["also_defined_by"] = self.also_defined_by
@@ -225,8 +212,6 @@ class EventSemantics:
             }
         if self.event_id_col:
             out["event_id_col"] = self.event_id_col
-        if self.event_type_col:
-            out["event_type_col"] = self.event_type_col
 
         with open(path, "w") as f:
             yaml.dump(out, f, sort_keys=False, default_flow_style=False)
@@ -236,11 +221,10 @@ class EventSemantics:
         desc = list(self.descriptor_cols.keys()) if self.descriptor_cols else []
         return (
             f"EventSemantics(\n"
-            f"  identity        : {self.identity!r}\n"
-            f"  entity_id_col   : '{self.entity_id_col}'\n"
-            f"  start_time_col  : '{self.start_time_col}'\n"
-            f"  end_time_col    : '{self.end_time_col}'\n"
-            f"  also_defined_by : {also}\n"
-            f"  descriptor_cols : {desc}\n"
+            f"  identity          : {self.identity!r}\n"
+            f"  entity_id_col     : '{self.entity_id_col}'\n"
+            f"  date_col          : '{self.date_col}'\n"
+            f"  also_defined_by   : {also}\n"
+            f"  descriptor_cols   : {desc}\n"
             f")"
         )

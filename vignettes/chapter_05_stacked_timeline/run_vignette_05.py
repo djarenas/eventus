@@ -26,9 +26,9 @@ CH04    = HERE.parent / "chapter_04_observation_periods" / "configs"
 demog_df = pd.read_csv(HERE.parent / "data" / "simulated_member_demographics.csv")
 raw_df   = pd.read_csv(HERE.parent / "data" / "simulated_medicaid_coverage_agewindow.csv")
 
-sem     = eventus.EventSemantics.build_from_yaml(CH04 / "medicaid_coverage_semantics.yaml")
-config  = eventus.EventsCleanerConfig.build_from_yaml(CH04 / "medicaid_coverage_cleaner.yaml")
-events  = eventus.EventsCleaner(raw_df, sem, config).clean()
+sem     = eventus.EpisodeSemantics.build_from_yaml(CH04 / "medicaid_coverage_semantics.yaml")
+config  = eventus.EpisodesCleanerConfig.build_from_yaml(CH04 / "medicaid_coverage_cleaner.yaml")
+episodes  = eventus.EpisodesCleaner(raw_df, sem, config).clean()
 
 obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
     entity_df  = demog_df,
@@ -39,11 +39,11 @@ obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
     identity   = "age_18_to_25",
 )
 
-events = eventus.EventsFilter(events).to_obs_period(obs, clip=True).result
+episodes = eventus.EpisodesFilter(episodes).to_obs_period(obs, clip=True).result
 
 ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
-    events     = events,
+    episodes     = episodes,
 )
 
 print(ct)

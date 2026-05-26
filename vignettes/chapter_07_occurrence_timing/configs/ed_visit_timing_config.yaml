@@ -1,5 +1,5 @@
 # ed_visit_timing_config.yaml
-# OccurrenceResultTimingConfig for Chapter 7 — time to nth ED visit ages 18-21
+# EventResultTimingConfig for Chapter 7 — time to nth ED visit ages 18-21
 
 canvas:
   figsize:   [10, 9]

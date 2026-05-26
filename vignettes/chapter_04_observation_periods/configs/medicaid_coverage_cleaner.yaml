@@ -1,5 +1,5 @@
 # medicaid_coverage_cleaner.yaml
-# EventsCleanerConfig for Medicaid coverage periods.
+# EpisodesCleanerConfig for Medicaid coverage periods.
 
 normalize_dates:     true
 coalesce_dates:      false

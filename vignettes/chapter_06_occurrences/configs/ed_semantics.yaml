@@ -1,5 +1,5 @@
 # ed_semantics.yaml
-# OccurrenceSemantics for ED visit data.
+# EventSemantics for ED visit data.
 
 identity:        ed_visit
 entity_id_col:   patient_id

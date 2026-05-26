@@ -39,27 +39,27 @@ x_axis:
   x_tick_rotation:  45        # inherited from AxisConfig
 
 # ── Period of interest bar ────────────────────────────────────────────────────
-# The POI bar is drawn behind each row and segmented by event coverage.
-#   color_before    — days before the first event
-#   color_active    — days covered by events (color comes from events list)
-#   color_middle    — inactive gaps between events
-#   color_after     — days after the last event
-#   color_no_events — full bar when the entity has no events at all
+# The POI bar is drawn behind each row and segmented by episode coverage.
+#   color_before    — days before the first episode
+#   color_active    — days covered by episodes (color comes from episodes list)
+#   color_middle    — inactive gaps between episodes
+#   color_after     — days after the last episode
+#   color_no_episodes — full bar when the entity has no episodes at all
 poi:
   color:           "#D6E0EA"
   color_before:    "#9E9E9E"
   color_middle:    "#F44336"
   color_after:     "#BDBDBD"
-  color_no_events: "#EEEEEE"
+  color_no_episodes: "#EEEEEE"
   alpha:            0.6
   show_boundaries:  true
   boundary_color:  "#6B7C93"
   boundary_style:   dashed    # dashed | dotted | solid
 
-# ── Event layers ──────────────────────────────────────────────────────────────
-# One entry per event identity. Order does not matter.
+# ── Episode layers ──────────────────────────────────────────────────────────────
+# One entry per episode identity. Order does not matter.
 # Omit an identity to use default color and alpha.
-events:
+episodes:
   - identity: inpatient_hospitalization
     color:    "#028090"
     alpha:    0.85
@@ -70,10 +70,10 @@ events:
     alpha:    0.75
     label:    "Outpatient Visit"
 
-# ── Occurrence layers ─────────────────────────────────────────────────────────
-# One entry per occurrence identity. Occurrences are rendered as point markers.
+# ── Event layers ─────────────────────────────────────────────────────────
+# One entry per event identity. Events are rendered as point markers.
 # marker options: circle | triangle | square | diamond | star
-occurrences:
+events:
   - identity: ed_visit
     color:    "#E05C40"
     marker:   circle

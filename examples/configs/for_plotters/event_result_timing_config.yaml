@@ -1,0 +1,134 @@
+# event_result_timing_config.yaml
+#
+# Full configuration for EventResultTimingPlotter.
+# Load with: EventResultTimingConfig.build_from_yaml("event_result_timing_config.yaml")
+#
+# Three sections — all for the single plot method plot_histogram():
+#   histogram       → base config applied to every nth facet
+#   histogram_per_n → optional per-nth overrides; any nth not listed uses histogram
+#   facet           → subplot layout (height and width per facet)
+#
+# The canvas is shared across the figure.
+# All sections are optional — omit any section to use its defaults.
+# Within a section, omit any field to use its default value.
+
+
+# ── Canvas ────────────────────────────────────────────────────────────────────
+# Shared across the full figure.
+
+canvas:
+  figsize:   [6, 12]   # [width, height] in inches. Height scales with max_n facets.
+  dpi:       120       # Output resolution. Default: 120
+  font_size: 11        # Base font size for all facets. Default: 12
+
+
+# ── Histogram ─────────────────────────────────────────────────────────────────
+# Base HistogramPlotConfig applied to every nth facet unless overridden
+# in histogram_per_n. Any section omitted here uses HistogramPlotConfig defaults.
+
+histogram:
+
+  labels:
+    title:    null                              # Facet-level title is auto-generated
+                                               # (e.g. "1st event — n=X eligible")
+    subtitle: null
+    xlabel:   "Days from observation start"    # null → "Days from observation start"
+    ylabel:   "Entities"
+    units:    null
+
+  axes:
+    x_ticks:         null    # null → matplotlib chooses automatically
+    y_ticks:         null
+    x_tick_rotation: 0.0
+    y_tick_rotation: 0.0
+    x_tick_format:   null
+    y_tick_format:   null
+    tick_font_size:  null
+
+  # Binning strategy. Shared x-axis limits are computed from these bounds
+  # across all nths so all facets use the same scale.
+  # type choices: auto | uniform | log | custom
+  #
+  # Auto:
+  # bins:
+  #   type: auto
+  #
+  # Log (min must be > 0):
+  # bins:
+  #   type:   log
+  #   n_bins: 20
+  #   min:    1
+  #   max:    3650
+  #
+  # Custom (strictly increasing edges, >= 2 values):
+  # bins:
+  #   type:  custom
+  #   edges: [0, 30, 90, 180, 365, 730]
+  bins:
+    type:   uniform
+    n_bins: 52      # ~weekly bins for a 1-year window
+    min:    0
+    max:    365
+
+  style:
+    color:     "#028090"
+    alpha:     0.85
+    show_grid: true
+    edgecolor: "#FFFFFF"
+
+  percentile_lines:
+    show:        true
+    values:      [25, 50, 75]
+    color:       "#333333"
+    linestyle:   dashed       # dashed | dotted | solid
+    show_labels: true
+
+  stratification:
+    style:          overlay   # overlay | facet
+    max_categories: 10
+    # Optional per-category overrides. Keys must match the stratify_by column.
+    # Any unlisted category is auto-assigned from the default palette.
+    categories: {}
+
+
+# ── Histogram per n ───────────────────────────────────────────────────────────
+# Optional per-nth overrides. Each entry is a full HistogramPlotConfig.
+# Any section omitted within an entry falls back to the base histogram above.
+# Keys must be integers >= 1 matching the nth event (1st, 2nd, 3rd...).
+#
+# Common use: give each nth a distinct color so facets are visually distinct.
+
+histogram_per_n:
+  1:
+    style:
+      color: "#028090"   # 1st event — teal (same as base, shown for clarity)
+  2:
+    style:
+      color: "#E05C40"   # 2nd event — coral
+  3:
+    style:
+      color: "#6B4FA0"   # 3rd event — purple
+  4:
+    style:
+      color: "#E09820"   # 4th event — amber
+
+  # To override labels or bins for a specific nth:
+  # 2:
+  #   style:
+  #     color: "#E05C40"
+  #   labels:
+  #     xlabel: "Days to 2nd event"
+  #   bins:
+  #     type:   uniform
+  #     n_bins: 26
+  #     min:    0
+  #     max:    180
+
+
+# ── Facet ─────────────────────────────────────────────────────────────────────
+# Controls the subplot grid layout.
+# Total figure height = facet_height * max_n (driven by EventResultTiming.max_n).
+
+facet:
+  facet_height: 3.0   # Height in inches per subplot row. Default: 3.0
+  facet_width:  6.0   # Width in inches of the figure. Default: 6.0

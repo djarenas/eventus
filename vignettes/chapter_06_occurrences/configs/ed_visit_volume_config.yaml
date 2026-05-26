@@ -1,5 +1,5 @@
 # ed_visit_volume_config.yaml
-# OccurrenceResultVolumeConfig for Chapter 6 Bonus A — ED visit volume plots.
+# EventResultVolumeConfig for Chapter 6 Bonus A — ED visit volume plots.
 
 canvas:
   figsize:   [10, 6]

@@ -24,10 +24,10 @@ print(f"Coverage rows (2018-2025) : {len(raw_df):,}")
 
 # ── Step 2 — Clean coverage data ─────────────────────────────────────────────
 
-sem     = eventus.EventSemantics.build_from_yaml(HERE / "configs" / "medicaid_coverage_semantics.yaml")
-config  = eventus.EventsCleanerConfig.build_from_yaml(HERE / "configs" / "medicaid_coverage_cleaner.yaml")
-cleaner = eventus.EventsCleaner(raw_df, sem, config)
-events  = cleaner.clean()
+sem     = eventus.EpisodeSemantics.build_from_yaml(HERE / "configs" / "medicaid_coverage_semantics.yaml")
+config  = eventus.EpisodesCleanerConfig.build_from_yaml(HERE / "configs" / "medicaid_coverage_cleaner.yaml")
+cleaner = eventus.EpisodesCleaner(raw_df, sem, config)
+episodes  = cleaner.clean()
 
 cleaner.print_report()
 
@@ -50,25 +50,25 @@ obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
 
 print(obs)
 
-# ── Step 4 — Filter events to obs period ─────────────────────────────────────
+# ── Step 4 — Filter episodes to obs period ─────────────────────────────────────
 
-events = eventus.EventsFilter(events).to_obs_period(obs, clip=True).result
-print(f"\nCoverage periods after filtering to age 18-25 window: {len(events):,}")
+episodes = eventus.EpisodesFilter(episodes).to_obs_period(obs, clip=True).result
+print(f"\nCoverage periods after filtering to age 18-25 window: {len(episodes):,}")
 
 # ── Step 5 — Assemble CohortTimeline ─────────────────────────────────────────
 
 ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
-    events     = events,
+    episodes     = episodes,
 )
 
 print(ct)
 
 # ── Step 6 — Enrich and summarize ────────────────────────────────────────────
 
-from eventus.analyzers import CohortTimelineEventAnalyzer
+from eventus.analyzers import CohortTimelineEpisodeAnalyzer
 
-analyzer = CohortTimelineEventAnalyzer(ct, "medicaid_coverage")
-ct_enriched = analyzer.enrich_with_event_coverage()
+analyzer = CohortTimelineEpisodeAnalyzer(ct, "medicaid_coverage")
+ct_enriched = analyzer.enrich_with_episode_coverage()
 summary     = analyzer.get_summary()
 print(summary)

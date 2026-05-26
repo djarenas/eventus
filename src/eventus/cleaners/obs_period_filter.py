@@ -14,8 +14,8 @@ Note
 ObsPeriodPerEntity defines one observation window per entity — it IS
 the time window. Filtering by date here means keeping only entities
 whose observation window falls within the given range, not clipping
-the windows themselves. Use EventsFilter.to_obs_period() to clip
-events to obs windows.
+the windows themselves. Use EpisodesFilter.to_obs_period() to clip
+episodes to obs windows.
 """
 from __future__ import annotations
 import pandas as pd

@@ -1,5 +1,5 @@
 # hospitalization_semantics_ch08.yaml
-# EventSemantics for Chapter 8 hospitalization data.
+# EpisodeSemantics for Chapter 8 hospitalization data.
 # Clean data — no descriptor cols needed.
 
 identity:        inpatient_hospitalization

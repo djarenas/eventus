@@ -1,5 +1,5 @@
 # ed_cleaner_ch08.yaml
-# OccurrencesCleanerConfig for Chapter 8 ED visit data.
+# EventsCleanerConfig for Chapter 8 ED visit data.
 
 normalize_dates:     true
 parse_dates:         true

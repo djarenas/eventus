@@ -6,8 +6,8 @@ Two panels:
   Top    — line chart of fraction of entities active at each timepoint
   Bottom — diverging bar chart of entities entering and exiting
 
-Takes an EventActivityOverTime result object produced by
-CohortTimelineEventAnalyzer.compute_activity_over_time().
+Takes an EpisodeActivityOverTime result object produced by
+CohortTimelineEpisodeAnalyzer.compute_activity_over_time().
 """
 from __future__ import annotations
 import matplotlib
@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from eventus.visualizers.configs.activity_over_time_config import ActivityOverTimeConfig
-from eventus.intermediates.event_activity_over_time import EventActivityOverTime
+from eventus.intermediates.episode_activity_over_time import EpisodeActivityOverTime
 from eventus.visualizers.plot_utils import validate_path, save_figure
 
 _ERROR_PREFIX = "[ActivityOverTimePlotter] Error"
@@ -23,10 +23,10 @@ _ERROR_PREFIX = "[ActivityOverTimePlotter] Error"
 
 class ActivityOverTimePlotter:
     """
-    I visualize event-activity of a cohort over an observation period.
+    I visualize episode-activity of a cohort over an observation period.
 
-    Takes an EventActivityOverTime result object — produced by
-    CohortTimelineEventAnalyzer.compute_activity_over_time() — and
+    Takes an EpisodeActivityOverTime result object — produced by
+    CohortTimelineEpisodeAnalyzer.compute_activity_over_time() — and
     renders it as a two-panel plot.
 
     Top panel shows what fraction of the cohort is active at each timepoint.
@@ -34,7 +34,7 @@ class ActivityOverTimePlotter:
 
     Parameters
     ----------
-    activity : EventActivityOverTime
+    activity : EpisodeActivityOverTime
         Validated timeseries result from compute_activity_over_time().
     config : ActivityOverTimeConfig | None
         Plot configuration. Uses ActivityOverTimeConfig() defaults
@@ -42,7 +42,7 @@ class ActivityOverTimePlotter:
 
     Examples
     --------
-    >>> ct       = CohortTimelineEventAnalyzer(ct, "insurance_coverage").compute_coverage()
+    >>> ct       = CohortTimelineEpisodeAnalyzer(ct, "insurance_coverage").compute_coverage()
     >>> activity = analyzer.compute_activity_over_time(granularity="month", mode="calendar")
     >>> plotter  = ActivityOverTimePlotter(activity)
     >>> plotter.plot("activity.png")
@@ -50,12 +50,12 @@ class ActivityOverTimePlotter:
 
     def __init__(
         self,
-        activity: EventActivityOverTime,
+        activity: EpisodeActivityOverTime,
         config    = None,
     ) -> None:
-        if not isinstance(activity, EventActivityOverTime):
+        if not isinstance(activity, EpisodeActivityOverTime):
             raise TypeError(
-                f"{_ERROR_PREFIX}: activity must be an EventActivityOverTime "
+                f"{_ERROR_PREFIX}: activity must be an EpisodeActivityOverTime "
                 f"object, got {type(activity).__name__}"
             )
         if config is None:

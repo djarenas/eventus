@@ -22,7 +22,7 @@ side by side and compare output.
 | `without_eventus_observation_periods.py` | Chapter 4 | ~275 | Runs with pandas UserWarning |
 | *(not attempted)* | Chapter 3 | ~140 est. | Visualization library problem |
 | `without_eventus_stacked_timeline.py` | Chapter 5 | ~165 | Runs — but x-axis is normalized [0,1], not real dates |
-| `without_eventus_occurrences.py` | Chapter 6 | ~99 | Runs with pandas UserWarning — age window not implemented |
+| `without_eventus_events.py` | Chapter 6 | ~99 | Runs with pandas UserWarning — age window not implemented |
 
 ---
 
@@ -78,7 +78,7 @@ side by side and compare output.
 | Bad input validation | ✗ | ✓ | No pre-analysis checks vs cleaner as required gate |
 | Per-row audit trail | ✗ | ✓ | Aggregate counts only vs `cleaner.rejected` |
 | Specific errors raised | ✗ | ✓ | pandas UserWarning vs raises with actionable message |
-| Structured result object | ✗ | ✓ | Printout only vs `EventCoverageSummary` |
+| Structured result object | ✗ | ✓ | Printout only vs `EpisodeCoverageSummary` |
 | Enriched columns carry forward | ✗ | ✓ | Recompute every time vs `ct_enriched` |
 
 **275 lines vs ~20 lines with eventus.** The script runs correctly
@@ -105,7 +105,7 @@ has a different observation window requires per-member date
 reconstruction that is not straightforward in matplotlib. eventus
 handles this automatically.
 
-## Comparison — occurrences (Chapter 6)
+## Comparison — events (Chapter 6)
 
 | Feature | Without eventus | With eventus | Notes |
 |---|:---:|:---:|---|
@@ -114,7 +114,7 @@ handles this automatically.
 | Consolidation of descriptors | ✓ | ✓ | Hardcoded groupby vs one YAML section |
 | Aggregation rules versioned | ✗ | ✓ | Hardcoded lambdas vs declared in YAML |
 | Denominator validated | ✗ | ✓ | Manual tracking vs validated at construction |
-| Structured result object | ✗ | ✓ | Printout only vs `OccurrenceResultVolume` |
+| Structured result object | ✗ | ✓ | Printout only vs `EventResultVolume` |
 | Raises on bad input | ✗ | ✓ | pandas UserWarning vs specific error |
 | Age window analysis | ✗ | ✓ | ~75 more lines vs change one constructor call |
 
@@ -131,7 +131,7 @@ python vignettes/data/generate_vignette_data.py
 python vignettes/without_eventus/without_eventus_clean_hospitalizations.py
 python vignettes/without_eventus/without_eventus_clean_ed_visits.py
 python vignettes/without_eventus/without_eventus_clean_nursing_facility.py
-python vignettes/without_eventus/without_eventus_occurrences.py
+python vignettes/without_eventus/without_eventus_events.py
 
 # Compare against eventus
 python vignettes/chapter_01_cleaning/run_vignette_01.py
@@ -167,7 +167,7 @@ code quality:
   same-date different-hospital records. This is not declared intent.
   `also_defined_by` makes the intent explicit.
 
-- **Type validation is absent.** Nothing prevents applying `mean`
+- **Type validation is absent.** Nothing prepisodes applying `mean`
   to `mobility_status`. eventus validates at construction.
 
 - **Silent warnings instead of specific errors.** The Chapter 4

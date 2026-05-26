@@ -1,354 +1,291 @@
-# eventus.cleaners
+# eventus.data_objects
 
-Transparent, auditable pipelines for preparing raw data and subsetting
-validated data objects. The cleaners module contains two distinct
-families of classes with different responsibilities:
+Validated, self-describing containers for longitudinal data. A data
+object that exists is guaranteed to be structurally sound — constructors
+raise on invalid inputs, so nothing downstream needs to check.
 
-**Cleaners** — transform raw DataFrames into validated data objects.
-Every decision is recorded. Nothing is silent.
-
-**Filters** — subset validated data objects by entity or date.
-Chainable. The original object is never mutated.
+Row-level cleaning is the responsibility of the cleaners module. Data
+objects are the product of that process, not the process itself.
 
 ---
 
-## Why cleaners exist
+## Why data objects exist
 
-An eventus data object will not construct from dirty data. This is by
-design — a data object that exists is guaranteed to be structurally
-sound. The cleaners are the required path from a raw DataFrame to that
-guarantee.
+A pandas DataFrame does not know what its columns mean or whether its
+data is clean. An eventus data object knows both. It holds a DataFrame
+as an attribute — not the other way around — and carries the semantics
+object that declares what every column means.
 
-Real data is messy. Dates are stored as strings. Start dates appear
-after end dates. Entity IDs are missing. The cleaner's job is to handle
-that messiness explicitly, record every decision it makes, and hand off
-only what is structurally sound to the data object constructor.
-
-The distinction between a cleaner and a data object is a distinction
-between process and product. The cleaner is the process — configurable,
-auditable, reproducible. The data object is the product — validated,
-complete, ready for analysis.
+The guarantee is binary: either a data object exists and is complete,
+or it does not exist at all. There are no partial objects and no silent
+failures. A function that receives an `Episodes` object can trust that
+every row has a valid entity identifier, a start date, and an end date,
+and that start precedes or equals end. That trust was earned at
+construction and does not need to be re-earned downstream.
 
 ---
 
-## The pipeline
+## Class hierarchy
 
 ```
-Raw DataFrame
-    ↓
-EventsCleaner / OccurrencesCleaner    — configured cleaning pipeline
-    ↓                                    records every rejected and
-    ↓                                    modified row
-Events / Occurrences                  — validated, complete, ready
-    ↓
-EventsFilter / OccurrencesFilter /    — optional subsetting
-ObsPeriodFilter
-    ↓
-CohortTimeline / Analyzers
+Episodes
+    ↓  one row per entity enforced
+EpisodesPerEntity
+    ↓  semantic meaning: observation window
+ObsPeriodPerEntity
+
+Events
+    ↓  one row per entity enforced
+EventsPerEntity
 ```
 
 ---
 
-## Cleaners
+## Classes
 
-### `EventsCleaner`
+### `Episodes`
 
-Cleans raw event data and produces a validated `Events` object. Every
-rejected row is recorded with an explicit reason. Rows that are kept
-but modified — coalesced dates, swapped causality — are recorded
-separately in a modified log.
+A validated container for interval episode data. Every row has a valid
+entity identifier, a start date, and an end date. Causality is
+enforced — start must precede or equal end.
+
+```python
+from eventus.data_objects import Episodes
+
+episodes = Episodes(df, sem)
+```
+
+The constructor validates in order: semantics type, required columns
+present, dates parseable, no nulls in entity/start/end, causality.
+Any violation raises immediately with a specific message pointing to
+`EpisodesCleaner` for resolution.
+
+**Attributes**
+
+| Attribute | Type | Description |
+|---|---|---|
+| `data` | `pd.DataFrame` | Validated episode rows, index reset |
+| `semantics` | `EpisodeSemantics` | Column mappings and identity label |
+
+**Construction from clean data**
+
+The normal path is through `EpisodesCleaner`, which handles messy raw
+data and hands off only what is structurally sound:
+
+```python
+from eventus.cleaners import EpisodesCleaner, EpisodesCleanerConfig
+
+config   = EpisodesCleanerConfig.build_from_yaml("cleaner.yaml")
+episodes = EpisodesCleaner(raw_df, sem, config).clean()
+```
+
+Direct construction is available when data is already clean:
+
+```python
+episodes = Episodes(clean_df, sem)
+```
+
+---
+
+### `Events`
+
+A validated collection of point-in-time events. Each row has a valid
+entity identifier and a date. Unlike `Episodes`, there is no end date —
+events are instantaneous. No causality check, no overlap merging.
+
+```python
+from eventus.data_objects import Events
+
+events = Events(df, sem)
+```
+
+Dates are normalized on construction — the time component is stripped,
+keeping date only. The constructor raises on null entity IDs or null /
+unparseable dates.
+
+**Attributes**
+
+| Attribute | Type | Description |
+|---|---|---|
+| `data` | `pd.DataFrame` | Validated event rows, dates normalized, index reset |
+| `semantics` | `EventSemantics` | Column mappings and identity label |
 
 ```python
 from eventus.cleaners import EventsCleaner, EventsCleanerConfig
 
-config  = EventsCleanerConfig.build_from_yaml("event_cleaner.yaml")
-cleaner = EventsCleaner(raw_df, sem, config)
-events  = cleaner.clean()
-cleaner.print_report()
-```
-
-**Cleaning pipeline (in order)**
-
-| Step | Controlled by | Action |
-|---|---|---|
-| 1. Parse dates | `parse_dates` | Coerce string columns to datetime. Unparseable rows → rejected |
-| 2. Normalize dates | `normalize_dates` | Strip time component — keep date only |
-| 3. Null entity IDs | always | Rows with null entity ID → rejected |
-| 4. Null start / end | `coalesce_dates` | If False: null start or end → rejected. If True: fill from the other date and record as modified |
-| 5. Date floor / ceiling | `date_floor`, `date_ceiling` | Rows outside the window → rejected |
-| 6. Causality check | `causality_check` | `"reject"`: end < start → rejected. `"swap"`: dates are swapped and row is kept, recorded as modified |
-| 7. Drop duplicates | `drop_duplicates` | Exact duplicates on entity + start + end → rejected |
-| 8. Merge overlapping | `merge_overlapping` | Adjacent or overlapping intervals merged into episodes |
-
-**The modified log** is a key feature of `EventsCleaner`. Unlike a
-simple reject/keep pipeline, the cleaner distinguishes between rows
-that were removed and rows that were repaired. A coalesced date or
-swapped causality is not a silent fix — it is recorded with an explicit
-reason and accessible via `cleaner.modified`.
-
-**Quality report**
-
-```python
-cleaner.print_report()       # prints structured summary to stdout
-cleaner.calc_report()        # → dict, for programmatic access
-cleaner.rejected             # → pd.DataFrame of rejected rows
-cleaner.modified             # → pd.DataFrame of modified rows
-```
-
-Example output:
-```
-Cleaning report
-────────────────────────────────────────────────────────
-Total input rows:                              125,432
-────────────────────────────────────────────────────────
-  Rejected:
-    null_entity_id:                              1,203   (1.0%)
-    unparseable_start_date:                        441   (0.4%)
-    end_before_start_rejected:                     218   (0.2%)
-    duplicate_row:                                  97   (0.1%)
-  Modified (kept):
-    start_coalesced_from_end:                      312   (0.2%)
-────────────────────────────────────────────────────────
-Total rejected:                                1,959   (1.6%)
-Total modified (kept):                           312   (0.2%)
-Clean rows:                                  123,161   (98.2%)
+config = EventsCleanerConfig.build_from_yaml("cleaner.yaml")
+events = EventsCleaner(raw_df, sem, config).clean()
 ```
 
 ---
 
-### `EventsCleanerConfig`
+### `EpisodesPerEntity`
 
-> *"I am a reproducible set of rules for what counts as a valid event row. I can be built from a YAML file and saved back to one."*
-
-All parameters have sensible defaults. Override via `build_from_yaml()`
-to make cleaning choices explicit, versioned, and reproducible.
+An `Episodes` subclass that enforces one row per entity. Inherits all
+`Episodes` validation and adds one constraint: `entity_id_col` must be
+unique across all rows.
 
 ```python
-config = EventsCleanerConfig.build_from_yaml("event_cleaner.yaml")
-config = EventsCleanerConfig.build_with_defaults()
-config = EventsCleanerConfig()   # same as build_with_defaults()
-config.to_yaml("event_cleaner.yaml")
+from eventus.data_objects import EpisodesPerEntity
+
+eps_per = EpisodesPerEntity(df, sem)   # raises if any entity appears twice
 ```
 
-**Parameters**
+Useful for membership tables, enrollment records, or any dataset where
+one interval per entity is a structural requirement.
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `normalize_dates` | bool | `True` | Strip time component from date columns |
-| `coalesce_dates` | bool | `False` | Fill missing start from end (or vice versa) and record as modified |
-| `causality_check` | str | `"reject"` | `"reject"` or `"swap"` when end < start |
-| `parse_dates` | bool | `True` | Auto-parse date columns from strings |
-| `drop_duplicates` | bool | `True` | Remove rows identical on entity + start + end |
-| `merge_overlapping` | bool | `False` | Merge overlapping or adjacent intervals |
-| `meaningful_gap` | int | `0` | Gaps ≤ this many days are bridged when merging |
-| `date_floor` | str | `"1920-01-01"` | Reject rows with start before this date |
-| `date_ceiling` | str | `"2100-01-01"` | Reject rows with end after this date |
+Can be promoted to an `ObsPeriodPerEntity` when needed:
 
-**YAML example**
-
-```yaml
-normalize_dates:   true
-coalesce_dates:    false
-causality_check:   reject
-parse_dates:       true
-drop_duplicates:   true
-merge_overlapping: false
-meaningful_gap:    0
-date_floor:        "1920-01-01"
-date_ceiling:      "2100-01-01"
+```python
+obs = eps_per.return_as_obs_period(identity="enrollment_window")
 ```
 
 ---
 
-### `OccurrencesCleaner`
+### `EventsPerEntity`
 
-Cleans raw occurrence data and produces a validated `Occurrences`
-object. Occurrences are simpler than events — one date column, no
-causality concept — so the pipeline is correspondingly leaner.
-
-```python
-from eventus.cleaners import OccurrencesCleaner, OccurrencesCleanerConfig
-
-config  = OccurrencesCleanerConfig.build_from_yaml("occ_cleaner.yaml")
-cleaner = OccurrencesCleaner(raw_df, sem, config)
-occs    = cleaner.clean()
-cleaner.print_report()
-```
-
-**Cleaning pipeline (in order)**
-
-| Step | Controlled by | Action |
-|---|---|---|
-| 1. Parse dates | `parse_dates` | Coerce string column to datetime. Unparseable rows → rejected |
-| 2. Normalize dates | `normalize_dates` | Strip time component — keep date only |
-| 3. Null entity IDs | always | Rows with null entity ID → rejected |
-| 4. Null dates | always | Rows with null date → rejected |
-| 5. Date floor / ceiling | `date_floor`, `date_ceiling` | Rows outside the window → rejected |
-| 6. Drop duplicates | `drop_duplicates` | Exact duplicates on entity + date → rejected |
-
-**Quality report**
+An `Events` subclass that enforces one row per entity. Inherits all
+`Events` validation and adds the same uniqueness constraint.
 
 ```python
-cleaner.print_report()       # prints structured summary to stdout
-cleaner.quality_report_df()  # → pd.DataFrame
-cleaner.rejected             # → pd.DataFrame of rejected rows
+from eventus.data_objects import EventsPerEntity
+
+evt_per = EventsPerEntity(df, sem)   # raises if any entity appears twice
 ```
 
----
+Useful for landmark events — index dates, first diagnoses, enrollment
+dates — where one event per entity is a structural requirement.
 
-### `OccurrencesCleanerConfig`
-
-> *"I am a reproducible set of rules for what counts as a valid occurrence row. I can be built from a YAML file and saved back to one."*
+Can build an observation period centered on the event date:
 
 ```python
-config = OccurrencesCleanerConfig.build_from_yaml("occ_cleaner.yaml")
-config = OccurrencesCleanerConfig.build_with_defaults()
-config.to_yaml("occ_cleaner.yaml")
-```
-
-**Parameters**
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `normalize_dates` | bool | `True` | Strip time component from date column |
-| `parse_dates` | bool | `True` | Auto-parse date column from strings |
-| `drop_duplicates` | bool | `True` | Remove rows identical on entity + date |
-| `date_floor` | str | `"1920-01-01"` | Reject rows with date before this value |
-| `date_ceiling` | str | `"2100-01-01"` | Reject rows with date after this value |
-
-**YAML example**
-
-```yaml
-normalize_dates: true
-parse_dates:     true
-drop_duplicates: true
-date_floor:      "1920-01-01"
-date_ceiling:    "2100-01-01"
-```
-
----
-
-## Filters
-
-Filters subset validated data objects. They are chainable — each method
-returns a new filter wrapping the result, so calls compose naturally.
-The original object is never mutated. Call `.result` to retrieve the
-final filtered object.
-
-```python
-from eventus.cleaners import EventsFilter
-from eventus.types import DateBoundary
-
-filtered = (
-    EventsFilter(events)
-    .by_entities(my_entity_ids)
-    .by_dates(start="2022-01-01", end="2022-12-31")
-    .result
+obs = evt_per.build_obs_period(
+    window         = (365, 365),   # 365 days before and after the event
+    span_semantics = span_sem,
+    identity       = "post_diagnosis_window",
 )
 ```
 
-### `DateBoundary`
+---
 
-Controls whether a date boundary is inclusive or exclusive. Imported
-from `eventus.types`.
+### `ObsPeriodPerEntity`
+
+One observation window per entity. The top of the episode hierarchy —
+each row defines the period within which that entity's episodes and
+events are analyzed.
 
 ```python
-from eventus.types import DateBoundary
-
-DateBoundary.INCLUSIVE   # >= or <=
-DateBoundary.EXCLUSIVE   # >  or <
+from eventus.data_objects import ObsPeriodPerEntity
 ```
 
-All filter `by_dates()` and `to_obs_period()` methods accept
-`start_bound` and `end_bound` parameters of type `DateBoundary`.
-Default is `DateBoundary.INCLUSIVE` for both.
+Inherits all validation from `EpisodesPerEntity`. Adds two properties:
+
+| Property | Type | Description |
+|---|---|---|
+| `identity` | `str` | Name for this observation period. Default `"general_entity"` |
+| `construction_path` | `str` | Records how this object was built — inspectable by downstream code |
+
+**Construction paths**
+
+Four named constructors cover the common cases. All produce output with
+standard column names `obs_start` and `obs_end`. Direct construction
+accepts any column names via `EpisodeSemantics`.
+
+**Direct construction** — full control over column names:
+
+```python
+obs = ObsPeriodPerEntity(periods_df, sem, identity="medicaid_2022")
+# construction_path → "direct"
+```
+
+**`construct_from_calendar()`** — same dates for every entity:
+
+```python
+obs = ObsPeriodPerEntity.construct_from_calendar(
+    entity_ids = episodes.data["patient_id"].unique(),
+    start      = "2022-01-01",
+    end        = "2022-12-31",
+    entity_col = "patient_id",
+    identity   = "medicaid_2022",
+)
+# construction_path → "construct_from_calendar"
+```
+
+**`construct_from_age_window()`** — per-entity dates derived from date
+of birth. Supports `"years"` (default) or `"months"` for pediatric
+cohorts. Feb 29 birthdays shift to Feb 28 in non-leap years, with a
+warning.
+
+```python
+obs = ObsPeriodPerEntity.construct_from_age_window(
+    entity_df  = demographics_df,
+    dob_col    = "date_of_birth",
+    age_start  = 18,
+    age_end    = 25,
+    entity_col = "patient_id",
+    identity   = "age_18_to_25",
+)
+# construction_path → "construct_from_age_window(age 18→25 years)"
+```
+
+```python
+# Pediatric cohort — months
+obs = ObsPeriodPerEntity.construct_from_age_window(
+    entity_df  = demographics_df,
+    dob_col    = "date_of_birth",
+    age_start  = 6,
+    age_end    = 18,
+    entity_col = "patient_id",
+    age_unit   = "months",
+    identity   = "age_6_to_18_months",
+)
+```
+
+**`construct_from_episodes()`** — first episode start to last episode
+end per entity. The broadest possible window. Reuses the column names
+from the `Episodes` object.
+
+```python
+obs = ObsPeriodPerEntity.construct_from_episodes(
+    episodes,
+    identity = "hospitalization_window",
+)
+# construction_path → "construct_from_episodes"
+```
+
+**The `construction_path` property** is a first-class attribute.
+Downstream code can inspect it to know how the observation period was
+built — the same downstream pipeline accepts any `ObsPeriodPerEntity`
+regardless of which path produced it.
+
+```python
+print(obs.construction_path)
+# → "construct_from_age_window(age 18→25 years)"
+```
 
 ---
 
-### `EventsFilter`
+## Shared behavior
 
-```python
-from eventus.cleaners import EventsFilter
+**`copy()`** — all data object classes implement `copy()`, returning a
+new instance of the same type wrapping a copy of the data. The
+`construction_path` on `ObsPeriodPerEntity` is preserved through copy.
 
-EventsFilter(events).by_entities(entity_ids).result         # → Events
-EventsFilter(events).by_dates(start, end).result            # → Events
-EventsFilter(events).to_obs_period(obs, clip=True).result   # → Events
-```
+**`__len__()`** — returns the number of rows in `.data`.
 
-**Methods**
-
-`by_entities(entity_ids)` — keep only events belonging to the
-specified entities.
-
-`by_dates(start, end, start_bound, end_bound)` — keep only events
-whose start is within the start bound and end is within the end bound.
-At least one of `start` or `end` must be provided.
-
-`to_obs_period(obs_period, clip, start_bound, end_bound)` — filter
-events to each entity's observation window. Only entities present in
-`obs_period` are kept. The `clip` parameter controls what happens to
-events that partially overlap the window:
-- `clip=True` (default) — events are clipped to the obs boundary
-- `clip=False` — events that partially overlap are dropped entirely
+**`__repr__()`** — all classes print a structured summary. For
+`ObsPeriodPerEntity` this includes `identity`, `construction_path`,
+column names, entity count, and period length statistics.
 
 ---
 
-### `OccurrencesFilter`
+## Design note
 
-```python
-from eventus.cleaners import OccurrencesFilter
+Data objects enforce their own validity at construction. This means a
+valid object is a guarantee rather than a hope. The cost of establishing
+that guarantee is paid once — at the boundary where raw data becomes a
+data object — and everything downstream inherits it for free.
 
-OccurrencesFilter(occs).by_entities(entity_ids).result          # → Occurrences
-OccurrencesFilter(occs).by_dates(start, end).result             # → Occurrences
-OccurrencesFilter(occs).to_obs_period(obs).result               # → Occurrences
-```
-
-Occurrences are point-in-time — there is no clipping. An occurrence
-either falls inside the observation window or it does not.
-
----
-
-### `ObsPeriodFilter`
-
-```python
-from eventus.cleaners import ObsPeriodFilter
-
-ObsPeriodFilter(obs).by_entities(entity_ids).result             # → ObsPeriodPerEntity
-ObsPeriodFilter(obs).by_dates(start, end).result                # → ObsPeriodPerEntity
-```
-
-`ObsPeriodPerEntity` defines one observation window per entity — it
-*is* the time window. Filtering by date keeps only entities whose
-entire observation window falls within the given range. It does not
-clip the windows themselves. To clip events to obs windows, use
-`EventsFilter.to_obs_period()`.
-
-The `construction_path` property on the filtered result is updated to
-record that a filter was applied.
-
----
-
-## Design notes
-
-**Config is the methods section.** Every analytical and cleaning
-decision lives in a versioned YAML file, not in code. A config can be
-built from YAML, inspected, modified, and saved back to YAML. The
-config file is the record of what was done — reproducible and auditable
-by design.
-
-**Rejected and modified are first-class outputs.** A cleaner that only
-tells you how many rows it dropped is not auditable. `EventsCleaner`
-records every rejected row with an explicit reason and every modified
-row with an explicit description of what changed. These are accessible
-as DataFrames and can be inspected, saved, or reported on.
-
-**Filters are chainable and non-mutating.** Each filter call returns a
-new filter wrapping the result. The original object is never changed.
-This makes filter pipelines explicit and composable without side
-effects.
-
-**The cleaner and the data object enforce the same rules, at different
-stages.** The cleaner handles the messy reality of raw data — it
-repairs what can be repaired and rejects what cannot. The data object
-enforces that what it receives is already sound. The two layers are
-complementary, not redundant.
+This is why data objects do not accept raw DataFrames from arbitrary
+sources and silently ignore problems. The constructor is the gate. Once
+you are past it, you are on solid ground.

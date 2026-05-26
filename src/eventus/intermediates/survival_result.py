@@ -2,13 +2,13 @@
 survival_result.py
 SurvivalResult — validated Kaplan-Meier survival curve result object.
 
-Standalone and reusable — not tied to occurrence analysis specifically.
+Standalone and reusable — not tied to event analysis specifically.
 Any analysis that produces a KM-style survival curve produces a
 SurvivalResult. Current producers:
-- CohortTimelineOccurrenceAnalyzer.compute_survival()
+- CohortTimelineEventAnalyzer.compute_survival()
 
 Future producers (examples):
-- Time-to-event analyzers
+- Time-to-episode analyzers
 - Treatment comparison analyzers
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ import numpy as np
 _ERROR = "[SurvivalResult] Error"
 
 _REQUIRED_COLS = {
-    "day", "n_at_risk", "n_events", "n_censored",
+    "day", "n_at_risk", "n_episodes", "n_censored",
     "survival", "ci_lower", "ci_upper",
 }
 
@@ -40,24 +40,24 @@ class SurvivalResult:
     - ci_lower <= survival <= ci_upper everywhere
     - n_at_risk is monotonically non-increasing
     - label is a non-empty string
-    - n_total, n_events_total, n_censored_total are positive integers
-    - n_events_total + n_censored_total == n_total
+    - n_total, n_episodes_total, n_censored_total are positive integers
+    - n_episodes_total + n_censored_total == n_total
 
     Attributes
     ----------
     data : pd.DataFrame
-        One row per unique event timepoint. Columns:
-        day (int), n_at_risk (int), n_events (int), n_censored (int),
+        One row per unique episode timepoint. Columns:
+        day (int), n_at_risk (int), n_episodes (int), n_censored (int),
         survival (float), ci_lower (float), ci_upper (float).
     label : str
         Human-readable label for the curve, e.g. 'vaccination'.
         Used in plot titles and legends.
     n_total : int
         Total cohort size including never-occurred entities.
-    n_events_total : int
-        Total entities who experienced the event.
+    n_episodes_total : int
+        Total entities who experienced the episode.
     n_censored_total : int
-        Total entities censored (never experienced the event).
+        Total entities censored (never experienced the episode).
     ci_method : str
         Confidence interval method used. Currently 'greenwood'.
     """
@@ -65,7 +65,7 @@ class SurvivalResult:
     _data:            pd.DataFrame
     _label:           str
     _n_total:         int
-    _n_events_total:  int
+    _n_episodes_total:  int
     _n_censored_total: int
     _ci_method:       str
 
@@ -74,7 +74,7 @@ class SurvivalResult:
         data:             pd.DataFrame,
         label:            str,
         n_total:          int,
-        n_events_total:   int,
+        n_episodes_total:   int,
         n_censored_total: int,
         ci_method:        str = "greenwood",
     ) -> None:
@@ -91,7 +91,7 @@ class SurvivalResult:
             )
         for name, val in [
             ("n_total",          n_total),
-            ("n_events_total",   n_events_total),
+            ("n_episodes_total",   n_episodes_total),
             ("n_censored_total", n_censored_total),
         ]:
             if not isinstance(val, int) or val < 0:
@@ -112,12 +112,12 @@ class SurvivalResult:
                 f"{_ERROR} data is missing required columns: {sorted(missing)}."
             )
 
-        # ── Allow empty data only when n_events_total == 0 ───────────
-        # (cohort with no events produces a valid but empty curve)
-        if data.empty and n_events_total > 0:
+        # ── Allow empty data only when n_episodes_total == 0 ───────────
+        # (cohort with no episodes produces a valid but empty curve)
+        if data.empty and n_episodes_total > 0:
             raise ValueError(
-                f"{_ERROR} data is empty but n_events_total={n_events_total}. "
-                f"Empty data is only valid when no events occurred."
+                f"{_ERROR} data is empty but n_episodes_total={n_episodes_total}. "
+                f"Empty data is only valid when no episodes occurred."
             )
 
         # ── Cohort count consistency ──────────────────────────────────
@@ -125,9 +125,9 @@ class SurvivalResult:
             raise ValueError(
                 f"{_ERROR} n_total must be >= 1, got {n_total}"
             )
-        if n_events_total + n_censored_total != n_total:
+        if n_episodes_total + n_censored_total != n_total:
             raise ValueError(
-                f"{_ERROR} n_events_total ({n_events_total}) + "
+                f"{_ERROR} n_episodes_total ({n_episodes_total}) + "
                 f"n_censored_total ({n_censored_total}) must equal "
                 f"n_total ({n_total})."
             )
@@ -160,7 +160,7 @@ class SurvivalResult:
         self._data             = data.reset_index(drop=True).copy()
         self._label            = label.strip()
         self._n_total          = n_total
-        self._n_events_total   = n_events_total
+        self._n_episodes_total   = n_episodes_total
         self._n_censored_total = n_censored_total
         self._ci_method        = ci_method
 
@@ -181,8 +181,8 @@ class SurvivalResult:
         return self._n_total
 
     @property
-    def n_events_total(self) -> int:
-        return self._n_events_total
+    def n_episodes_total(self) -> int:
+        return self._n_episodes_total
 
     @property
     def n_censored_total(self) -> int:
@@ -193,16 +193,16 @@ class SurvivalResult:
         return self._ci_method
 
     @property
-    def event_rate_pct(self) -> float:
-        """Percentage of cohort that experienced the event."""
-        return round(100 * self._n_events_total / self._n_total, 1)
+    def episode_rate_pct(self) -> float:
+        """Percentage of cohort that experienced the episode."""
+        return round(100 * self._n_episodes_total / self._n_total, 1)
 
     @property
     def median_survival(self) -> float | None:
         """
         Smallest day where S(t) <= 0.5.
         None if the curve never crosses 0.5 (fewer than half the
-        cohort experienced the event).
+        cohort experienced the episode).
         """
         if self._data.empty:
             return None
@@ -236,8 +236,8 @@ class SurvivalResult:
             f"SurvivalResult:\n"
             f"  label            : {self._label}\n"
             f"  n_total          : {self._n_total:,}\n"
-            f"  n_events         : {self._n_events_total:,} "
-            f"({self.event_rate_pct}%)\n"
+            f"  n_episodes         : {self._n_episodes_total:,} "
+            f"({self.episode_rate_pct}%)\n"
             f"  n_censored       : {self._n_censored_total:,}\n"
             f"  median_survival  : {median}\n"
             f"  timepoints       : {len(self._data):,}\n"

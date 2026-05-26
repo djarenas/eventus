@@ -40,7 +40,7 @@ COLOR_ACTIVE    = "#9FC0F6"
 COLOR_BEFORE    = "#FAFAF9"
 COLOR_AFTER     = "#FAFAF9"
 COLOR_GAP       = "#F6C3A4"
-COLOR_NO_EVENTS = "#FAF9F9"
+COLOR_NO_EPISODES = "#FAF9F9"
 BOUNDARY_COLOR  = "#6B7C93"
 ALPHA_ACTIVE    = 0.85
 ROW_HEIGHT      = 0.5
@@ -149,7 +149,7 @@ for row_idx, (_, obs_row) in enumerate(obs_sample.iterrows()):
     if obs_days == 0:
         # Zero-length window — draw empty bar
         ax.barh(y, 1.0, left=0.0, height=bar_h,
-                color=COLOR_NO_EVENTS, edgecolor=BOUNDARY_COLOR,
+                color=COLOR_NO_EPISODES, edgecolor=BOUNDARY_COLOR,
                 linewidth=0.5, align="center")
         continue
 
@@ -214,7 +214,7 @@ legend_elements = [
     mpatches.Patch(color=COLOR_ACTIVE,    alpha=ALPHA_ACTIVE, label="Medicaid Coverage"),
     mpatches.Patch(color=COLOR_GAP,       label="Coverage Gap"),
     mpatches.Patch(color=COLOR_BEFORE,    label="Before/After Window"),
-    mpatches.Patch(color=COLOR_NO_EVENTS, label="No Coverage"),
+    mpatches.Patch(color=COLOR_NO_EPISODES, label="No Coverage"),
 ]
 ax.legend(handles=legend_elements, loc="upper right",
           fontsize=9, framealpha=0.9)
@@ -246,5 +246,5 @@ print(f"Saved: {out_path}")
 #   actionable message.
 #
 # - Not reusable. To produce the same plot for a calendar-year
-#   cohort, you rewrite. To add occurrences as dots, you rewrite.
+#   cohort, you rewrite. To add events as dots, you rewrite.
 #   eventus adds one entry to the config.

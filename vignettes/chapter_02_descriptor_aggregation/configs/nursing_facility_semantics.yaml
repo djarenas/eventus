@@ -1,5 +1,5 @@
 # nursing_facility_semantics.yaml
-# EventSemantics for nursing facility assessment data.
+# EpisodeSemantics for nursing facility assessment data.
 
 identity:        nursing_facility_stay
 entity_id_col:   resident_id
