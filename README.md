@@ -1,40 +1,73 @@
 # eventus
 
-A Python framework for analyzing entities that experience events and occurrences within defined observation periods — configuration-driven, auditable, and domain-agnostic.
+A domain-agnostic Python framework for longitudinal cohort analysis
+with events, occurrences, and observation periods — object-oriented,
+configuration-driven, and auditable.
 
-Built for recurring challenges in health services research and insurance analytics, but applicable wherever entities, time spans, interval events, and point-in-time occurrences co-exist.
+Built for recurring challenges in health services research and
+insurance analytics, but applicable wherever entities, time spans,
+interval events, and point-in-time occurrences co-exist.
+
+> **Note:** eventus is research software provided as-is under the
+> MIT License. Its architecture is designed to enforce structural
+> validity and produce auditable pipelines. It does not guarantee
+> the scientific validity of analytical decisions — that
+> responsibility remains with the researcher. Contributions, bug
+> reports, and extensions are welcome.
 
 ---
 
 ## The six abstractions
 
 ```
-Semantics → Data Objects → Cleaners → Analyzers → Pipe-Delimited Format → Visualizers
+Semantics — Data Objects — Cleaners — Analyzers — Intermediates — Visualizers
 ```
 
-**Semantics** — map column names to concepts. Decouple all downstream logic from specific data schemas. Define once, reuse everywhere.
+**Semantics** — map column names to concepts. Declare what your
+columns mean and what defines a unique event or occurrence. Define
+once, reuse everywhere.
 
-**Data Objects** — validated containers. If it exists, it is complete. Constructors raise on invalid data — no silent failures, no partial objects.
+**Data Objects** — validated containers. If it exists, it is
+complete. Constructors raise on invalid data — no silent failures,
+no partial objects. An `Events` object guarantees every row has a
+valid entity identifier, a start date, an end date, and that
+causality holds.
 
-**Cleaners** — transparent, auditable row-level cleaning pipelines. Every rejected row is recorded with an explicit reason. Call `print_report()` to see a full summary of every decision made.
+**Cleaners** — transparent, auditable row-level cleaning pipelines.
+Every rejected row is recorded with an explicit reason. Every
+repaired row is recorded with a description of what changed. Call
+`print_report()` to see a full summary of every decision made.
+Config files are the methods section — every cleaning decision
+versioned in YAML.
 
-**Analyzers** — compute quantities from data objects and produce pipe-delimited intermediates.
+**Analyzers** — compute quantities from validated data objects and
+produce typed intermediates. Analyzers do not clean. By the time
+an analyzer receives its input, structural soundness is already
+guaranteed by the objects themselves.
 
-**Pipe-Delimited Format** — the universal handshake between analyzers and visualizers. One row per entity, pipe-delimited multi-value columns. Any analyzer output can feed any visualizer.
+**Intermediates** — validated result objects produced by analyzers
+and consumed by visualizers. `CohortTimeline` is the central
+intermediate: one row per entity, assembling observation periods,
+events, and occurrences into a single validated object that every
+downstream component trusts.
 
-**Visualizers** — consume pipe-delimited intermediates and YAML config files to produce plots. All visual choices live in a versioned, reproducible config file.
+**Visualizers** — consume one intermediate and one configuration
+object and produce one plot. Every visual decision lives in a
+versioned YAML config file.
 
 ---
 
 ## Installation
 
-eventus is not yet on PyPI. Install in editable mode from the repo root:
+eventus is not yet on PyPI. Install in editable mode from the repo
+root:
 
 ```bash
 pip install -e .
 ```
 
-Changes to source files take effect immediately — no reinstall needed.
+Changes to source files take effect immediately — no reinstall
+needed.
 
 > PyPI release planned for v1.0.
 
@@ -43,38 +76,26 @@ Changes to source files take effect immediately — no reinstall needed.
 ## Quick start
 
 ```python
-from eventus import (
-    EventSemantics, OccurrenceSemantics,
-    EventsCleanerConfig, EventsCleaner,
-    OccurrencesCleanerConfig, OccurrencesCleaner,
-    ObsPeriodPerEntity,
-    EventsWithinObsPeriodsAnalyzer,
-    OccurrencesWithinObsPeriodsAnalyzer,
-    StackedTimelineConfig, StackedTimelinePlotter,
+import eventus
+import pandas as pd
+
+# 1. Declare what your columns mean
+sem = eventus.EventSemantics(
+    identity        = "inpatient_hospitalization",
+    entity_id_col   = "patient_id",
+    start_time_col  = "admit_date",
+    end_time_col    = "discharge_date",
+    also_defined_by = ["hospital_id"],
 )
 
-# 1. Define semantics — map your column names to concepts
-event_sem = EventSemantics(
-    entity_id_col  = "patient_id",
-    start_time_col = "admit_date",
-    end_time_col   = "discharge_date",
-    identity       = "inpatient_hospitalization",
-)
+# 2. Configure and run the cleaner
+config  = eventus.EventsCleanerConfig.build_from_yaml("hospitalization_cleaner.yaml")
+cleaner = eventus.EventsCleaner(raw_df, sem, config)
+events  = cleaner.clean()
+cleaner.print_report()   # → structured audit trail, every decision recorded
 
-occ_sem = OccurrenceSemantics(
-    entity_id_col = "patient_id",
-    date_col      = "ed_visit_date",
-    identity      = "ed_visit",
-)
-
-# 2. Clean
-events    = EventsCleaner(raw_hosp_df, event_sem,
-                EventsCleanerConfig.build_from_yaml("event_cleaner.yaml")).clean()
-ed_visits = OccurrencesCleaner(raw_ed_df, occ_sem,
-                OccurrencesCleanerConfig.build_from_yaml("occ_cleaner.yaml")).clean()
-
-# 3. Define observation period
-obs = ObsPeriodPerEntity.construct_from_calendar(
+# 3. Define the observation period
+obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
     entity_ids = events.data["patient_id"].unique(),
     start      = "2022-01-01",
     end        = "2022-12-31",
@@ -82,129 +103,153 @@ obs = ObsPeriodPerEntity.construct_from_calendar(
     identity   = "calendar_2022",
 )
 
-# 4. Analyze
-events_result = EventsWithinObsPeriodsAnalyzer(
-    events     = events,
+# 4. Filter and assemble
+events = eventus.EventsFilter(events).to_obs_period(obs, clip=True).result
+
+ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
-).compute_event_coverage()
+    events     = events,
+)
 
-occ_result = OccurrencesWithinObsPeriodsAnalyzer(
-    occurrences = ed_visits,
-    obs_period  = obs,
-).calc()
-
-# 5. Enrich intermediates
-events_result = events_result.self_analyze()
-occ_result    = occ_result.self_analyze()
+# 5. Analyze
+analyzer    = eventus.CohortTimelineEventAnalyzer(ct, "inpatient_hospitalization")
+ct_enriched = analyzer.enrich_with_event_coverage()
+summary     = analyzer.get_summary()
+print(summary)
 
 # 6. Visualize
-config  = StackedTimelineConfig.build_from_yaml("timeline_config.yaml")
-plotter = StackedTimelinePlotter(events_result, config=config)
-plotter.plot("timeline.png")
+config  = eventus.StackedTimelineConfig.build_from_yaml("timeline_config.yaml")
+sample  = ct_enriched.sample_subset(n=50, random_seed=42)
+eventus.StackedTimelinePlotter(sample, config).plot("timeline.png")
 ```
 
 ---
 
-## Object hierarchy
+## Key classes
 
-```
-Events                    Occurrences
-    ↓                         ↓
-EventsPerEntity           OccurrencesPerEntity
-    ↓
-ObsPeriodPerEntity
-```
+### Semantics
+| Class | Purpose |
+|---|---|
+| `EventSemantics` | Column mapping for interval event data |
+| `OccurrenceSemantics` | Column mapping for point-in-time occurrence data |
 
-`EventsPerEntity` enforces one row per entity. `ObsPeriodPerEntity` adds semantic meaning — each row is an observation window.
+### Data Objects
+| Class | Purpose |
+|---|---|
+| `Events` | Validated interval event data |
+| `Occurrences` | Validated point-in-time occurrence data |
+| `ObsPeriodPerEntity` | Per-entity observation windows |
 
-`OccurrencesPerEntity` enforces one row per entity for landmark events such as index diagnoses or enrollment dates.
+### Cleaners and Filters
+| Class | Purpose |
+|---|---|
+| `EventsCleaner` | Clean raw event DataFrames → `Events` |
+| `OccurrencesCleaner` | Clean raw occurrence DataFrames → `Occurrences` |
+| `EventsCleanerConfig` | Versioned cleaning configuration |
+| `OccurrencesCleanerConfig` | Versioned cleaning configuration |
+| `EventsFilter` | Subset `Events` by entity or date |
+| `OccurrencesFilter` | Subset `Occurrences` by entity or date |
+
+### Analyzers
+| Class | Purpose |
+|---|---|
+| `CohortTimelineEventAnalyzer` | Event coverage analysis from `CohortTimeline` |
+| `CohortTimelineOccurrenceAnalyzer` | Occurrence volume, timing, shape, survival |
+| `OccurrenceEventAnalyzer` | Temporal relationships between occurrences and events |
+| `EventDurationAnalyzer` | Event durations from `Events` directly |
+
+### Intermediates
+| Class | Purpose |
+|---|---|
+| `CohortTimeline` | Central per-entity table — assembles all streams |
+| `OccurrenceResultVolume` | Per-entity occurrence counts |
+| `OccurrenceResultTiming` | Time to nth occurrence |
+| `OccurrenceResultShape` | Behavioral fingerprint (gaps, burstiness, memory) |
+| `OccurrenceEventResult` | Temporal co-occurrence statistics |
+| `EventCoverageSummary` | Tiered coverage summary with validated denominators |
+| `EventDurationResult` | Per-event duration statistics |
+| `SurvivalResult` | Kaplan-Meier survival curve |
+
+### Visualizers
+| Class | Config |
+|---|---|
+| `StackedTimelinePlotter` | `StackedTimelineConfig` |
+| `OccurrenceResultVolumePlotter` | `OccurrenceResultVolumeConfig` |
+| `OccurrenceResultTimingPlotter` | `OccurrenceResultTimingConfig` |
+| `OccurrenceResultShapePlotter` | `OccurrenceResultShapeConfig` |
+| `ActivityOverTimePlotter` | `ActivityOverTimeConfig` |
+| `ArraysViolinPlotter` | `ArraysViolinConfig` |
+| `EventDurationHistogramPlotter` | `EventDurationPlotConfig` |
 
 ---
 
 ## Design principles
 
-**Domain agnosticism** — all classes accept user-defined column names through semantics objects. eventus knows nothing about patients or hospitals.
+**Each class has a single responsibility.** `Events` validates.
+`EventsCleaner` cleans. Analyzers compute. Visualizers draw. No
+class does two jobs.
 
-**One job per class** — `Events` validates, `EventsCleaner` cleans, analyzers compute, visualizers draw. No class does two jobs.
+**Objects trust what they receive.** An analyzer that accepts a
+validated `Events` object does not re-check for null identifiers or
+causality violations — those guarantees were earned upstream and are
+carried by the object.
 
-**If it exists it is complete** — constructors raise on invalid data. A constructed object is always structurally sound.
+**Config is the methods section.** Every analytical and visual
+decision lives in a versioned YAML file. Configs are frozen
+dataclasses with `build_from_yaml()` and `to_yaml()`. The YAML file
+is the reproducible record of what was done.
 
-**Config is the methods section** — every analytical and visual decision lives in a versioned YAML file, not in code. Configs are frozen dataclasses with `build_from_yaml()` and `to_yaml()`.
+**Specific errors, not silent failures.** Every `raise` has a
+message that tells you what went wrong, where, and what to fix.
 
-**The intermediate is the handshake** — pipe-delimited format is the contract between analyzers and visualizers. Column naming conventions carry all structural information.
-
-**Specific errors, not silent failures** — every `raise` has a message that tells you what went wrong and what to do about it.
+**The cleaner is the required bridge.** A data object will not
+construct from an uncleaned DataFrame. The audit trail — rejected
+rows, modified rows, rejection reasons — is automatic.
 
 ---
 
 ## Submodule READMEs
 
-Each abstraction has its own README with full API reference and examples:
+Each abstraction has its own README with full API reference, design
+notes, and examples:
 
-| Folder | README |
+| Folder | Contents |
 |---|---|
 | `src/eventus/semantics/` | Column mapping and identity rules |
 | `src/eventus/data_objects/` | Validated containers and construction paths |
-| `src/eventus/cleaners/` | Cleaning pipelines and quality reports |
-| `src/eventus/analyzers/` | Analyzers and what they produce |
-| `src/eventus/pipe_delimited_format/` | Intermediate format, `self_analyze()`, summary stats |
+| `src/eventus/cleaners/` | Cleaning pipelines, filters, and quality reports |
+| `src/eventus/analyzers/` | Analyzers and output patterns |
+| `src/eventus/intermediates/` | `CohortTimeline` and result objects |
 | `src/eventus/visualizers/` | Plotters, config files, and YAML reference |
 
 ---
 
-## Package structure
+## Vignettes
 
-```
-eventus/
-    pyproject.toml
-    src/
-        eventus/
-            __init__.py
-            semantics/
-                event_semantics.py
-                occurrence_semantics.py
-            data_objects/
-                events.py
-                events_per_entity.py
-                obs_period_per_entity.py
-                occurrences.py
-                occurrences_per_entity.py
-            cleaners/
-                events_cleaner.py
-                events_cleaner_config.py
-                occurrences_cleaner.py
-                occurrences_cleaner_config.py
-            analyzers/
-                event_duration_analyzer.py
-                events_within_obs_periods_analyzer.py
-                occurrences_within_obs_periods_analyzer.py
-            pipe_delimited_format/
-                pipe_delimited_format.py
-                pipe_delimited_format_events.py
-                pipe_delimited_format_occurrences.py
-            visualizers/
-                activity_over_time_config.py
-                activity_over_time_plotter.py
-                events_duration_plotter.py
-                histogram_config.py
-                stacked_timeline_config.py
-                stacked_timeline_plotter.py
-                violins/
-                    base_violin_config.py
-                    event_duration_violin_config.py
-                    events_duration_violin_plotter.py
-                    events_within_obs_period_violin_config.py
-                    events_within_obs_period_violin_plotter.py
-    vignettes/
-        data/
-```
+Eight worked examples demonstrating the full pipeline on simulated
+data covering insurance coverage periods, nursing facility stays,
+emergency department visits, and inpatient hospitalizations:
+
+| Chapter | Topic |
+|---|---|
+| 1 | Cleaning hospitalization records |
+| 2 | Descriptor aggregation in nursing facility data |
+| 3 | Event duration analysis |
+| 4 | Observation period construction |
+| 5 | Stacked timeline visualization |
+| 6 | Occurrence volume analysis |
+| 7 | Occurrence timing and gap analysis |
+| 8 | Occurrence-event co-occurrence analysis |
+
+Each chapter includes a without-eventus comparison script in
+`vignettes/without_eventus/`.
 
 ---
 
-## Planned future work
+## Future work
 
-**Simulation layer** — `CohortSimulator` producing validated `Events`, `Occurrences`, and `ObsPeriodPerEntity` objects with known ground truth. Enables testing analytical methods against reproducible synthetic cohorts.
-
-**`Deidentifier`** — entity-level date perturbation and ID hashing from a versioned config file. Preserves all analytical quantities while destroying absolute dates required for re-identification.
-
-**PyPI release** — `pip install eventus` once the test suite and vignettes are complete.
+- Co-occurrence extensions (occurrence + occurrence, event + event)
+- Descriptor-based filtering (`OccurrencesFilter.by_descriptor()`)
+- Sequential dependency / Markov chain analysis
+- Interactive visualization
+- PyPI release (`pip install eventus`)
