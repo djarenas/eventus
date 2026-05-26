@@ -8,12 +8,13 @@ Built for recurring challenges in health services research and
 insurance analytics, but applicable wherever entities, time spans,
 interval events, and point-in-time occurrences co-exist.
 
-> **Note:** eventus is research software provided as-is under the
-> MIT License. Its architecture is designed to enforce structural
-> validity and produce auditable pipelines. It does not guarantee
-> the scientific validity of analytical decisions — that
-> responsibility remains with the researcher. Contributions, bug
-> reports, and extensions are welcome.
+> **Note:** eventus is an evolving research package released under
+> the MIT License — free to use, modify, and distribute (see LICENSE).
+> Its architecture aims to surface structural errors early and make
+> analytical decisions auditable. It may contain bugs — please report
+> them and contributions are welcome at
+> https://github.com/djarenas/eventus. Scientific judgment remains
+> the researcher's responsibility.
 
 ---
 
