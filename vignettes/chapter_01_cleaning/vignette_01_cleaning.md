@@ -50,14 +50,16 @@ defines a hospitalization episode.
 
 > ### The script-based alternative
 >
-> To illustrate the limitations of the script-based paradigm, we asked
-> a large language model to implement the same cleaning pipeline.
+> To make the comparison concrete, we asked a large language model to
+> implement the same cleaning pipeline using standard pandas — then
+> refactored the result to use global constants, making it as clean and
+> fair as possible. The script produces correct output.
 > The script is at
-> `vignettes/without_eventus/clean_hospitalizations_no_eventus.py`.
+> `vignettes/without_eventus/without_eventus_clean_hospitalizations.py`.
 >
 > | Feature | Without eventus | With eventus | Notes |
 > |---|:---:|:---:|---|
-> | Cleans the data | ✓ | ✓ | ~150 lines vs ~10 lines |
+> | Cleans the data | ✓ | ✓ | 117 lines vs 14 lines (8×) |
 > | Per-row rejection tracking | ✓ | ✓ | Coded manually vs included at no cost |
 > | Config is versioned | ✗ | ✓ | YAML file — the record of every decision |
 > | Reusable on new dataset | ✗ | ✓ | Change semantics YAML — one place |
@@ -207,18 +209,17 @@ pipe-delimited strings across merged rows.
   duplicate. This distinction is declared once in semantics and
   respected by the cleaner automatically.
 
-- **~10 lines of analysis code vs ~70 without eventus** — and the
-  ~70 lines still lack a versioned config, easy extensibility, and
-  transfer-aware merging requires a hardcoded groupby loop.
+- **14 lines of analysis code vs 117 lines without eventus** (8× more)
+  — and the 117 lines produce correct output but cannot provide a versioned
+  record of cleaning decisions, a structured per-row audit trail, or
+  extensibility without rewriting the merge loop. The gap is not
+  correctness — it is transparency, auditability, and reproducibility
+  as structural properties of the pipeline.
 
 ---
 
-*Chapter 1B — Descriptor aggregation in a nursing facility setting
-shows how numeric and categorical metadata are handled during merging.
-See `vignette_02_descriptor_aggregation.md`.*
-
-*Chapter 3 — "How long were these hospitalizations?" introduces episode
-duration analysis. See `vignette_03_episode_duration.md`.*
+*The next chapter examines descriptor aggregation — how numeric
+and categorical metadata are handled when episodes are merged.*
 
 ---
 
@@ -250,7 +251,7 @@ descriptor_cols:
 for the same patient are only duplicates if they are at the same
 hospital. Two visits to different hospitals on the same day are kept
 as separate events. `descriptor_cols` declares the clinical
-columns — available for aggregation in Chapter 6.
+columns — available for downstream aggregation.
 
 ### The code
 

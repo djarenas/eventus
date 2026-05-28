@@ -31,17 +31,6 @@ _MARKER_MAP = {
     "star":     "*",
 }
 
-# Valid sort columns — identity-independent ones only.
-# Identity-prefixed columns (eps_{identity}_active_days etc.) are
-# accepted dynamically in _validate_sort_args.
-_SORT_DATE = {
-    "obs_start",
-    "obs_end",
-}
-_SORT_NUMERIC_STATIC = {
-    "obs_duration_days",
-}
-
 
 class StackedTimelinePlotter:
     """
@@ -55,25 +44,31 @@ class StackedTimelinePlotter:
     cohort_timeline : CohortTimeline
         Must contain obs_start and obs_end columns.
     config : StackedTimelineConfig | None
-        Plot configuration. Uses StackedTimelineConfig.build_with_defaults()
+        Plot configuration. Uses StackedTimelineConfig() defaults
         if not provided.
-    sort_by : list[str] | None
-        Column names to sort entities by before plotting. Must exist in
-        cohort_timeline.data. Common values:
-        'obs_duration_days', 'obs_start', 'obs_end',
-        or identity-prefixed columns like
-        'eps_inpatient_hospitalization_active_days'.
+    sort_identity : str | None
+        Episode identity to sort by — must be present in
+        cohort_timeline.episode_identities and must have coverage
+        columns (produced by enrich_with_episode_coverage()).
         Default None — entities appear in cohort_timeline order.
+    sort_metrics : list[EpisodeCoverageMetric] | None
+        Which coverage metrics to sort by, in priority order.
+        Default [EpisodeCoverageMetric.ACTIVE_DAYS] when sort_identity
+        is provided. Each metric corresponds to an
+        eps_comp_{identity}_{metric} column. Raises if the column is
+        not present in the CohortTimeline.
     ascending : bool | list[bool]
-        Sort direction. Default True.
+        Sort direction per metric. A single bool applies to all metrics.
+        Default True.
     """
 
     def __init__(
         self,
         cohort_timeline: CohortTimeline,
-        config:    StackedTimelineConfig | None = None,
-        sort_by:   list[str] | None            = None,
-        ascending: bool | list[bool]           = True,
+        config:         StackedTimelineConfig | None    = None,
+        sort_identity:  str | None                     = None,
+        sort_metrics:   list | None                    = None,
+        ascending:      bool | list[bool]              = True,
     ) -> None:
         if not isinstance(cohort_timeline, CohortTimeline):
             raise TypeError(
@@ -86,29 +81,40 @@ class StackedTimelinePlotter:
                 f"period. '{OBS_START_COL}' and '{OBS_END_COL}' columns are required."
             )
         if config is None:
-            config = StackedTimelineConfig.build_with_defaults()
+            config = StackedTimelineConfig()
         if not isinstance(config, StackedTimelineConfig):
             raise TypeError(
                 f"{_ERROR_PREFIX}: config must be a StackedTimelineConfig "
                 f"object, got {type(config).__name__}"
             )
 
-        if sort_by is not None:
-            self._validate_sort_args(sort_by, ascending, cohort_timeline.data)
-            sorted_data, temp_cols = self._prepare_for_sort(cohort_timeline.data, sort_by)
+        if sort_identity is not None:
+            from eventus.types import EpisodeCoverageMetric
+            self._validate_sort_args(
+                sort_identity, sort_metrics, ascending, cohort_timeline
+            )
+            # Apply default metric if not specified
+            if sort_metrics is None:
+                sort_metrics = [EpisodeCoverageMetric.ACTIVE_DAYS]
 
-            # Replace any pipe-delimited sort columns with their temp proxies
-            actual_sort_by = list(sort_by)
-            for orig_col, temp_col in temp_cols:
-                idx = actual_sort_by.index(orig_col)
-                actual_sort_by[idx] = temp_col
+            # Resolve all metrics to EpisodeCoverageMetric for consistent .value access
+            resolved_metrics = [EpisodeCoverageMetric(m) for m in sort_metrics]
+            date_metrics     = {EpisodeCoverageMetric.FIRST_START, EpisodeCoverageMetric.LAST_END}
+
+            sort_cols = [
+                f"eps_comp_{sort_identity}_{m.value}" for m in resolved_metrics
+            ]
+            sorted_data = cohort_timeline.data.copy()
+            # Parse date columns for correct date-aware sorting
+            for col, metric in zip(sort_cols, resolved_metrics):
+                if metric in date_metrics:
+                    sorted_data[col] = pd.to_datetime(sorted_data[col], errors="coerce")
+                else:
+                    sorted_data[col] = pd.to_numeric(sorted_data[col], errors="coerce")
 
             sorted_data = sorted_data.sort_values(
-                by=actual_sort_by, ascending=ascending, na_position="last"
+                by=sort_cols, ascending=ascending, na_position="last"
             )
-            # Drop temp sort columns before constructing CohortTimeline
-            drop_cols = [temp for _, temp in temp_cols]
-            sorted_data = sorted_data.drop(columns=drop_cols, errors="ignore")
             sorted_data = sorted_data.reset_index(drop=True)
             cohort_timeline = CohortTimeline(sorted_data, cohort_timeline.entity_col)
 
@@ -121,29 +127,57 @@ class StackedTimelinePlotter:
 
     @staticmethod
     def _validate_sort_args(
-        sort_by:   list[str],
-        ascending: bool | list[bool],
-        data:      pd.DataFrame,
+        sort_identity: str,
+        sort_metrics:  list | None,
+        ascending:     bool | list[bool],
+        cohort_timeline: CohortTimeline,
     ) -> None:
-        if not isinstance(sort_by, list) or not sort_by:
+        from eventus.types import EpisodeCoverageMetric
+
+        # Validate identity
+        if not isinstance(sort_identity, str) or not sort_identity.strip():
             raise TypeError(
-                f"{_ERROR_PREFIX}: sort_by must be a non-empty list of "
-                f"column name strings, got {type(sort_by).__name__}"
+                f"{_ERROR_PREFIX}: sort_identity must be a non-empty string, "
+                f"got {sort_identity!r}"
             )
-        if not all(isinstance(s, str) for s in sort_by):
-            bad = [s for s in sort_by if not isinstance(s, str)]
-            raise TypeError(
-                f"{_ERROR_PREFIX}: all sort_by entries must be strings, "
-                f"got non-string values: {bad}"
-            )
-        # Any column that exists in the data is valid
-        missing = [c for c in sort_by if c not in data.columns]
-        if missing:
+        if sort_identity not in cohort_timeline.episode_identities:
             raise ValueError(
-                f"{_ERROR_PREFIX}: sort_by column(s) not found in "
-                f"cohort_timeline.data: {missing}. "
-                f"Available columns: {sorted(data.columns.tolist())}"
+                f"{_ERROR_PREFIX}: sort_identity '{sort_identity}' not found "
+                f"in cohort_timeline.episode_identities: "
+                f"{cohort_timeline.episode_identities}. "
+                f"Ensure the identity is present and coverage columns have "
+                f"been computed via enrich_with_episode_coverage()."
             )
+
+        # Validate metrics
+        valid_metrics = set(EpisodeCoverageMetric)
+        if sort_metrics is not None:
+            if not isinstance(sort_metrics, list) or not sort_metrics:
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: sort_metrics must be a non-empty list "
+                    f"of EpisodeCoverageMetric values, "
+                    f"got {type(sort_metrics).__name__}"
+                )
+            for m in sort_metrics:
+                try:
+                    resolved = EpisodeCoverageMetric(m)
+                except ValueError:
+                    raise ValueError(
+                        f"{_ERROR_PREFIX}: '{m}' is not a valid "
+                        f"EpisodeCoverageMetric. "
+                        f"Valid values: {[e.value for e in EpisodeCoverageMetric]}"
+                    )
+                col = f"eps_comp_{sort_identity}_{resolved.value}"
+                if col not in cohort_timeline.data.columns:
+                    raise ValueError(
+                        f"{_ERROR_PREFIX}: coverage column '{col}' not found "
+                        f"in cohort_timeline. "
+                        f"Call enrich_with_episode_coverage() on the "
+                        f"CohortTimeline before sorting by coverage metrics."
+                    )
+
+        # Validate ascending
+        effective_n = len(sort_metrics) if sort_metrics else 1
         if isinstance(ascending, list):
             if not all(isinstance(a, bool) for a in ascending):
                 bad = [a for a in ascending if not isinstance(a, bool)]
@@ -151,53 +185,16 @@ class StackedTimelinePlotter:
                     f"{_ERROR_PREFIX}: all ascending entries must be bools, "
                     f"got: {bad}"
                 )
-            if len(ascending) != len(sort_by):
+            if len(ascending) != effective_n:
                 raise ValueError(
                     f"{_ERROR_PREFIX}: ascending list length ({len(ascending)}) "
-                    f"must match sort_by length ({len(sort_by)})"
+                    f"must match sort_metrics length ({effective_n})"
                 )
         elif not isinstance(ascending, bool):
             raise TypeError(
                 f"{_ERROR_PREFIX}: ascending must be a bool or list of bools, "
                 f"got {type(ascending).__name__}"
             )
-
-    @staticmethod
-    def _prepare_for_sort(
-        data:    pd.DataFrame,
-        sort_by: list[str],
-    ) -> pd.DataFrame:
-        """
-        Cast sort columns to correct types before sorting, without
-        destroying original column data.
-
-        Date columns (obs_start, obs_end) are parsed as datetime in-place.
-        Episode starts/ends (pipe-delimited) are sorted by extracting the
-        first date into a temporary _sort_{col} column, which is dropped
-        after sorting. Numeric columns are cast to float.
-        """
-        data = data.copy()
-        temp_cols = []
-
-        for col in sort_by:
-            if col in _SORT_DATE:
-                data[col] = pd.to_datetime(data[col], errors="coerce")
-            elif (col.startswith("eps_") and
-                  (col.endswith("_starts") or col.endswith("_ends"))):
-                # Pipe-delimited date strings — extract first date for sorting
-                # into a temp column, leave original intact
-                temp = f"_sort_tmp_{col}"
-                data[temp] = data[col].apply(
-                    lambda v: pd.to_datetime(
-                        str(v).split(" | ")[0].strip(), errors="coerce"
-                    ) if pd.notna(v) else pd.NaT
-                )
-                temp_cols.append((col, temp))
-            else:
-                # Numeric — computed stats, obs_duration_days, etc.
-                data[col] = pd.to_numeric(data[col], errors="coerce").astype(float)
-
-        return data, temp_cols
 
     # ------------------------------------------------------------------ #
     # Public API

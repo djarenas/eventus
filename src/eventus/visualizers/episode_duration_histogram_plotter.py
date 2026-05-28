@@ -9,22 +9,26 @@ Plot methods
 ------------
 plot_histogram(path) — binned histogram of duration_days
 plot_kde(path)       — KDE density curve of duration_days
+
+Drawing helpers live in episode_duration_histogram_plotter_utils.py.
+Shared histogram primitives live in histogram_utils.py.
 """
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pathlib
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from scipy.stats import gaussian_kde
-
 from eventus.intermediates.episode_duration_result import EpisodeDurationResult
 from eventus.visualizers.configs.episode_duration_plot_config import EpisodeDurationPlotConfig
 from eventus.visualizers.plot_utils import validate_path, save_figure
 from eventus.visualizers.histogram_utils import compute_bins, draw_percentile_lines
+from eventus.visualizers.episode_duration_histogram_plotter_utils import (
+    draw_kde,
+    apply_labels,
+    annotate_n,
+)
 
 _ERROR = "[EpisodeDurationHistogramPlotter] Error"
 
@@ -99,7 +103,6 @@ class EpisodeDurationHistogramPlotter:
 
         fig, ax = plt.subplots(figsize=canvas.figsize)
 
-        # Draw histogram
         bins  = compute_bins(durations, hist_cfg.bins)
         style = hist_cfg.style
         ax.hist(
@@ -109,27 +112,14 @@ class EpisodeDurationHistogramPlotter:
             edgecolor = style.edgecolor,
             alpha     = style.alpha,
         )
-
         if style.show_grid:
             ax.yaxis.grid(True, linestyle="--", alpha=0.4)
             ax.set_axisbelow(True)
 
-        # Percentile lines
         draw_percentile_lines(ax, durations, hist_cfg.percentile_lines)
-
-        # Labels
-        self._apply_labels(ax, hist_cfg.labels, canvas.font_size, "histogram")
-
-        # n label
-        ax.text(
-            0.98, 0.97,
-            f"n={len(durations):,} episodes",
-            transform = ax.transAxes,
-            ha        = "right",
-            va        = "top",
-            fontsize  = canvas.font_size - 1,
-            color     = "#555555",
-        )
+        apply_labels(ax, hist_cfg.labels, canvas.font_size, "histogram",
+                     self._duration_result.identity)
+        annotate_n(ax, len(durations), canvas.font_size)
 
         fig.tight_layout()
         save_figure(fig, path, canvas.dpi)
@@ -151,7 +141,6 @@ class EpisodeDurationHistogramPlotter:
         cfg       = self._config
         kde_cfg   = cfg.kde
         canvas    = cfg.canvas
-        style     = kde_cfg.style
         durations = self._durations()
 
         if len(durations) < 2:
@@ -162,56 +151,10 @@ class EpisodeDurationHistogramPlotter:
 
         fig, ax = plt.subplots(figsize=canvas.figsize)
 
-        # Compute KDE
-        arr = durations.to_numpy(dtype=np.float64)
-        kde = gaussian_kde(arr, bw_method=style.bandwidth)
-
-        x_min  = max(0.0, float(arr.min()))
-        x_max  = float(arr.max())
-        x_grid = np.linspace(x_min, x_max, 500)
-        y_grid = kde(x_grid)
-
-        # Draw line
-        ax.plot(
-            x_grid, y_grid,
-            color     = style.color,
-            linewidth = style.linewidth,
-            alpha     = style.alpha,
-            zorder    = 3,
-        )
-
-        # Fill under curve
-        if style.fill_alpha > 0:
-            ax.fill_between(
-                x_grid, y_grid,
-                alpha  = style.fill_alpha,
-                color  = style.color,
-                zorder = 2,
-            )
-
-        if style.show_grid:
-            ax.yaxis.grid(True, linestyle="--", alpha=0.4)
-            ax.set_axisbelow(True)
-
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(bottom=0)
-
-        # Percentile lines
-        draw_percentile_lines(ax, durations, kde_cfg.percentiles)
-
-        # Labels
-        self._apply_labels(ax, kde_cfg.labels, canvas.font_size, "kde")
-
-        # n label
-        ax.text(
-            0.98, 0.97,
-            f"n={len(durations):,} episodes",
-            transform = ax.transAxes,
-            ha        = "right",
-            va        = "top",
-            fontsize  = canvas.font_size - 1,
-            color     = "#555555",
-        )
+        draw_kde(ax, durations, kde_cfg, canvas)
+        apply_labels(ax, kde_cfg.labels, canvas.font_size, "kde",
+                     self._duration_result.identity)
+        annotate_n(ax, len(durations), canvas.font_size)
 
         fig.tight_layout()
         save_figure(fig, path, canvas.dpi)
@@ -227,49 +170,6 @@ class EpisodeDurationHistogramPlotter:
             .dropna()
             .reset_index(drop=True)
         )
-
-    def _apply_labels(
-        self,
-        ax,
-        labels,
-        font_size: int,
-        plot_type: str,
-    ) -> None:
-        """Apply title, xlabel, ylabel from config labels."""
-        identity = self._duration_result.identity
-
-        # Title — config first, then auto
-        title = labels.title
-        if title is None:
-            suffix = "Distribution" if plot_type == "histogram" else "Density"
-            title  = (
-                f"Duration {suffix} — {identity}"
-                if identity
-                else f"Episode Duration {suffix}"
-            )
-        ax.set_title(title, fontsize=font_size + 1)
-
-        xlabel = labels.xlabel or (
-            f"Duration ({labels.units})" if labels.units else "Duration (days)"
-        )
-        ylabel = labels.ylabel or (
-            "Entities" if plot_type == "histogram" else "Density"
-        )
-
-        ax.set_xlabel(xlabel, fontsize=font_size)
-        ax.set_ylabel(ylabel, fontsize=font_size)
-        ax.tick_params(labelsize=font_size - 1)
-
-        if labels.subtitle:
-            ax.text(
-                0.98, 0.89,
-                labels.subtitle,
-                transform = ax.transAxes,
-                ha        = "right",
-                va        = "top",
-                fontsize  = font_size - 1,
-                color     = "#555555",
-            )
 
     # ------------------------------------------------------------------ #
     # Dunder

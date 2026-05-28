@@ -2,7 +2,7 @@
 
 ## Vignette: Visualizing Age-Based Coverage Periods
 
-You know from Chapter 4 that 13.6% of members had no Medicaid
+The coverage analysis found that 13.6% of members had no Medicaid
 coverage during their 18-25 window, that only 3.5% were continuously
 covered for the full seven years, and that 31.9% had gaps. A table
 of statistics tells you what happened. It cannot show you the pattern.
@@ -56,7 +56,7 @@ the answer is "probably, unless someone edited it."
 >
 > We implemented a matplotlib equivalent. The script is at
 > `vignettes/without_eventus/without_eventus_stacked_timeline.py`.
-> It required **165 lines** and has one critical limitation that
+> It required **155 lines** and has one critical limitation that
 > cannot be fixed without significant additional work: **the x-axis
 > shows normalized time [0, 1], not real dates.** Mapping normalized
 > positions back to actual calendar dates for a cohort where every
@@ -66,7 +66,7 @@ the answer is "probably, unless someone edited it."
 >
 > | Feature | Without eventus | With eventus | Notes |
 > |---|:---:|:---:|---|
-> | Renders a plot | ✓ | ✓ | 165 lines vs 3 lines |
+> | Renders a plot | ✓ | ✓ | 155 lines vs 7 new lines (22×) |
 > | Calendar and normalized x-axis | ✗ | ✓ | Our attempt did not cover both vs switches between calendar and normalized |
 > | Variable-length obs periods | ✓ | ✓ | Manual normalization vs `x_axis: auto` |
 > | Four-segment color coding | ✓ | ✓ | Hardcoded constants vs versioned YAML |
@@ -81,11 +81,11 @@ the answer is "probably, unless someone edited it."
 
 ## The eventus solution
 
-### Step 1 — Reuse the Chapter 4 pipeline
+### Step 1 — Reuse the previous chapter's pipeline
 
 No new cleaning. No new semantics. The `CohortTimeline` from
-Chapter 4 Bonus A is the input — the pipeline is identical up to
-the plot call.
+The age-window pipeline from the previous chapter is the input
+— identical up to the plot call.
 
 ```python
 demog_df = pd.read_csv("data/simulated_member_demographics.csv")
@@ -115,7 +115,7 @@ ct_sample = ct.sample_subset(n=50, random_seed=42)
 ```
 
 This is a display decision, not an analytical decision. The analysis
-in Chapter 4 used the full 500-member cohort. The visualization uses
+in the coverage analysis used the full 500-member cohort. The visualization uses
 50. These decisions live in different places — and `random_seed=42`
 means the sample is identical every time the script runs.
 
@@ -181,11 +181,21 @@ plotter = eventus.StackedTimelinePlotter(ct_sample, timeline_config)
 plotter.plot("output/age_window_coverage_timeline.png")
 ```
 
-The plot shows — in one figure — continuous members (solid blue
-bars), gapped members (blue bars broken by orange), partially
-covered members (short bars), and uncovered members (near-white
-bars). The variation that Chapter 4 described in statistics is
-visible as a pattern.
+*Figure 3. Stacked timeline of Medicaid coverage for 50 members,
+ages 18–25. X-axis: months relative to each member's 18th birthday
+(0m–84m = 7 years). Blue: active Medicaid coverage. Orange: coverage
+gap between episodes. White rows: members with no coverage or
+zero-length observation windows — present and accounted for, not
+silently dropped. Bar length reflects each member's personal
+observation window; members who entered coverage late or exited
+early show as shorter bars. Legend labels: "Inactive before,"
+"Medicaid Coverage," "Inactive gap," "Inactive after."*
+
+The variation described in numbers in the previous chapter is
+visible as a pattern: most members have substantial blue coverage, several have
+orange gaps in the middle, a few have short bars reflecting late
+enrollment or early exit, and the blank rows are members with no
+coverage — the 13.6% from the coverage summary.
 
 ---
 
@@ -219,19 +229,22 @@ visible as a pattern.
   made — and it is version-controlled alongside the data and the
   analysis.
 
-- **165 lines vs 3 lines — and the 165 lines cannot show real dates.**
-  The matplotlib script produces a plot with a normalized x-axis
-  [0, 1]. Mapping normalized positions back to actual calendar dates
-  for a heterogeneous cohort is a significant additional problem that
-  the script does not solve. The escalating complexity across
-  vignettes — ~150 lines in Chapter 1, ~275 lines in Chapter 4,
-  165 lines with a fundamental limitation in Chapter 5 — is itself
-  the argument. At some point the script-based paradigm does not
-  produce a worse version of the same thing. It produces something
-  different.
-
+- **155 lines vs 7 lines of new visualization code (22×)** — the
+  full chapter 05 script is 42 lines total, but 26 of those are
+  pipeline re-use from the previous chapter that eventus carries forward
+  automatically via the `CohortTimeline`. The 7 lines that are
+  genuinely new are `sample_subset`, `build_from_yaml`, and
+  `plotter.plot`. The 155-line script still cannot show real
+  dates on the x-axis — it produces a normalized [0, 1] axis
+  because mapping tick positions back to calendar dates for a
+  heterogeneous cohort is a significant additional problem the
+  script does not solve. The escalating complexity across
+  vignettes — 117 lines for episode cleaning, 253 lines for
+  observation period analysis (which crashes at runtime), 155 lines
+  for timeline visualization with a fundamental x-axis limitation — is itself the argument.
+  At some point the script-based paradigm does not produce a
+  worse version of the same thing. It produces something different.
 ---
 
-*Chapter 6 — Full pipeline: combining episodes, events, and
-observation periods into a single cohort analysis.
-See `vignette_06_full_pipeline.md`.*
+*The next chapter introduces the full pipeline — combining
+episodes and events in the same cohort timeline.*

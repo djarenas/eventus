@@ -17,17 +17,23 @@ from eventus.visualizers.events.event_result_volume_plotter import EventResultVo
 
 # Visualizers: Violins
 from eventus.visualizers.violins.arrays_violin_plotter import ArraysViolinPlotter
-from eventus.visualizers.violins.episode_coverage_violin_plotter import EpisodeCoverageViolinPlotter 
+from eventus.visualizers.violins.episode_coverage_violin_plotter import EpisodeCoverageViolinPlotter
+from eventus.visualizers.violins.episode_duration_violin_plotter import EpisodeDurationViolinPlotter
+
+# Visualizers: Additional configs
+from eventus.visualizers.configs.episode_duration_plot_config import EpisodeDurationPlotConfig
+from eventus.visualizers.configs.histogram_plot_config import HistogramPlotConfig
+from eventus.visualizers.configs.kde_plot_config import KDEPlotConfig
+from eventus.visualizers.configs.violin_config import EpisodeDurationViolinConfig
 
 __all__ = [
     
     "ActivityOverTimePlotter",
-    "EpisodesDurationHistogramPlotter",
+    "EpisodeDurationHistogramPlotter",
     "StackedTimelinePlotter",
     
     # Configurations
     "ActivityOverTimeConfig",
-    "ArraysViolinConfig",
     "EventResultShapeConfig",
     "EventResultTimingConfig",
     "EventResultVolumeConfig",
@@ -40,6 +46,14 @@ __all__ = [
 
     # Violins
     "ArraysViolinPlotter",
+    "ArraysViolinConfig",
     "EpisodeCoverageViolinPlotter",
+    "EpisodeDurationViolinPlotter",
+
+    # Additional configs
+    "EpisodeDurationPlotConfig",
+    "EpisodeDurationViolinConfig",
+    "HistogramPlotConfig",
+    "KDEPlotConfig",
 
 ]

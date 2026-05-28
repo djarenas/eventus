@@ -50,9 +50,11 @@ must recompute them every time they are needed.
 > without eventus, attempting full feature parity. The resulting script
 > is available at
 > `vignettes/without_eventus/without_eventus_observation_periods.py`.
-> It required **275 lines** and still produced a pandas `UserWarning`
-> from boolean indexing — a subtle bug that could silently produce
-> wrong results in certain cohort configurations.
+> It required **253 lines** and raises an `AttributeError` on real
+> data: `numpy.timedelta64` objects returned from date subtraction
+> do not have a `.days` attribute, causing the coverage gap calculation
+> to crash at runtime. The script ran correctly during development
+> but fails on the actual vignette dataset.
 >
 > | Feature | Without eventus | With eventus | Notes |
 > |---|:---:|:---:|---|
@@ -66,13 +68,14 @@ must recompute them every time they are needed.
 > | Out-of-window members handled | ✓ | ✓ | Explicit logic vs automatic |
 > | Bad input validation | ✗ | ✓ | No pre-analysis checks vs cleaner as required gate |
 > | Per-row audit trail | ✗ | ✓ | Aggregate counts only vs `cleaner.rejected` |
-> | Specific errors raised | ✗ | ✓ | pandas UserWarning vs raises with actionable message |
+> | Specific errors raised | ✗ | ✓ | `AttributeError` on `numpy.timedelta64.days` vs raises with actionable message |
 > | Structured result object | ✗ | ✓ | Printout only vs `EpisodeCoverageSummary` |
 > | Enriched columns carry forward | ✗ | ✓ | Recompute every time vs `ct_enriched` |
 >
-> **275 lines vs ~20 lines with eventus.** The script produces correct
+> **253 lines vs ~35 lines with eventus.** The script produces correct
 > output but has no structured result object, no validated denominators,
-> and a pandas warning that signals a latent correctness issue.
+> and raises an `AttributeError` at runtime on the actual vignette
+> dataset — the script does not complete successfully.
 >
 > *This script is not meant to be optimized — it is meant to be honest.
 > The point is not the line count. It is what the lines are doing and
@@ -135,9 +138,7 @@ ct = eventus.CohortTimeline.build_from_components(
 ### Step 4 — Enrich with coverage analysis
 
 ```python
-from eventus.analyzers import CohortTimelineEpisodeAnalyzer
-
-analyzer    = CohortTimelineEpisodeAnalyzer(ct, "medicaid_coverage")
+analyzer    = eventus.CohortTimelineEpisodeAnalyzer(ct, "medicaid_coverage")
 ct_enriched = analyzer.enrich_with_episode_coverage()
 ```
 
@@ -297,27 +298,28 @@ uncovered for about 3.
   the pipeline is identical. The out-of-window members are handled
   correctly and automatically.
 
-- **275 lines without eventus vs ~20 lines with eventus** — and the
-  275 lines still produced a pandas `UserWarning` signaling a latent
-  correctness issue, had no structured result object, and required
-  manual denominator tracking throughout.
+- **253 lines without eventus vs ~35 lines with eventus** — and the
+  253 lines raise an `AttributeError` at runtime on the actual vignette
+  dataset, have no structured result object, and require manual
+  denominator tracking throughout. The script does not complete.
 
-- **Our ~20 lines do more than the 275.** The eventus version includes
+- **Our ~35 lines do more than the 253.** The eventus version includes
   full input validation, a per-row audit trail with rejection reasons,
   causality checking, date floor/ceiling enforcement, and duplicate
   detection — all through the cleaner that runs before the first
   analysis line. The without-eventus script rebuilds a fraction of
   this inline, imperfectly, with no reuse across analyses.
 
-- **eventus raises specific errors. The script warns or fails
-  silently.** The pandas `UserWarning` in the script is not an
-  exception — it continues and produces output that may be wrong.
-  eventus raises at construction with a specific, actionable message
-  before any data is touched. "Silent wrong output that propagates
-  into downstream analyses" is the failure mode the script-based
-  paradigm cannot prepisode.
+- **eventus completes. The script does not.** The without-eventus
+  script raises `AttributeError: 'numpy.timedelta64' object has no
+  attribute 'days'` at runtime — a numpy/pandas type inconsistency
+  at the boundary of date arithmetic that the script does not guard
+  against. eventus handles all date arithmetic internally with
+  consistent types. This error did not appear during script
+  development and only surfaced on the actual vignette dataset —
+  exactly the failure mode the script-based paradigm cannot prevent.
 
-- **A disclaimer on the 275-line script.** It is not meant to be
+- **A disclaimer on the 253-line script.** It is not meant to be
   optimized — it is meant to be honest. A more experienced pandas
   developer could condense some functions. The point is not the line
   count — it is what the lines are doing and what they are missing.
@@ -327,5 +329,5 @@ uncovered for about 3.
 
 ---
 
-*Chapter 5 — Stacked timelines visualize the coverage patterns
-discovered in this chapter. See `vignette_05_stacked_timeline.md`.*
+*The next chapter visualizes the coverage patterns discovered
+here as a stacked timeline — one bar per member.*

@@ -2,8 +2,8 @@
 
 ## Vignette: When Did Members Have ED Visits Between Ages 18-21?
 
-You know from Chapter 6 that 67.4% of members had at least one ED
-visit between ages 18 and 21, and that nearly half had multiple visits.
+The event volume analysis found that 67.4% of members had at least
+one ED visit between ages 18 and 21, and that nearly half had multiple.
 Now the question is: *when* did those visits happen — and does the
 gap between visits differ by diagnosis?
 
@@ -43,7 +43,7 @@ declared in `EventSemantics.descriptor_cols` with
 
 ## The eventus solution
 
-Chapter 7 reuses the full pipeline from Chapter 6 Bonus B — same
+This chapter reuses the pipeline from the previous chapter — same
 semantics, same cleaner, same age window. Two new analyzer calls answer
 new questions.
 
@@ -162,13 +162,6 @@ plotting shows the pattern is there to find.
 
 ---
 
-> *Claude estimated a script-based equivalent of this analysis would
-> require on the order of 240 lines — before accounting for the
-> per-entity age window observation period (~75 additional lines) and
-> the condition stratification join (~30 additional lines). The
-> comparison argument was made in full across Chapters 1-6. The
-> remaining chapters demonstrate the analytical depth of the package.*
-
----
-
-*Chapter 8 — Co-event analysis. See `vignette_08_coevent.md`.*
+*The next chapter examines co-event analysis — do ED visits
+precede hospitalizations, and do members return to the ED after
+discharge?*

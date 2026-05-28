@@ -30,6 +30,11 @@ EventResult (base)
 
 EventEpisodeResult                      — event-episode temporal relationships
 
+EventCoOccurrenceResult (base)          — co-occurrence between two event identities
+    EventCoOccurrencePresenceResult — presence, same-day, within-window counts
+    EventCoOccurrenceGapResult      — nearest-neighbor gap statistics
+EventCoOccurrenceAssociation            — 2×2 table, association measures, CIs
+
 SurvivalResult                          — Kaplan-Meier survival curve
 ```
 
@@ -378,6 +383,127 @@ NaN in gap statistics may mean any of: entity had no events, entity had
 no episodes, entity had both but no qualifying temporal pairs within the
 observation period, or entity had only one qualifying pair (std only).
 All are scientifically valid — absent signal, not missing data.
+
+---
+
+## EventCoOccurrenceResult family
+
+`EventCoOccurrenceResult` is an abstract base class for all co-occurrence
+result objects. It is never instantiated directly. The two concrete
+subclasses represent two analytical lenses on co-occurrence data —
+presence and gaps — each produced by a dedicated method on
+`EventCoOccurrenceAnalyzer`.
+
+All three share these structural invariants:
+- `entity_col` is present, non-null, and unique
+- `obs_start` and `obs_end` columns are present
+- `identity_a != identity_b`
+- `data` is non-empty
+
+### `EventCoOccurrencePresenceResult`
+
+Per-entity presence flags, same-day co-occurrence, and pair counts
+within a configurable window. Produced by
+`EventCoOccurrenceAnalyzer.compute_presence(within_days)`.
+
+```python
+presence = analyzer.compute_presence(within_days=7)
+
+presence.n_with_a                  # entities with at least one A
+presence.n_with_b                  # entities with at least one B
+presence.n_with_both               # entities with both
+presence.n_with_same_day           # entities with at least one same-day pair
+presence.n_with_co_occurrence_within  # entities with a pair within within_days
+presence.within_days               # the window used — always stored on the result
+```
+
+**Additional columns:** `n_a`, `n_b`, `has_a`, `has_b`, `has_both`,
+`n_same_day`, `pct_a_with_same_day_b`, `pct_b_with_same_day_a`,
+`n_co_occurrences_within`.
+
+**`association` property** — derives a full `EventCoOccurrenceAssociation`
+from the 2×2 contingency table. Computed lazily on first access and
+cached. No new data is read — all inputs come from the `has_a` and
+`has_b` columns already in the result.
+
+```python
+assoc = presence.association
+print(assoc)               # 2×2 table, all measures, disclaimer
+print(assoc.disclaimer)    # interpretation warning as a string
+print(assoc.contingency_table)  # pd.DataFrame with counts and percentages
+```
+
+### `EventCoOccurrenceGapResult`
+
+Per-entity nearest-neighbor gap statistics in both directions. No window
+— computed over the full observation period. Produced by
+`EventCoOccurrenceAnalyzer.compute_gaps()`.
+
+```python
+gaps = analyzer.compute_gaps()
+
+gaps.n_with_a_to_b_gap   # entities with at least one A → B pair
+gaps.n_with_b_to_a_gap   # entities with at least one B → A pair
+```
+
+**Additional columns:** `n_a_with_following_b`,
+`mean/median/std_days_a_to_b`, `n_b_with_following_a`,
+`mean/median/std_days_b_to_a`.
+
+NaN values are scientifically valid — absent signal, not missing data.
+
+---
+
+## EventCoOccurrenceAssociation
+
+A standalone association analysis object derived from the 2×2
+co-occurrence contingency table. Produced by
+`EventCoOccurrencePresenceResult.association`.
+
+Not a per-entity result — this is a cohort-level object carrying
+point estimates and analytical confidence intervals.
+
+```python
+assoc = presence.association
+```
+
+**Attributes**
+
+| Attribute | Type | Description |
+|---|---|---|
+| `n_with_both`, `n_a_only`, `n_b_only`, `n_neither` | `int` | 2×2 cell counts |
+| `n_with_a`, `n_with_b`, `n_total` | `int` | Marginal totals |
+| `prev_a`, `prev_b` | `float` | Prevalence of A and B |
+| `prev_a_ci`, `prev_b_ci` | `tuple` | 95% Wilson CI |
+| `p_b_given_a`, `p_b_given_no_a` | `float` | Conditional probabilities |
+| `p_a_given_b`, `p_a_given_no_b` | `float` | Conditional probabilities |
+| `prevalence_ratio` | `float` | P(B\|A) / P(B\|¬A) |
+| `prevalence_ratio_ci` | `tuple` | 95% log-method CI |
+| `odds_ratio` | `float` | (a×d) / (b×c) |
+| `odds_ratio_ci` | `tuple` | 95% Woolf log CI |
+| `sensitivity` | `float` | P(A\|B) — treating A as test for B |
+| `specificity` | `float` | P(¬A\|¬B) |
+| `lr_positive`, `lr_negative` | `float` | Likelihood ratios |
+| `lr_positive_ci`, `lr_negative_ci` | `tuple` | 95% Simel log CI |
+| `ci_method` | `str` | Description of CI method used |
+| `disclaimer` | `str` | Full interpretation warning |
+| `contingency_table` | `pd.DataFrame` | 2×2 with counts and row/column % |
+
+**Confidence interval methods (V1)**
+
+Wilson score for proportions; log/Woolf method for prevalence ratio
+and odds ratio; Simel et al. (1991) log method for likelihood ratios.
+Bootstrap CIs are planned for a future version via a general
+`BootstrapCI` utility.
+
+**Interpretation note**
+
+All measures are cross-sectional — they describe entities that had
+both events within the same observation period. `prevalence_ratio` is
+a prevalence ratio, not an incidence rate ratio. Likelihood ratios
+treat A as a screening test for B — this framing is only meaningful
+if that asymmetry is analytically intended. The `disclaimer` property
+returns the full interpretation guidance as a string.
 
 ---
 

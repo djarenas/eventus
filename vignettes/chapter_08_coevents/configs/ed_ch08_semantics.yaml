@@ -1,0 +1,6 @@
+# ed_ch08_semantics.yaml
+# Chapter 8 — ED visit semantics (minimal: no hospital_id, no descriptors)
+
+identity:       ed_visit
+entity_id_col:  patient_id
+date_col:       ed_visit_date

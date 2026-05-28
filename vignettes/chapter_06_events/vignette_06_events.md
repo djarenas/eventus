@@ -50,9 +50,9 @@ the scientific question.
 >
 > The without-eventus script is at
 > `vignettes/without_eventus/without_eventus_events.py`.
-> It required **~99 lines** for the calendar year analysis and
-> produced a pandas `UserWarning` — the same silent correctness risk
-> seen in Chapter 4.
+> It required **97 lines** for the calendar year analysis and
+> produced correct output. This script runs successfully — the structural gaps are in
+> transparency and extensibility, not correctness.
 >
 > | Feature | Without eventus | With eventus | Notes |
 > |---|:---:|:---:|---|
@@ -63,12 +63,14 @@ the scientific question.
 > | Correct denominator | ✓ | ✓ | Requires loading coverage file separately |
 > | Denominator validated | ✗ | ✓ | Manual tracking vs validated at construction |
 > | Structured result object | ✗ | ✓ | Printout only vs `EventResultVolume` |
-> | Raises on bad input | ✗ | ✓ | pandas UserWarning vs specific error message |
+> | Raises on bad input | ✗ | ✓ | No validation vs specific error at construction |
 > | Age window analysis | ✗ | ✓ | ~75 more lines vs change one constructor call |
 >
-> **~99 lines for the calendar year analysis. ~175 lines estimated for
-> both analyses combined.** With eventus, Bonus B is 8 additional
-> lines — the only change is the `ObsPeriodPerEntity` constructor.
+> **97 lines for the calendar year analysis. ~185 lines estimated for
+> both analyses combined.** With eventus, Bonus B is 27 additional
+> lines — primarily the new `ObsPeriodPerEntity` constructor,
+> filter, assembly, analyzer, and plot calls. The pipeline
+> structure is identical to the calendar year analysis.
 
 ---
 
@@ -299,7 +301,7 @@ One constructor call separated the two analyses.
 
 - **`EventsCleaner` provides the same guarantees as `EpisodesCleaner`**
   — validated output, per-row audit trail, auditable config. The
-  parallel design means everything learned in Chapter 1 applies here.
+  parallel design means the same guarantees apply here.
 
 - **Consolidation is a scientific decision** — `icd10_condition: unique`
   and `systolic_bp: median` are declared in the cleaner config, not
@@ -325,6 +327,5 @@ One constructor call separated the two analyses.
 
 ---
 
-*Chapter 7 — Event timing and shape analysis: when do ED visits
-happen relative to enrollment, and are they bursty or regular?
-See `vignette_07_event_shape.md`.*
+*The next chapter examines event timing and shape — when do
+ED visits happen, and are they bursty or regular?*

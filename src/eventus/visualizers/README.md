@@ -137,8 +137,8 @@ Every config supports three construction paths:
 ```python
 MyConfig()                          # zero-argument defaults
 MyConfig.build_from_yaml(path)      # from YAML file — primary path
-MyConfig._build_from_dict(data)     # internal — used by build_from_yaml
-                                    # and orchestrator _build_sections()
+MyConfig.build_from_dict(data)      # from a plain dict — used programmatically
+                                    # and by orchestrator _build_sections() internally
 ```
 
 `build_from_yaml()` is the primary path for reproducible analyses.
@@ -254,6 +254,25 @@ each — plot order follows definition order.
 **Sections:** `canvas`, `labels`, `axes` (`ViolinAxisConfig`), `style`
 (`ViolinStyleConfig`), `percentiles`, `categories`.
 
+### `EpisodeDurationViolinConfig`
+
+Configuration for `EpisodeDurationViolinPlotter`. Extends
+`BaseViolinConfig` with a `stratify_by` column name that tells the
+plotter which column in `EpisodeDurationResult.data` to group by.
+
+```python
+config = EpisodeDurationViolinConfig.build_from_dict({
+    "stratify_by": "hospital_id",
+    "stratify": {
+        "all_data": {"color": "#AAAAAA", "label": "All"},
+        "H01":      {"color": "#028090", "label": "North"},
+    },
+})
+```
+
+**Sections:** `canvas`, `stratify_by`, `stratify`, `labels`, `axes`
+(`ViolinAxisConfig`), `style` (`ViolinStyleConfig`), `percentiles`.
+
 ---
 
 ## Plotters reference
@@ -265,17 +284,37 @@ before/active/gap/after regions. Episode coverage and event markers
 overlaid. Optional entity sorting by any column in the `CohortTimeline`.
 
 ```python
+from eventus.types import EpisodeCoverageMetric
+
 config  = StackedTimelineConfig.build_from_yaml("timeline.yaml")
 plotter = StackedTimelinePlotter(cohort_timeline, config)
 plotter.plot("timeline.png")
 
-# With sorting — longest obs periods first
+# Sort by active days — longest first (default metric)
 plotter = StackedTimelinePlotter(
-    cohort_timeline, config,
-    sort_by   = ["obs_duration_days"],
-    ascending = False,
+    cohort_timeline,
+    config,
+    sort_identity = "inpatient_hospitalization",
+    ascending     = False,
+)
+
+# Sort by multiple metrics — active days first, then inactive middle
+plotter = StackedTimelinePlotter(
+    cohort_timeline,
+    config,
+    sort_identity = "inpatient_hospitalization",
+    sort_metrics  = [
+        EpisodeCoverageMetric.ACTIVE_DAYS,
+        EpisodeCoverageMetric.INACTIVE_DAYS_MIDDLE,
+    ],
+    ascending     = [False, True],
 )
 ```
+
+`sort_identity` must be present in `cohort_timeline.episode_identities`
+and coverage columns must already exist (call
+`enrich_with_episode_coverage()` first). `sort_metrics` defaults to
+`[EpisodeCoverageMetric.ACTIVE_DAYS]` when not specified.
 
 **Requires:** `CohortTimeline` with obs_start and obs_end.
 

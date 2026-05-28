@@ -17,6 +17,8 @@ Quick start
 ...     CohortTimelineEventAnalyzer,
 ...     EpisodeDurationAnalyzer,
 ...     DateBoundary,
+...     EpisodeCoverageMetric,
+...     EventCoOccurrenceAnalyzer,
 ... )
 
 Submodule imports also work:
@@ -28,6 +30,7 @@ Submodule imports also work:
 
 # ── Types ─────────────────────────────────────────────────────────────────────
 from eventus.types import DateBoundary
+from eventus.types import EpisodeCoverageMetric
 
 # ── Semantics ─────────────────────────────────────────────────────────────────
 from eventus.semantics.episode_semantics import EpisodeSemantics
@@ -54,6 +57,7 @@ from eventus.analyzers.cohort_timeline_episode_analyzer import CohortTimelineEpi
 from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
 from eventus.analyzers.episode_duration_analyzer import EpisodeDurationAnalyzer
 from eventus.analyzers.event_episode_analyzer import EventEpisodeAnalyzer
+from eventus.analyzers.event_co_occurrence_analyzer import EventCoOccurrenceAnalyzer
 
 # ── Intermediates ─────────────────────────────────────────────────────────────
 from eventus.intermediates.cohort_timeline import CohortTimeline
@@ -65,6 +69,10 @@ from eventus.intermediates.event_result_volume import EventResultVolume
 from eventus.intermediates.event_result_timing import EventResultTiming
 from eventus.intermediates.event_result_shape import EventResultShape
 from eventus.intermediates.survival_result import SurvivalResult
+from eventus.intermediates.event_co_occurrence_result import EventCoOccurrenceResult
+from eventus.intermediates.event_co_occurrence_presence_result import EventCoOccurrencePresenceResult
+from eventus.intermediates.event_co_occurrence_gap_result import EventCoOccurrenceGapResult
+from eventus.intermediates.event_co_occurrence_association import EventCoOccurrenceAssociation
 
 # ── Visualizer configs ────────────────────────────────────────────────────────
 from eventus.visualizers.configs.activity_over_time_config import ActivityOverTimeConfig
@@ -76,6 +84,7 @@ from eventus.visualizers.configs.event_result_shape_config import EventResultSha
 from eventus.visualizers.configs.event_result_timing_config import EventResultTimingConfig
 from eventus.visualizers.configs.event_result_volume_config import EventResultVolumeConfig
 from eventus.visualizers.configs.stacked_timeline_config import StackedTimelineConfig
+from eventus.visualizers.configs.violin_config import EpisodeDurationViolinConfig
 
 # ── Visualizers ───────────────────────────────────────────────────────────────
 from eventus.visualizers.activity_over_time_plotter import ActivityOverTimePlotter
@@ -97,6 +106,7 @@ __version__ = "0.1.0"
 __all__ = [
     # Types
     "DateBoundary",
+    "EpisodeCoverageMetric",
 
     # Semantics
     "EpisodeSemantics",
@@ -123,6 +133,7 @@ __all__ = [
     "CohortTimelineEventAnalyzer",
     "EpisodeDurationAnalyzer",
     "EventEpisodeAnalyzer",
+    "EventCoOccurrenceAnalyzer",
 
     # Intermediates
     "CohortTimeline",
@@ -134,6 +145,10 @@ __all__ = [
     "EventResultTiming",
     "EventResultShape",
     "SurvivalResult",
+    "EventCoOccurrenceResult",
+    "EventCoOccurrencePresenceResult",
+    "EventCoOccurrenceGapResult",
+    "EventCoOccurrenceAssociation",
 
     # Visualizer configs
     "ActivityOverTimeConfig",
@@ -145,6 +160,7 @@ __all__ = [
     "EventResultTimingConfig",
     "EventResultVolumeConfig",
     "StackedTimelineConfig",
+    "EpisodeDurationViolinConfig",
 
     # Visualizers
     "ActivityOverTimePlotter",

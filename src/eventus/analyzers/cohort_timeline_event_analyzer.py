@@ -16,16 +16,16 @@ enrich_with_shape()           → CohortTimeline  (with evt_comp_{identity}_mean
 """
 from __future__ import annotations
 import numpy as np
-import pandas as pd
 
 from eventus.intermediates.cohort_timeline import CohortTimeline
 from eventus.intermediates.event_result_volume import EventResultVolume
 from eventus.intermediates.event_result_timing import EventResultTiming
 from eventus.intermediates.event_result_shape  import EventResultShape
-from eventus.intermediates.survival_result          import SurvivalResult
+from eventus.intermediates.survival_result     import SurvivalResult
 import eventus.intermediates.survival_result_utils as survival_utils
 import eventus.intermediates.cohort_timeline_utils  as ct_utils
 from . import event_stats_utils as stats_utils
+from . import cohort_timeline_event_analyzer_utils as analyzer_utils
 
 _ERROR = "[CohortTimelineEventAnalyzer] Error"
 
@@ -87,68 +87,6 @@ class CohortTimelineEventAnalyzer:
         return self._ct
 
     # ------------------------------------------------------------------ #
-    # Shared setup
-    # ------------------------------------------------------------------ #
-
-    def _base_data(self) -> tuple[pd.DataFrame, pd.Series, pd.Series, pd.Series]:
-        """
-        Return the raw data and parsed obs period series.
-        Called at the top of every compute/enrich method.
-        """
-        data      = self._ct.data
-        obs_start = pd.to_datetime(data["obs_start"]).dt.normalize()
-        obs_end   = pd.to_datetime(data["obs_end"]).dt.normalize()
-        series    = data[f"evt_{self._identity}"]
-        return data, series, obs_start, obs_end
-
-    # ------------------------------------------------------------------ #
-    # Private stat computation — shared by compute_* and enrich_with_*
-    # ------------------------------------------------------------------ #
-
-    def _compute_volume_stats(
-        self,
-        series:    pd.Series,
-        obs_start: pd.Series,
-        obs_end:   pd.Series,
-    ) -> pd.DataFrame:
-        return stats_utils.compute_volume_stats(series, obs_start, obs_end)
-
-    def _compute_timing_stats(
-        self,
-        series:    pd.Series,
-        obs_start: pd.Series,
-        obs_end:   pd.Series,
-        max_n:     int,
-    ) -> pd.DataFrame:
-        return stats_utils.compute_timing_stats(series, obs_start, obs_end, max_n)
-
-    def _compute_shape_stats(
-        self,
-        series:    pd.Series,
-        obs_start: pd.Series,
-        obs_end:   pd.Series,
-    ) -> pd.DataFrame:
-        return stats_utils.compute_shape_stats(series, obs_start, obs_end)
-
-    def _build_result_data(
-        self,
-        data:      pd.DataFrame,
-        stats_df:  pd.DataFrame,
-        obs_start: pd.Series,
-        obs_end:   pd.Series,
-    ) -> pd.DataFrame:
-        """
-        Assemble the result DataFrame:
-        entity_col + obs_start + obs_end + computed stats.
-        """
-        result = data[[self._ct.entity_col]].copy()
-        result["obs_start"] = obs_start.values
-        result["obs_end"]   = obs_end.values
-        for col in stats_df.columns:
-            result[col] = stats_df[col].values
-        return result
-
-    # ------------------------------------------------------------------ #
     # compute_* — return typed result objects
     # ------------------------------------------------------------------ #
 
@@ -161,9 +99,9 @@ class CohortTimelineEventAnalyzer:
         EventResultVolume
             One row per entity. Columns: obs_start, obs_end, n.
         """
-        data, series, obs_start, obs_end = self._base_data()
-        stats_df    = self._compute_volume_stats(series, obs_start, obs_end)
-        result_data = self._build_result_data(data, stats_df, obs_start, obs_end)
+        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
+        stats_df    = stats_utils.compute_volume_stats(series, obs_start, obs_end)
+        result_data = analyzer_utils.build_result_data(self._ct, data, stats_df, obs_start, obs_end)
         return EventResultVolume(result_data, self._ct.entity_col, self._identity)
 
     def compute_timing(self, max_n: int) -> EventResultTiming:
@@ -181,10 +119,10 @@ class CohortTimelineEventAnalyzer:
             One row per entity. Columns: obs_start, obs_end,
             time_to_1 ... time_to_{max_n}, recency_days.
         """
-        self._validate_max_n(max_n)
-        data, series, obs_start, obs_end = self._base_data()
-        stats_df    = self._compute_timing_stats(series, obs_start, obs_end, max_n)
-        result_data = self._build_result_data(data, stats_df, obs_start, obs_end)
+        analyzer_utils.validate_max_n(max_n)
+        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
+        stats_df    = stats_utils.compute_timing_stats(series, obs_start, obs_end, max_n)
+        result_data = analyzer_utils.build_result_data(self._ct, data, stats_df, obs_start, obs_end)
         return EventResultTiming(result_data, self._ct.entity_col, self._identity, max_n)
 
     def compute_shape(self) -> EventResultShape:
@@ -199,9 +137,9 @@ class CohortTimelineEventAnalyzer:
             density, center_of_mass.
             NaN where minimum event threshold is not met.
         """
-        data, series, obs_start, obs_end = self._base_data()
-        stats_df    = self._compute_shape_stats(series, obs_start, obs_end)
-        result_data = self._build_result_data(data, stats_df, obs_start, obs_end)
+        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
+        stats_df    = stats_utils.compute_shape_stats(series, obs_start, obs_end)
+        result_data = analyzer_utils.build_result_data(self._ct, data, stats_df, obs_start, obs_end)
         return EventResultShape(result_data, self._ct.entity_col, self._identity)
 
     # ------------------------------------------------------------------ #
@@ -213,9 +151,9 @@ class CohortTimelineEventAnalyzer:
         Return a new CohortTimeline enriched with evt_comp_{identity}_n.
         Overwrites the column if it already exists.
         """
-        data, series, obs_start, obs_end = self._base_data()
-        stats_df     = self._compute_volume_stats(series, obs_start, obs_end)
-        enriched_df  = ct_utils.attach_evt_comp_columns(data, stats_df, self._identity)
+        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
+        stats_df    = stats_utils.compute_volume_stats(series, obs_start, obs_end)
+        enriched_df = ct_utils.attach_evt_comp_columns(data, stats_df, self._identity)
         return CohortTimeline(enriched_df, self._ct.entity_col)
 
     def enrich_with_timing(self, max_n: int) -> CohortTimeline:
@@ -229,9 +167,9 @@ class CohortTimelineEventAnalyzer:
         max_n : int
             Maximum nth event to compute timing for. Must be >= 1.
         """
-        self._validate_max_n(max_n)
-        data, series, obs_start, obs_end = self._base_data()
-        stats_df    = self._compute_timing_stats(series, obs_start, obs_end, max_n)
+        analyzer_utils.validate_max_n(max_n)
+        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
+        stats_df    = stats_utils.compute_timing_stats(series, obs_start, obs_end, max_n)
         enriched_df = ct_utils.attach_evt_comp_columns(data, stats_df, self._identity)
         return CohortTimeline(enriched_df, self._ct.entity_col)
 
@@ -241,8 +179,8 @@ class CohortTimelineEventAnalyzer:
         std_gap, cv_gap, min_gap, max_gap, burstiness, memory, density,
         center_of_mass. Overwrites columns if they already exist.
         """
-        data, series, obs_start, obs_end = self._base_data()
-        stats_df    = self._compute_shape_stats(series, obs_start, obs_end)
+        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
+        stats_df    = stats_utils.compute_shape_stats(series, obs_start, obs_end)
         enriched_df = ct_utils.attach_evt_comp_columns(data, stats_df, self._identity)
         return CohortTimeline(enriched_df, self._ct.entity_col)
 
@@ -269,47 +207,27 @@ class CohortTimelineEventAnalyzer:
             n_episodes_total, n_censored_total, and the KM table with
             CI bounds.
         """
-        data, series, obs_start, obs_end = self._base_data()
-
-        obs_duration  = (obs_end - obs_start).dt.days.values.astype(float)
-        time_to_first = np.array([
-            survival_utils._time_to_first(val, s, e)
-            for val, s, e in zip(series, obs_start, obs_end)
-        ], dtype=float)
+        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
+        obs_duration, time_to_first = analyzer_utils.build_survival_arrays(series, obs_start, obs_end)
 
         survival_table = survival_utils.compute_survival_table(
             time_to_episode = time_to_first,
-            obs_duration  = obs_duration,
-            ci_method     = ci_method,
+            obs_duration    = obs_duration,
+            ci_method       = ci_method,
         )
 
         n_total    = len(time_to_first)
-        n_episodes   = int(np.sum(~np.isnan(time_to_first)))
+        n_episodes = int(np.sum(~np.isnan(time_to_first)))
         n_censored = n_total - n_episodes
 
         return SurvivalResult(
             data             = survival_table,
             label            = self._identity,
             n_total          = n_total,
-            n_episodes_total   = n_episodes,
+            n_episodes_total = n_episodes,
             n_censored_total = n_censored,
             ci_method        = ci_method,
         )
-
-    # ------------------------------------------------------------------ #
-    # Helpers
-    # ------------------------------------------------------------------ #
-
-    def _validate_max_n(self, max_n: int) -> None:
-        if not isinstance(max_n, int):
-            raise TypeError(
-                f"{_ERROR} max_n must be an integer, "
-                f"got {type(max_n).__name__}"
-            )
-        if max_n < 1:
-            raise ValueError(
-                f"{_ERROR} max_n must be >= 1, got {max_n}"
-            )
 
     # ------------------------------------------------------------------ #
     # Dunder

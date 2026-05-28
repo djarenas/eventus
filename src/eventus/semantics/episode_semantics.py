@@ -21,6 +21,22 @@ OPTIONAL_FIELDS = {
 }
 ALL_FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 
+_ALSO_DEFINED_BY_EXAMPLE = (
+    "Example:\n"
+    "    also_defined_by:\n"
+    "      - hospital_id\n"
+    "      - plan_type"
+)
+
+_DESCRIPTOR_COLS_EXAMPLE = (
+    "Example:\n"
+    "    descriptor_cols:\n"
+    "      condition_code:\n"
+    "        type: category\n"
+    "      bmi_value:\n"
+    "        type: numeric"
+)
+
 
 @dataclass
 class EpisodeSemantics:
@@ -52,13 +68,11 @@ class EpisodeSemantics:
         Columns that are part of the episode's identity — two intervals
         can only be merged if all also_defined_by columns match.
         e.g. ["hospital_id"] means a hospitalization IS defined by
-        its hospital — stays at different hospitals are never merged
-        even if they overlap in time.
+        its hospital.
 
     descriptor_cols : dict[str, DescriptorColConfig] | None
         Columns that describe the episode but are not part of its
-        identity. Aggregated during merging according to rules
-        declared in EpisodesCleanerConfig.merge.
+        identity. Each value must be a DescriptorColConfig.
         e.g. {"icd10_condition": DescriptorColConfig(type="category")}
 
     episode_id_col : str | None
@@ -82,17 +96,26 @@ class EpisodeSemantics:
     ... )
     """
 
-    identity:        str | None                          = None
-    entity_id_col:   str                                 = ""
-    start_time_col:  str                                 = ""
-    end_time_col:    str                                 = ""
-    also_defined_by: list[str] | None                    = None
-    descriptor_cols: dict[str, DescriptorColConfig] | None = None
-    episode_id_col:    str | None                          = None
-    episode_type_col:  str | None                          = None
+    identity:         str | None                           = None
+    entity_id_col:    str                                  = ""
+    start_time_col:   str                                  = ""
+    end_time_col:     str                                  = ""
+    also_defined_by:  list[str] | None                     = None
+    descriptor_cols:  dict[str, DescriptorColConfig] | None = None
+    episode_id_col:   str | None                           = None
+    episode_type_col: str | None                           = None
 
     def __post_init__(self) -> None:
-        # Validate required string fields
+        self._validate_required_strings()
+        self._validate_identity()
+        self._validate_also_defined_by()
+        self._validate_descriptor_cols()
+        self._validate_optional_strings()
+        self._validate_disjoint()
+
+    # ── Validators ────────────────────────────────────────────────────────
+
+    def _validate_required_strings(self) -> None:
         for attr in ("entity_id_col", "start_time_col", "end_time_col"):
             val = getattr(self, attr)
             if not isinstance(val, str) or not val.strip():
@@ -101,54 +124,112 @@ class EpisodeSemantics:
                     f"got {val!r}"
                 )
 
-        # Validate identity
-        if self.identity is not None:
-            if not re.match(r'^[a-zA-Z0-9_]+$', self.identity):
+    def _validate_identity(self) -> None:
+        if self.identity is None:
+            return
+        if not isinstance(self.identity, str) or not self.identity.strip():
+            raise TypeError(
+                f"{_ERROR_PREFIX}: 'identity' must be a non-empty string or None, "
+                f"got {type(self.identity).__name__}"
+            )
+        if not re.match(r'^[a-zA-Z0-9_]+$', self.identity):
+            raise ValueError(
+                f"{_ERROR_PREFIX}: identity {self.identity!r} contains "
+                f"invalid characters. Use only letters, numbers, and "
+                f"underscores — e.g. 'inpatient_hospitalization'"
+            )
+
+    def _validate_also_defined_by(self) -> None:
+        if self.also_defined_by is None:
+            return
+        if not isinstance(self.also_defined_by, list):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: 'also_defined_by' must be a list of "
+                f"column name strings, got {type(self.also_defined_by).__name__}.\n"
+                f"{_ALSO_DEFINED_BY_EXAMPLE}"
+            )
+        seen = set()
+        for i, item in enumerate(self.also_defined_by):
+            if not isinstance(item, str) or not item.strip():
                 raise ValueError(
-                    f"{_ERROR_PREFIX}: identity {self.identity!r} contains "
-                    f"invalid characters. Use only letters, numbers, and "
-                    f"underscores e.g. 'inpatient_hospitalization'"
+                    f"{_ERROR_PREFIX}: all items in 'also_defined_by' must be "
+                    f"non-empty strings. Item at index {i} is {item!r}.\n"
+                    f"{_ALSO_DEFINED_BY_EXAMPLE}"
+                )
+            if item in seen:
+                raise ValueError(
+                    f"{_ERROR_PREFIX}: 'also_defined_by' contains duplicate "
+                    f"entry {item!r}. Each column name must appear only once.\n"
+                    f"{_ALSO_DEFINED_BY_EXAMPLE}"
+                )
+            seen.add(item)
+
+    def _validate_descriptor_cols(self) -> None:
+        if self.descriptor_cols is None:
+            return
+        if not isinstance(self.descriptor_cols, dict):
+            raise TypeError(
+                f"{_ERROR_PREFIX}: 'descriptor_cols' must be a dict mapping "
+                f"column names to DescriptorColConfig objects, "
+                f"got {type(self.descriptor_cols).__name__}.\n"
+                f"{_DESCRIPTOR_COLS_EXAMPLE}"
+            )
+        for col, cfg in self.descriptor_cols.items():
+            # Validate key
+            if not isinstance(col, str) or not col.strip():
+                raise ValueError(
+                    f"{_ERROR_PREFIX}: all keys in 'descriptor_cols' must be "
+                    f"non-empty strings. Got key {col!r}.\n"
+                    f"{_DESCRIPTOR_COLS_EXAMPLE}"
+                )
+            # Validate value — with helpful hints for common mistakes
+            if isinstance(cfg, str):
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: descriptor_cols[{col!r}] is a string. "
+                    f"Each value must be a DescriptorColConfig, not a string.\n"
+                    f"Use: DescriptorColConfig(type={cfg!r})\n"
+                    f"{_DESCRIPTOR_COLS_EXAMPLE}"
+                )
+            if isinstance(cfg, dict):
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: descriptor_cols[{col!r}] is a dict. "
+                    f"Each value must be a DescriptorColConfig, not a raw dict.\n"
+                    f"Use: DescriptorColConfig.from_dict({cfg!r})\n"
+                    f"Or in YAML:\n"
+                    f"{_DESCRIPTOR_COLS_EXAMPLE}"
+                )
+            if not isinstance(cfg, DescriptorColConfig):
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: descriptor_cols[{col!r}] must be a "
+                    f"DescriptorColConfig, got {type(cfg).__name__}.\n"
+                    f"{_DESCRIPTOR_COLS_EXAMPLE}"
                 )
 
-        # Validate also_defined_by
-        if self.also_defined_by is not None:
-            if not isinstance(self.also_defined_by, list):
-                raise ValueError(
-                    f"{_ERROR_PREFIX}: also_defined_by must be a list, "
-                    f"got {type(self.also_defined_by).__name__}"
+    def _validate_optional_strings(self) -> None:
+        for attr in ("episode_id_col", "episode_type_col"):
+            val = getattr(self, attr)
+            if val is None:
+                continue
+            if not isinstance(val, str) or not val.strip():
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: '{attr}' must be a non-empty string or "
+                    f"None, got {type(val).__name__} {val!r}"
                 )
 
-        # Validate descriptor_cols
-        if self.descriptor_cols is not None:
-            if not isinstance(self.descriptor_cols, dict):
-                raise ValueError(
-                    f"{_ERROR_PREFIX}: descriptor_cols must be a dict, "
-                    f"got {type(self.descriptor_cols).__name__}"
-                )
-            for col, cfg in self.descriptor_cols.items():
-                if not isinstance(cfg, DescriptorColConfig):
-                    raise ValueError(
-                        f"{_ERROR_PREFIX}: descriptor_cols[{col!r}] must be "
-                        f"a DescriptorColConfig, got {type(cfg).__name__}"
-                    )
-
-        # also_defined_by and descriptor_cols must be disjoint
+    def _validate_disjoint(self) -> None:
         if self.also_defined_by and self.descriptor_cols:
             overlap = set(self.also_defined_by) & set(self.descriptor_cols)
             if overlap:
                 raise ValueError(
                     f"{_ERROR_PREFIX}: columns cannot appear in both "
-                    f"also_defined_by and descriptor_cols: {sorted(overlap)}"
+                    f"'also_defined_by' and 'descriptor_cols': {sorted(overlap)}"
                 )
 
     # ── Convenience properties ────────────────────────────────────────────
 
     @property
     def metadata_cols(self) -> list[str]:
-        """
-        All metadata column names — also_defined_by + descriptor_cols keys.
-        Convenience property for downstream code that needs all extra columns.
-        """
+        """All metadata column names — also_defined_by + descriptor_cols keys."""
         cols = list(self.also_defined_by or [])
         cols += list(self.descriptor_cols.keys() if self.descriptor_cols else [])
         return cols
@@ -169,9 +250,9 @@ class EpisodeSemantics:
         also_defined_by:
           - hospital_id
         descriptor_cols:
-          icd10_condition:
+          condition_code:
             type: category
-          bmi_at_admission:
+          bmi_value:
             type: numeric
         """
         with open(path, "r") as f:
@@ -197,14 +278,19 @@ class EpisodeSemantics:
                 f"{sorted(unknown)}"
             )
 
-        # Parse descriptor_cols
-        descriptor_cols = None
-        if "descriptor_cols" in cfg and cfg["descriptor_cols"]:
-            descriptor_cols = {
+        # Parse descriptor_cols from raw YAML dicts
+        if "descriptor_cols" in cfg and cfg["descriptor_cols"] is not None:
+            raw = cfg["descriptor_cols"]
+            if not isinstance(raw, dict):
+                raise TypeError(
+                    f"{_ERROR_PREFIX}: 'descriptor_cols' in '{path}' must be "
+                    f"a mapping, got {type(raw).__name__}.\n"
+                    f"{_DESCRIPTOR_COLS_EXAMPLE}"
+                )
+            cfg["descriptor_cols"] = {
                 col: DescriptorColConfig.from_dict(dcfg)
-                for col, dcfg in cfg["descriptor_cols"].items()
+                for col, dcfg in raw.items()
             }
-            cfg["descriptor_cols"] = descriptor_cols
 
         return cls(**cfg)
 
@@ -220,7 +306,7 @@ class EpisodeSemantics:
             out["also_defined_by"] = self.also_defined_by
         if self.descriptor_cols:
             out["descriptor_cols"] = {
-                col: {"type": cfg.type}
+                col: {"type": cfg.type, "timeline": cfg.timeline}
                 for col, cfg in self.descriptor_cols.items()
             }
         if self.episode_id_col:
