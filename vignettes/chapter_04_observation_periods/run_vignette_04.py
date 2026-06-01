@@ -16,7 +16,7 @@ HERE = pathlib.Path(__file__).parent
 
 # ── Step 1 — Load and clean coverage data ────────────────────────────────────
 
-raw_df  = pd.read_csv(HERE.parent / "data" / "simulated_medicaid_coverage.csv")
+raw_df  = pd.read_csv(HERE.parent / "data" / "ch04_06_medicaid_coverage.csv")
 sem     = eventus.EpisodeSemantics.build_from_yaml(HERE / "configs" / "medicaid_coverage_semantics.yaml")
 config  = eventus.EpisodesCleanerConfig.build_from_yaml(HERE / "configs" / "medicaid_coverage_cleaner.yaml")
 cleaner = eventus.EpisodesCleaner(raw_df, sem, config)

@@ -1,0 +1,6 @@
+# simul4_stroke_semantics.yaml
+# Chapter 9 — simul_4 stroke event semantics
+
+identity:       stroke_event
+entity_id_col:  patient_id
+date_col:       stroke_date

@@ -17,7 +17,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 # ── Re-run Chapter 2 cleaning to get clean episodes ────────────────────────────
 
-raw_df  = pd.read_csv(HERE.parent / "data" / "nursing_facility_assessments.csv")
+raw_df  = pd.read_csv(HERE.parent / "data" / "ch02_03_nursing_facility_assessments.csv")
 sem     = eventus.EpisodeSemantics.build_from_yaml(HERE.parent / "chapter_02_descriptor_aggregation" / "configs" / "nursing_facility_semantics.yaml")
 config  = eventus.EpisodesCleanerConfig.build_from_yaml(HERE.parent / "chapter_02_descriptor_aggregation" / "configs" / "nursing_facility_cleaner.yaml")
 episodes  = eventus.EpisodesCleaner(raw_df, sem, config).clean()

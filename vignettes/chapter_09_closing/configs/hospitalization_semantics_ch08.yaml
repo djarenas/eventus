@@ -1,8 +1,0 @@
-# hospitalization_semantics_ch08.yaml
-# EpisodeSemantics for Chapter 8 hospitalization data.
-# Clean data — no descriptor cols needed.
-
-identity:        inpatient_hospitalization
-entity_id_col:   patient_id
-start_time_col:  admit_date
-end_time_col:    discharge_date

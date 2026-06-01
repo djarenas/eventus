@@ -16,8 +16,8 @@ HERE = pathlib.Path(__file__).parent
 
 # ── Step 1 — Load demographics and coverage data ──────────────────────────────
 
-demog_df = pd.read_csv(HERE.parent / "data" / "simulated_member_demographics.csv")
-raw_df   = pd.read_csv(HERE.parent / "data" / "simulated_medicaid_coverage_agewindow.csv")
+demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics.csv")
+raw_df   = pd.read_csv(HERE.parent / "data" / "ch04_05_medicaid_coverage_agewindow.csv")
 
 print(f"Members with demographics : {len(demog_df):,}")
 print(f"Coverage rows (2018-2025) : {len(raw_df):,}")

@@ -1,0 +1,6 @@
+# simul4_mi_semantics.yaml
+# Chapter 9 — simul_4 MI event semantics
+
+identity:       mi_event
+entity_id_col:  patient_id
+date_col:       mi_date

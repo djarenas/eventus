@@ -22,7 +22,7 @@ CH06       = HERE.parent / "chapter_06_events" / "configs"
 OUTPUT_DIR = HERE / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-demog_df = pd.read_csv(HERE.parent / "data" / "simulated_member_demographics.csv")
+demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics.csv")
 
 sem    = eventus.EventSemantics.build_from_yaml(CH06 / "ed_semantics.yaml")
 config = eventus.EventsCleanerConfig.build_from_yaml(CH06 / "ed_cleaner_with_consolidation.yaml")
@@ -81,7 +81,7 @@ def run_analysis(data_file: str, label: str) -> None:
         violin_config   = stratified_config,
     )
 
-run_analysis("simulated_ed_visits_agewindow_null.csv",   "null")
-run_analysis("simulated_ed_visits_agewindow_signal.csv", "signal")
+run_analysis("ch07_ed_visits_agewindow_null.csv",   "null")
+run_analysis("ch07_ed_visits_agewindow_signal.csv", "signal")
 
 print(f"\nAll outputs saved to: {OUTPUT_DIR}")

@@ -57,7 +57,9 @@ from eventus.analyzers.cohort_timeline_episode_analyzer import CohortTimelineEpi
 from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
 from eventus.analyzers.episode_duration_analyzer import EpisodeDurationAnalyzer
 from eventus.analyzers.event_episode_analyzer import EventEpisodeAnalyzer
-from eventus.analyzers.event_co_occurrence_analyzer import EventCoOccurrenceAnalyzer
+from eventus.analyzers.event_cooccurrence.event_co_occurrence_analyzer import EventCoOccurrenceAnalyzer
+from eventus.analyzers.event_cooccurrence.event_co_occurrence_gap_analyzer import EventCoOccurrenceGapAnalyzer
+from eventus.analyzers.event_cooccurrence.event_co_occurrence_directionality_analyzer import EventCoOccurrenceDirectionalityAnalyzer
 
 # ── Intermediates ─────────────────────────────────────────────────────────────
 from eventus.intermediates.cohort_timeline import CohortTimeline
@@ -69,10 +71,13 @@ from eventus.intermediates.event_result_volume import EventResultVolume
 from eventus.intermediates.event_result_timing import EventResultTiming
 from eventus.intermediates.event_result_shape import EventResultShape
 from eventus.intermediates.survival_result import SurvivalResult
-from eventus.intermediates.event_co_occurrence_result import EventCoOccurrenceResult
-from eventus.intermediates.event_co_occurrence_presence_result import EventCoOccurrencePresenceResult
-from eventus.intermediates.event_co_occurrence_gap_result import EventCoOccurrenceGapResult
-from eventus.intermediates.event_co_occurrence_association import EventCoOccurrenceAssociation
+from eventus.intermediates.event_cooccurrence.event_co_occurrence_result import EventCoOccurrenceResult
+from eventus.intermediates.event_cooccurrence.event_co_occurrence_presence_result import EventCoOccurrencePresenceResult
+from eventus.intermediates.event_cooccurrence.event_co_occurrence_association import EventCoOccurrenceAssociation
+from eventus.intermediates.event_cooccurrence.event_co_occurrence_gap_summary import EventCoOccurrenceGapSummary
+from eventus.intermediates.event_cooccurrence.event_co_occurrence_gap_test import EventCoOccurrenceGapTest
+from eventus.intermediates.event_cooccurrence.event_co_occurrence_directionality_summary import EventCoOccurrenceDirectionalitySummary
+from eventus.intermediates.event_cooccurrence.event_co_occurrence_directionality_test import EventCoOccurrenceDirectionalityTest
 
 # ── Visualizer configs ────────────────────────────────────────────────────────
 from eventus.visualizers.configs.activity_over_time_config import ActivityOverTimeConfig
@@ -85,6 +90,8 @@ from eventus.visualizers.configs.event_result_timing_config import EventResultTi
 from eventus.visualizers.configs.event_result_volume_config import EventResultVolumeConfig
 from eventus.visualizers.configs.stacked_timeline_config import StackedTimelineConfig
 from eventus.visualizers.configs.violin_config import EpisodeDurationViolinConfig
+from eventus.visualizers.configs.event_co_occurrence_gap_plot_config import EventCoOccurrenceGapPlotConfig
+from eventus.visualizers.configs.event_co_occurrence_directionality_plot_config import EventCoOccurrenceDirectionalityPlotConfig
 
 # ── Visualizers ───────────────────────────────────────────────────────────────
 from eventus.visualizers.activity_over_time_plotter import ActivityOverTimePlotter
@@ -134,6 +141,8 @@ __all__ = [
     "EpisodeDurationAnalyzer",
     "EventEpisodeAnalyzer",
     "EventCoOccurrenceAnalyzer",
+    "EventCoOccurrenceGapAnalyzer",
+    "EventCoOccurrenceDirectionalityAnalyzer",
 
     # Intermediates
     "CohortTimeline",
@@ -147,8 +156,11 @@ __all__ = [
     "SurvivalResult",
     "EventCoOccurrenceResult",
     "EventCoOccurrencePresenceResult",
-    "EventCoOccurrenceGapResult",
     "EventCoOccurrenceAssociation",
+    "EventCoOccurrenceGapSummary",
+    "EventCoOccurrenceGapTest",
+    "EventCoOccurrenceDirectionalitySummary",
+    "EventCoOccurrenceDirectionalityTest",
 
     # Visualizer configs
     "ActivityOverTimeConfig",
@@ -161,6 +173,8 @@ __all__ = [
     "EventResultVolumeConfig",
     "StackedTimelineConfig",
     "EpisodeDurationViolinConfig",
+    "EventCoOccurrenceGapPlotConfig",
+    "EventCoOccurrenceDirectionalityPlotConfig",
 
     # Visualizers
     "ActivityOverTimePlotter",

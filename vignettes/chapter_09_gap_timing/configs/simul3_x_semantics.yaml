@@ -1,0 +1,6 @@
+# simul3_x_semantics.yaml
+# Chapter 8 — simul_3 event X semantics (pure null)
+
+identity:       simul3_event_x
+entity_id_col:  patient_id
+date_col:       simul3_x_date

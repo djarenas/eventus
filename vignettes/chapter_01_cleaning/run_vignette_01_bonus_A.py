@@ -12,7 +12,7 @@ import pathlib
 import pandas as pd
 
 HERE      = pathlib.Path(__file__).parent
-raw_ed_df = pd.read_csv(HERE.parent / "data" / "simulated_ed_visits.csv")
+raw_ed_df = pd.read_csv(HERE.parent / "data" / "ch01_06_ed_visits.csv")
 
 sem       = eventus.EventSemantics.build_from_yaml(HERE / "configs" / "ed_semantics.yaml")
 config    = eventus.EventsCleanerConfig.build_from_yaml(HERE / "configs" / "ed_cleaner.yaml")

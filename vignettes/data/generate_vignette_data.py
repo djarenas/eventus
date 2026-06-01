@@ -900,7 +900,7 @@ def print_data_summary(
     print(f"  Null patient IDs    : {hosp_df['patient_id'].isna().sum():,}")
     print(f"  Null admit dates    : {hosp_df['admit_date'].isna().sum():,}")
 
-    print("\nED visits (simulated_ed_visits.csv):")
+    print("\nED visits (ch01_06_ed_visits.csv):")
     print(f"  Total rows          : {len(ed_df):,}")
     print(f"  Unique patient IDs  : {ed_df['patient_id'].nunique():,}")
     print(f"  Null patient IDs    : {ed_df['patient_id'].isna().sum():,}")
@@ -925,18 +925,18 @@ def print_data_summary(
     print(f"  conditionA          : {(demog_df['primary_condition']=='conditionA').sum():,}")
     print(f"  conditionB          : {(demog_df['primary_condition']=='conditionB').sum():,}")
     print(f"  conditionC          : {(demog_df['primary_condition']=='conditionC').sum():,}")
-    print(f"  (saved as simulated_member_demographics.csv)")
+    print(f"  (saved as ch04_07_member_demographics.csv)")
 
     print("\nMedicaid coverage age window (2018-2025):")
     print(f"  Total rows          : {len(age_cov_df):,}")
     print(f"  Unique patient IDs  : {age_cov_df['patient_id'].nunique():,}")
     print(f"  Null coverage_start : {age_cov_df['coverage_start'].isna().sum():,}")
 
-    print("\nED visits age window — null (simulated_ed_visits_agewindow_null.csv):")
+    print("\nED visits age window — null (ch07_ed_visits_agewindow_null.csv):")
     print(f"  Total rows          : {len(ed_null_df):,}")
     print(f"  Unique patient IDs  : {ed_null_df['patient_id'].nunique():,}")
 
-    print("\nED visits age window — signal (simulated_ed_visits_agewindow_signal.csv):")
+    print("\nED visits age window — signal (ch07_ed_visits_agewindow_signal.csv):")
     print(f"  Total rows          : {len(ed_signal_df):,}")
     print(f"  Unique patient IDs  : {ed_signal_df['patient_id'].nunique():,}")
 
@@ -978,22 +978,23 @@ if __name__ == "__main__":
         age_cov_df, ed_null_df, ed_signal_df,
     )
 
-    hosp_df.to_csv(      output_dir / "hospitalization_claims.csv",                  index=False)
-    ed_df.to_csv(        output_dir / "simulated_ed_visits.csv",                     index=False)
-    nf_df.to_csv(        output_dir / "nursing_facility_assessments.csv",            index=False)
-    cov_df.to_csv(       output_dir / "simulated_medicaid_coverage.csv",             index=False)
-    demog_df.to_csv(     output_dir / "simulated_member_demographics.csv",           index=False)
-    age_cov_df.to_csv(   output_dir / "simulated_medicaid_coverage_agewindow.csv",   index=False)
-    ed_null_df.to_csv(   output_dir / "simulated_ed_visits_agewindow_null.csv",      index=False)
-    ed_signal_df.to_csv( output_dir / "simulated_ed_visits_agewindow_signal.csv",    index=False)
+    hosp_df.to_csv(      output_dir / "ch01_hospitalization_claims.csv",                  index=False)
+    ed_df.to_csv(        output_dir / "ch01_06_ed_visits.csv",                     index=False)
+    nf_df.to_csv(        output_dir / "ch02_03_nursing_facility_assessments.csv",            index=False)
+    cov_df.to_csv(       output_dir / "ch04_06_medicaid_coverage.csv",             index=False)
+    demog_df.to_csv(     output_dir / "ch04_07_member_demographics.csv",           index=False)
+    age_cov_df.to_csv(   output_dir / "ch04_05_medicaid_coverage_agewindow.csv",   index=False)
+    ed_df.to_csv(        output_dir / "ch06_ed_visits_agewindow.csv",              index=False)
+    ed_null_df.to_csv(   output_dir / "ch07_ed_visits_agewindow_null.csv",      index=False)
+    ed_signal_df.to_csv( output_dir / "ch07_ed_visits_agewindow_signal.csv",    index=False)
     for name in [
-        "hospitalization_claims.csv",
-        "simulated_ed_visits.csv",
-        "nursing_facility_assessments.csv",
-        "simulated_medicaid_coverage.csv",
-        "simulated_member_demographics.csv",
-        "simulated_medicaid_coverage_agewindow.csv",
-        "simulated_ed_visits_agewindow_null.csv",
-        "simulated_ed_visits_agewindow_signal.csv",
+        "ch01_hospitalization_claims.csv",
+        "ch01_06_ed_visits.csv",
+        "ch02_03_nursing_facility_assessments.csv",
+        "ch04_06_medicaid_coverage.csv",
+        "ch04_07_member_demographics.csv",
+        "ch04_05_medicaid_coverage_agewindow.csv",
+        "ch07_ed_visits_agewindow_null.csv",
+        "ch07_ed_visits_agewindow_signal.csv",
     ]:
         print(f"Saved: {output_dir / name}")

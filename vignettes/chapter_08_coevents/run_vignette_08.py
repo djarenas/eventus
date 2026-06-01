@@ -1,15 +1,23 @@
 """
-run_vignette_08.py — Chapter 8: Event Co-occurrence Analysis
+run_vignette_08.py — Chapter 8: Event Co-occurrence Presence Analysis
 
-Do patients with a cirrhosis diagnosis also have ED visits?
-Is that co-occurrence above what chance would predict?
-How many days between diagnosis and first ED visit?
+Do cirrhosis diagnoses and ED visits co-occur above chance in a
+5,000-patient Medicaid cohort?
+
+Runs twice:
+  simul_1 — cirrhosis → ED visit (full signal)
+  simul_4 — pure null (two independent event streams)
+
+The contrast between simul_1 and simul_4 validates that the analyzer
+correctly detects signal when present and correctly returns null when not.
 
 Usage:
     python vignettes/chapter_08_coevent/run_vignette_08.py
 
 Generate synthetic data first if needed:
-    python vignettes/data/generate_vignette_data.py
+    python vignettes/data/generate_vignette_data_ch8x.py
+
+See ch8-12_simulation_design.md for full simulation parameters.
 """
 import eventus
 import pathlib
@@ -21,38 +29,12 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 CONFIGS = HERE / "configs"
 
-# ── Step 1 — Load raw data ────────────────────────────────────────────────────
+# ── Full cohort obs period — shared by both analyses ──────────────────────────
+# Declared explicitly from the full 5,000-patient pool — not derived from
+# either event stream. Patients with neither event must be present in the
+# CohortTimeline for the 2x2 table to be correct.
 
-cirrh_raw_df = pd.read_csv(HERE.parent / "data" / "simulated_cirrhosis_dx_ch08.csv")
-ed_raw_df    = pd.read_csv(HERE.parent / "data" / "simulated_ed_visits_ch08.csv")
-
-print(f"Cirrhosis diagnoses (raw): {len(cirrh_raw_df):,} rows")
-print(f"ED visits (raw)           : {len(ed_raw_df):,} rows")
-
-# ── Step 2 — Clean both streams independently ─────────────────────────────────
-
-cirrh_sem    = eventus.EventSemantics.build_from_yaml(CONFIGS / "cirrhosis_ch08_semantics.yaml")
-cirrh_config = eventus.EventsCleanerConfig.build_from_yaml(CONFIGS / "cirrhosis_ch08_cleaner.yaml")
-cirrh_cleaner = eventus.EventsCleaner(cirrh_raw_df, cirrh_sem, cirrh_config)
-cirrhosis     = cirrh_cleaner.clean()
-cirrh_cleaner.print_report()
-print(cirrhosis)
-
-ed_sem    = eventus.EventSemantics.build_from_yaml(CONFIGS / "ed_ch08_semantics.yaml")
-ed_config = eventus.EventsCleanerConfig.build_from_yaml(CONFIGS / "ed_ch08_cleaner.yaml")
-ed_cleaner = eventus.EventsCleaner(ed_raw_df, ed_sem, ed_config)
-ed_visits  = ed_cleaner.clean()
-ed_cleaner.print_report()
-print(ed_visits)
-
-# ── Step 3 — Define observation period ───────────────────────────────────────
-
-# The observation period must cover the FULL patient pool — not just
-# patients who appear in either event stream. Patients with neither
-# event must be present in the CohortTimeline for the 2x2 table to
-# be correct. Deriving all_ids from the event DataFrames silently
-# drops them and produces a wrong "neither" cell.
-all_ids = [f"D{str(i).zfill(4)}" for i in range(1, 801)]
+all_ids = [f"D{str(i).zfill(4)}" for i in range(1, 5001)]
 
 obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
     entity_ids = all_ids,
@@ -62,44 +44,81 @@ obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
     identity   = "calendar_2022",
 )
 
-# ── Step 4 — Filter both to obs period ───────────────────────────────────────
 
-cirrhosis = eventus.EventsFilter(cirrhosis).to_obs_period(obs).result
-ed_visits = eventus.EventsFilter(ed_visits).to_obs_period(obs).result
+def run_presence_analysis(
+    event_a_path: pathlib.Path,
+    event_b_path: pathlib.Path,
+    sem_a_path:   pathlib.Path,
+    sem_b_path:   pathlib.Path,
+    cfg_a_path:   pathlib.Path,
+    cfg_b_path:   pathlib.Path,
+    identity_a:   str,
+    identity_b:   str,
+    label:        str,
+) -> None:
+    print(f"\n{'=' * 60}")
+    print(f"  {label}")
+    print(f"{'=' * 60}")
 
-print(f"\nCirrhosis diagnoses in 2022: {len(cirrhosis):,}")
-print(f"ED visits in 2022           : {len(ed_visits):,}")
+    # Clean both streams independently
+    raw_a   = pd.read_csv(event_a_path)
+    sem_a   = eventus.EventSemantics.build_from_yaml(sem_a_path)
+    cfg_a   = eventus.EventsCleanerConfig.build_from_yaml(cfg_a_path)
+    clean_a = eventus.EventsCleaner(raw_a, sem_a, cfg_a).clean()
 
-# ── Step 5 — Assemble CohortTimeline ─────────────────────────────────────────
+    raw_b   = pd.read_csv(event_b_path)
+    sem_b   = eventus.EventSemantics.build_from_yaml(sem_b_path)
+    cfg_b   = eventus.EventsCleanerConfig.build_from_yaml(cfg_b_path)
+    clean_b = eventus.EventsCleaner(raw_b, sem_b, cfg_b).clean()
 
-ct = eventus.CohortTimeline.build_from_components(
-    obs_period = obs,
-    events     = [cirrhosis, ed_visits],
+    # Filter to obs period
+    clean_a = eventus.EventsFilter(clean_a).to_obs_period(obs).result
+    clean_b = eventus.EventsFilter(clean_b).to_obs_period(obs).result
+
+    # Assemble CohortTimeline
+    ct = eventus.CohortTimeline.build_from_components(
+        obs_period = obs,
+        events     = [clean_a, clean_b],
+    )
+
+    # Compute presence
+    analyzer = eventus.EventCoOccurrenceAnalyzer(
+        cohort_timeline = ct,
+        identity_a      = identity_a,
+        identity_b      = identity_b,
+    )
+
+    presence = analyzer.compute_presence()
+    print(presence)
+
+    assoc = presence.association
+    print(assoc)
+
+
+# ── simul_1 — cirrhosis → ED visit (full signal) ──────────────────────────────
+
+run_presence_analysis(
+    event_a_path = HERE.parent / "data" / "ch08_11_simul1_cirrhosis_dx.csv",
+    event_b_path = HERE.parent / "data" / "ch08_11_simul1_ed_visits.csv",
+    sem_a_path   = CONFIGS / "cirrhosis_ch08_semantics.yaml",
+    sem_b_path   = CONFIGS / "ed_ch08_semantics.yaml",
+    cfg_a_path   = CONFIGS / "cirrhosis_ch08_cleaner.yaml",
+    cfg_b_path   = CONFIGS / "ed_ch08_cleaner.yaml",
+    identity_a   = "cirrhosis_diagnosis",
+    identity_b   = "ed_visit",
+    label        = "simul_1 — cirrhosis → ED visit (signal)",
 )
 
-print(ct)
+# ── simul_4 — pure null ───────────────────────────────────────────────────────
 
-# ── Step 6 — Co-occurrence presence ──────────────────────────────────────────
-
-analyzer = eventus.EventCoOccurrenceAnalyzer(
-    cohort_timeline = ct,
-    identity_a      = "cirrhosis_diagnosis",
-    identity_b      = "ed_visit",
+run_presence_analysis(
+    event_a_path = HERE.parent / "data" / "ch08_09_simul3_event_x.csv",
+    event_b_path = HERE.parent / "data" / "ch08_09_simul3_event_y.csv",
+    sem_a_path   = CONFIGS / "simul3_x_semantics.yaml",
+    sem_b_path   = CONFIGS / "simul3_y_semantics.yaml",
+    cfg_a_path   = CONFIGS / "simul3_cleaner.yaml",
+    cfg_b_path   = CONFIGS / "simul3_cleaner.yaml",
+    identity_a   = "simul3_event_x",
+    identity_b   = "simul3_event_y",
+    label        = "simul_3 — pure null (two independent event streams)",
 )
-
-presence = analyzer.compute_presence(within_days=0)
-print(presence)
-
-# ── Step 7 — Association ──────────────────────────────────────────────────────
-
-assoc = presence.association
-print(assoc)
-print(assoc.contingency_table)
-print(f"\nDisclaimer: {assoc.disclaimer}")
-
-# ── Step 8 — Gaps ────────────────────────────────────────────────────────────
-
-gaps = analyzer.compute_gaps()
-print(gaps)
-
-print(f"\nOutputs saved to: {OUTPUT_DIR}")

@@ -1,0 +1,6 @@
+# simul5_resp_semantics.yaml
+# Chapter 10 — simul_5 respiratory infection event semantics
+
+identity:       respiratory_infection
+entity_id_col:  patient_id
+date_col:       resp_infection_date

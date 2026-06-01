@@ -18,7 +18,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 # ── Step 1 — Load and clean ED visits ────────────────────────────────────────
 
-raw_df    = pd.read_csv(HERE.parent / "data" / "simulated_ed_visits.csv")
+raw_df    = pd.read_csv(HERE.parent / "data" / "ch01_06_ed_visits.csv")
 sem       = eventus.EventSemantics.build_from_yaml(HERE / "configs" / "ed_semantics.yaml")
 config    = eventus.EventsCleanerConfig.build_from_yaml(HERE / "configs" / "ed_cleaner_with_consolidation.yaml")
 cleaner   = eventus.EventsCleaner(raw_df, sem, config)
@@ -29,7 +29,7 @@ print(ed_visits)
 
 # ── Step 2 — Load clean coverage episodes ──────────────────────────────────────
 
-cov_raw    = pd.read_csv(HERE.parent / "data" / "simulated_medicaid_coverage.csv")
+cov_raw    = pd.read_csv(HERE.parent / "data" / "ch04_06_medicaid_coverage.csv")
 cov_sem    = eventus.EpisodeSemantics.build_from_yaml(CH04 / "medicaid_coverage_semantics.yaml")
 cov_config = eventus.EpisodesCleanerConfig.build_from_yaml(CH04 / "medicaid_coverage_cleaner.yaml")
 cov_episodes = eventus.EpisodesCleaner(cov_raw, cov_sem, cov_config).clean()
@@ -103,8 +103,8 @@ print(f"\nBonus A outputs saved to: {OUTPUT_DIR}")
 
 # ── Bonus B — ED visits ages 18-21 ───────────────────────────────────────────
 
-demog_df  = pd.read_csv(HERE.parent / "data" / "simulated_member_demographics.csv")
-ed_age_df = pd.read_csv(HERE.parent / "data" / "simulated_ed_visits_agewindow.csv")
+demog_df  = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics.csv")
+ed_age_df = pd.read_csv(HERE.parent / "data" / "ch06_ed_visits_agewindow.csv")
 
 # Clean ED visits — same semantics, same cleaner
 ed_age_visits = eventus.EventsCleaner(

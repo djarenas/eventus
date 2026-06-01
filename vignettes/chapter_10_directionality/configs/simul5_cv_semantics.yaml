@@ -1,0 +1,6 @@
+# simul5_cv_semantics.yaml
+# Chapter 10 — simul_5 cardiovascular event semantics
+
+identity:       cardiovascular_event
+entity_id_col:  patient_id
+date_col:       cardiovascular_date

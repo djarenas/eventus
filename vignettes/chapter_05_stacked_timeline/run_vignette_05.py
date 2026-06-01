@@ -23,8 +23,8 @@ CH04    = HERE.parent / "chapter_04_observation_periods" / "configs"
 
 # ── Re-run Chapter 4 Bonus A pipeline ────────────────────────────────────────
 
-demog_df = pd.read_csv(HERE.parent / "data" / "simulated_member_demographics.csv")
-raw_df   = pd.read_csv(HERE.parent / "data" / "simulated_medicaid_coverage_agewindow.csv")
+demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics.csv")
+raw_df   = pd.read_csv(HERE.parent / "data" / "ch04_05_medicaid_coverage_agewindow.csv")
 
 sem     = eventus.EpisodeSemantics.build_from_yaml(CH04 / "medicaid_coverage_semantics.yaml")
 config  = eventus.EpisodesCleanerConfig.build_from_yaml(CH04 / "medicaid_coverage_cleaner.yaml")

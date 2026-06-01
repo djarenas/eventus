@@ -12,7 +12,7 @@ import pathlib
 import pandas as pd
 
 HERE        = pathlib.Path(__file__).parent
-raw_hosp_df = pd.read_csv(HERE.parent / "data" / "hospitalization_claims.csv")
+raw_hosp_df = pd.read_csv(HERE.parent / "data" / "ch01_hospitalization_claims.csv")
 
 sem     = eventus.EpisodeSemantics.build_from_yaml(HERE / "configs" / "hospitalization_semantics.yaml")
 config  = eventus.EpisodesCleanerConfig.build_from_yaml(HERE / "configs" / "hospitalization_cleaner.yaml")

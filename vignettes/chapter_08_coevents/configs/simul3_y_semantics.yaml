@@ -1,0 +1,6 @@
+# simul3_y_semantics.yaml
+# Chapter 8 — simul_3 event Y semantics (pure null)
+
+identity:       simul3_event_y
+entity_id_col:  patient_id
+date_col:       simul3_y_date
