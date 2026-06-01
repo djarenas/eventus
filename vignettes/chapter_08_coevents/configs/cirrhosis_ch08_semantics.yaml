@@ -1,0 +1,6 @@
+# cirrhosis_ch08_semantics.yaml
+# Chapter 8 — cirrhosis diagnosis event semantics
+
+identity:       cirrhosis_diagnosis
+entity_id_col:  patient_id
+date_col:       diagnosis_date

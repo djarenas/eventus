@@ -25,6 +25,6 @@ percentiles:
   show_labels: true
 
 categories:
-  "mean gap\n(days)":
+  mean_gap:
     color: "#028090"
-    label: "mean gap (days)"
+    label: "Mean gap (days)"

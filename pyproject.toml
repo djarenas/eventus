@@ -5,10 +5,34 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "eventus"
 version = "0.1.0"
-description = "A domain-agnostic Python framework for analyzing entities that experience episodes within defined observation periods."
+description = "A Python framework for longitudinal cohort analysis of entities that experience episodes and events within defined observation periods."
 readme = "README.md"
-requires-python = ">=3.12.0"
+requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [
+    { name = "Daniel Arenas", email = "danielft77@gmail.com" },
+]
+keywords = [
+    "longitudinal",
+    "cohort",
+    "episodes",
+    "events",
+    "observation periods",
+    "clinical data",
+    "administrative claims",
+    "reproducibility",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
     "pandas>=2.0",
     "numpy>=1.24",
@@ -23,8 +47,20 @@ dev = [
     "pytest-cov",
 ]
 
+[project.urls]
+Homepage = "https://github.com/your-org/eventus"
+Repository = "https://github.com/your-org/eventus"
+Documentation = "https://github.com/your-org/eventus/blob/main/README.md"
+"Bug Tracker" = "https://github.com/your-org/eventus/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

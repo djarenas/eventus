@@ -1,12 +1,8 @@
-# hosp_ch08_cleaner.yaml
-# Chapter 8 — Hospitalization cleaner config
+# cirrhosis_ch08_cleaner.yaml
+# Chapter 8 — cirrhosis diagnosis cleaner config
 
 normalize_dates:     true
 parse_dates:         true
 drop_duplicate_rows: true
 date_floor:          "1920-01-01"
 date_ceiling:        "2030-01-01"
-causality_check:     reject
-
-merge:
-  meaningful_gap_days: 0
