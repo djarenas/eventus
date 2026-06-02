@@ -66,6 +66,10 @@ class StackedTimelinePlotter:
     _cohort_timeline: CohortTimeline       # sorted/validated timeline
     _config:          StackedTimelineConfig # plot configuration
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _cohort_timeline: CohortTimeline       # sorted/validated timeline
+    _config:          StackedTimelineConfig # plot configuration
+
     def __init__(
         self,
         cohort_timeline: CohortTimeline,
@@ -409,24 +413,28 @@ class StackedTimelinePlotter:
         handles = []
 
         if cfg.legend.show_poi_in_legend:
+            if poi.label_no_episodes is not None:
+                handles.append(mpatches.Patch(
+                    facecolor=poi.color_no_episodes, label=poi.label_no_episodes
+                ))
+        if poi.label_gap_before is not None:
             handles.append(mpatches.Patch(
-                facecolor=poi.color_no_episodes, label="No episodes"
+                facecolor=poi.color_before, label=poi.label_gap_before
             ))
-        handles.append(mpatches.Patch(
-            facecolor=poi.color_before, label="Inactive before"
-        ))
         if ev_cfg is not None:
             handles.append(mpatches.Patch(
                 facecolor = ev_cfg.color,
                 alpha     = ev_cfg.alpha,
-                label     = ev_cfg.label or ev_cfg.identity,
+                label     = ev_cfg.label_active or ev_cfg.label or ev_cfg.identity,
             ))
-        handles.append(mpatches.Patch(
-            facecolor=poi.color_middle, label="Inactive gap"
-        ))
-        handles.append(mpatches.Patch(
-            facecolor=poi.color_after, label="Inactive after"
-        ))
+        if poi.label_gap_middle is not None:
+            handles.append(mpatches.Patch(
+                facecolor=poi.color_middle, label=poi.label_gap_middle
+            ))
+        if poi.label_gap_after is not None:
+            handles.append(mpatches.Patch(
+                facecolor=poi.color_after, label=poi.label_gap_after
+            ))
         for col, ocfg in evt_cfg_map.items():
             handles.append(Line2D(
                 [0], [0],

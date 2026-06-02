@@ -71,15 +71,17 @@ class ActivityLineStyleConfig(AxisStyleConfig):
 class FlowStyleConfig:
     """Bottom panel (entered/exited) visual settings."""
 
-    enabled:         bool  = True
-    mode:            str   = "bar"
-    entered_color:   str   = "#4CAF50"
-    exited_color:    str   = "#F44336"
-    zero_line_color: str   = "#AAAAAA"
-    show_y_axis:     bool  = True
-    bar_width:       float = 0.8
-    max_size:        int   = 200
-    min_size:        int   = 20
+    enabled:         bool      = True
+    mode:            str       = "bar"
+    entered_color:   str       = "#4CAF50"
+    exited_color:    str       = "#F44336"
+    zero_line_color: str       = "#AAAAAA"
+    show_y_axis:     bool      = True
+    bar_width:       float     = 0.8
+    max_size:        int       = 200
+    min_size:        int       = 20
+    label_entered:   str | None = "Entered active"
+    label_exited:    str | None = "Exited active"
 
     _PREFIX: ClassVar[str] = "activity flow style"
 
@@ -94,6 +96,12 @@ class FlowStyleConfig:
         self.min_size = validate_positive_integer(self.min_size, self._PREFIX, "min_size")
         if self.min_size > self.max_size:
             raise err(self._PREFIX, "min_size cannot exceed max_size")
+        for field_name, value in [
+            ("flow_style.label_entered", self.label_entered),
+            ("flow_style.label_exited",  self.label_exited),
+        ]:
+            if value is not None and not isinstance(value, str):
+                raise err(self._PREFIX, f"{field_name} must be a string or None, got {type(value).__name__!r}")
 
 
 @dataclass

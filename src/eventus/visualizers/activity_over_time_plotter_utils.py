@@ -226,7 +226,7 @@ def _render_diverging_bars(ax, valid: pd.DataFrame, acfg, fs: int) -> None:
             color  = acfg.entered_color,
             alpha  = 0.85,
             zorder = 2,
-            label  = "Entered active",
+            label  = acfg.label_entered or "Entered active",
         )
 
     mask_x = exited > 0
@@ -237,7 +237,7 @@ def _render_diverging_bars(ax, valid: pd.DataFrame, acfg, fs: int) -> None:
             color  = acfg.exited_color,
             alpha  = 0.85,
             zorder = 2,
-            label  = "Exited active",
+            label  = acfg.label_exited or "Exited active",
         )
 
     if acfg.show_y_axis:
@@ -248,12 +248,12 @@ def _render_diverging_bars(ax, valid: pd.DataFrame, acfg, fs: int) -> None:
         )
         ax.set_ylabel("Count", fontsize=fs)
         ax.text(
-            0.01, 0.97, "Entered ↑",
+            0.01, 0.97, f"{acfg.label_entered or 'Entered'} ↑",
             transform=ax.transAxes, fontsize=fs - 2,
             color=acfg.entered_color, va="top",
         )
         ax.text(
-            0.01, 0.03, "Exited ↓",
+            0.01, 0.03, f"{acfg.label_exited or 'Exited'} ↓",
             transform=ax.transAxes, fontsize=fs - 2,
             color=acfg.exited_color, va="bottom",
         )
@@ -283,7 +283,7 @@ def _render_scatter_arrows(ax, valid: pd.DataFrame, acfg, fs: int) -> None:
             marker = "^",
             color  = acfg.entered_color,
             zorder = 3,
-            label  = "Entered active",
+            label  = acfg.label_entered or "Entered active",
         )
 
     mask_x = exited > 0
@@ -295,7 +295,7 @@ def _render_scatter_arrows(ax, valid: pd.DataFrame, acfg, fs: int) -> None:
             marker = "v",
             color  = acfg.exited_color,
             zorder = 3,
-            label  = "Exited active",
+            label  = acfg.label_exited or "Exited active",
         )
 
     ax.set_ylim(0, 1)

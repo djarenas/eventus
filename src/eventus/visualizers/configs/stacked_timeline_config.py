@@ -97,18 +97,18 @@ class LayoutConfig:
 
         if not (0.0 < self.bar_height_ratio <= 1.0):
             raise err(
-                self._ERROR,
+                self._PREFIX,
                 f"layout.bar_height_ratio must be between 0 and 1, "
                 f"got {self.bar_height_ratio}",
             )
         if self.max_entities < 1:
             raise err(
-                _PREFIX,
+                self._PREFIX,
                 f"layout.max_entities must be >= 1, got {self.max_entities}",
             )
         if not (0.0 < self.jitter_ratio <= 0.5):
             raise err(
-                _PREFIX,
+                self._PREFIX,
                 f"layout.jitter_ratio must be between 0 and 0.5, "
                 f"got {self.jitter_ratio}",
             )
@@ -171,6 +171,10 @@ class POIConfig:
     color_no_episodes: str   = "#EEEEEE"
     alpha:           float = 0.6
     show_boundaries: bool  = True
+    label_gap_before:  str | None = "Inactivity before first episode"
+    label_gap_middle:  str | None = "Gap between episodes"
+    label_gap_after:   str | None = "Inactivity after last episode"
+    label_no_episodes: str | None = "No episodes"
     boundary_color:  str   = "#6B7C93"
     boundary_style:  str   = "dashed"
 
@@ -189,23 +193,38 @@ class POIConfig:
         self.alpha = validate_alpha(self.alpha, self._PREFIX)
         validate_choice(
             self.boundary_style, _VALID_LINE_STYLES,
-            "poi.boundary_style", _PREFIX,
+            "poi.boundary_style", self._PREFIX,
         )
+        for field_name, value in [
+            ("poi.label_gap_before",   self.label_gap_before),
+            ("poi.label_gap_middle",   self.label_gap_middle),
+            ("poi.label_gap_after",    self.label_gap_after),
+            ("poi.label_no_episodes",  self.label_no_episodes),
+        ]:
+            if value is not None and not isinstance(value, str):
+                raise err(self._PREFIX, f"{field_name} must be a string or None, got {type(value).__name__!r}")
 
 
 @dataclass
 class EpisodeLayerConfig:
     """Visual settings for one episode identity layer."""
-    identity: str
-    color:    str        = _DEFAULT_PALETTE[0]
-    alpha:    float      = 0.85
-    label:    str | None = None
+    identity:     str
+    color:        str        = _DEFAULT_PALETTE[0]
+    alpha:        float      = 0.85
+    label:        str | None = None
+    label_active: str | None = None  # legend label for active segments; defaults to label or identity
 
     _PREFIX = "[StackedTimelineConfig] Episode Layers"
 
     def __post_init__(self) -> None:
         validate_hex(self.color, f"episodes['{self.identity}'].color", self._PREFIX)
         self.alpha = validate_alpha(self.alpha, self._PREFIX)
+        if self.label_active is not None and not isinstance(self.label_active, str):
+            raise err(
+                self._PREFIX,
+                f"episodes['{self.identity}'].label_active must be a string or None, "
+                f"got {type(self.label_active).__name__!r}"
+            )
 
 
 @dataclass
@@ -230,7 +249,7 @@ class EventLayerConfig:
             validate_positive_integer(self.size, self._PREFIX)
         except Exception as e:
             raise ValueError(f"error with size in event layer: {e}")
-        validate_alpha(self.alpha,   f"events['{self.identity}'].alpha", self._PREFIX)
+        self.alpha = validate_alpha(self.alpha, self._PREFIX)
 
 
 @dataclass
@@ -245,7 +264,7 @@ class LegendConfig:
     _PREFIX = "[StackedTimelineConfig] Legend"
 
     def __post_init__(self) -> None:
-        validate_choice(self.location, _VALID_LEGEND_LOCS, "legend.location", _PREFIX)
+        validate_choice(self.location, _VALID_LEGEND_LOCS, "legend.location", self._PREFIX)
         self.font_size = validate_positive_integer(self.font_size, self._PREFIX, "font_size")
 
 

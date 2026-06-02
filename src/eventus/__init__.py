@@ -70,7 +70,6 @@ from eventus.intermediates.event_episode_result import EventEpisodeResult
 from eventus.intermediates.event_result_volume import EventResultVolume
 from eventus.intermediates.event_result_timing import EventResultTiming
 from eventus.intermediates.event_result_shape import EventResultShape
-from eventus.intermediates.survival_result import SurvivalResult
 from eventus.intermediates.event_cooccurrence.event_co_occurrence_result import EventCoOccurrenceResult
 from eventus.intermediates.event_cooccurrence.event_co_occurrence_presence_result import EventCoOccurrencePresenceResult
 from eventus.intermediates.event_cooccurrence.event_co_occurrence_association import EventCoOccurrenceAssociation
@@ -153,7 +152,6 @@ __all__ = [
     "EventResultVolume",
     "EventResultTiming",
     "EventResultShape",
-    "SurvivalResult",
     "EventCoOccurrenceResult",
     "EventCoOccurrencePresenceResult",
     "EventCoOccurrenceAssociation",
