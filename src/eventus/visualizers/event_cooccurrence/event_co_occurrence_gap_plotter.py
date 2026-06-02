@@ -48,6 +48,10 @@ class EventCoOccurrenceGapPlotter:
     >>> plotter.plot("output/gap_distributions.png")
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _test:   EventCoOccurrenceGapTest        # validated gap test result input
+    _config: "EventCoOccurrenceGapPlotConfig"  # plot configuration
+
     def __init__(self, gap_test, config=None) -> None:
         if not isinstance(gap_test, EventCoOccurrenceGapTest):
             raise TypeError(

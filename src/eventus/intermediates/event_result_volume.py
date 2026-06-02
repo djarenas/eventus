@@ -33,6 +33,13 @@ class EventResultVolume(EventResult):
     - % of cohort with multiple events
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    # Inherited from EventResult
+    _data:       pd.DataFrame  # validated per-entity DataFrame
+    _entity_col: str           # entity identifier column name
+    _identity:   str           # event identity label
+    # Own — none beyond inherited
+
     def __init__(
         self,
         data:       pd.DataFrame,

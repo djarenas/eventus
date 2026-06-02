@@ -163,6 +163,39 @@ class EventCoOccurrenceAssociation:
     identity_b  : str
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    # Raw 2×2 cell counts
+    _n_with_both:  int    # entities with both A and B
+    _n_a_only:     int    # entities with A but not B
+    _n_b_only:     int    # entities with B but not A
+    _n_neither:    int    # entities with neither A nor B
+    # Derived marginals
+    _n_with_a:     int    # n_with_both + n_a_only
+    _n_with_b:     int    # n_with_both + n_b_only
+    _n_without_a:  int    # n_b_only + n_neither
+    _n_without_b:  int    # n_a_only + n_neither
+    _n_total:      int    # sum of all four cells
+    # Identity labels
+    _identity_a:   str
+    _identity_b:   str
+    # Computed measures (set by _compute())
+    prev_a:              float  # prevalence of A
+    prev_b:              float  # prevalence of B
+    prev_a_ci:           tuple  # 95% Wilson CI for prev_a
+    prev_b_ci:           tuple  # 95% Wilson CI for prev_b
+    p_b_given_a:         float  # P(B | A)
+    p_b_given_no_a:      float  # P(B | no A)
+    p_a_given_b:         float  # P(A | B)
+    p_a_given_no_b:      float  # P(A | no B)
+    p_b_given_a_ci:      tuple  # 95% Wilson CI
+    p_b_given_no_a_ci:   tuple  # 95% Wilson CI
+    p_a_given_b_ci:      tuple  # 95% Wilson CI
+    p_a_given_no_b_ci:   tuple  # 95% Wilson CI
+    prevalence_ratio:    float  # P(B|A) / P(B|no A)
+    prevalence_ratio_ci: tuple  # 95% log-method CI
+    sensitivity:         float  # P(A | B) — treating A as test for B
+    specificity:         float  # P(no A | no B)
+
     def __init__(
         self,
         n_with_both: int,

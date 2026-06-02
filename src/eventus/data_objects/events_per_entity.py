@@ -29,6 +29,12 @@ class EventsPerEntity(Events):
         If any entity appears more than once.
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    # Inherited from Events
+    data:      pd.DataFrame    # validated event rows, dates normalized
+    semantics: EventSemantics  # column mappings and identity label
+    # Own — none beyond inherited
+
     def __init__(
         self,
         data:      pd.DataFrame,

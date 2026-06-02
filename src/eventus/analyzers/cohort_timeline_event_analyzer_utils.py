@@ -13,15 +13,11 @@ base_data(ct, identity)
 
 build_result_data(ct, data, stats_df, obs_start, obs_end)
     Assemble entity_col + obs cols + computed stats into one DataFrame.
-
-build_survival_arrays(series, obs_start, obs_end)
-    Return (obs_duration, time_to_first) arrays for KM computation.
 """
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-import eventus.intermediates.survival_result_utils as survival_utils
 
 _ERROR = "[CohortTimelineEventAnalyzer] Error"
 
@@ -127,43 +123,3 @@ def build_result_data(
     for col in stats_df.columns:
         result[col] = stats_df[col].values
     return result
-
-
-# ------------------------------------------------------------------ #
-# Survival setup
-# ------------------------------------------------------------------ #
-
-def build_survival_arrays(
-    series:    pd.Series,
-    obs_start: pd.Series,
-    obs_end:   pd.Series,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Build the obs_duration and time_to_first arrays needed for KM
-    computation.
-
-    Entities with no event get NaN in time_to_first and are treated
-    as right-censored at obs_duration_days.
-
-    Parameters
-    ----------
-    series : pd.Series
-        Raw evt_{identity} column (pipe-delimited date strings).
-    obs_start : pd.Series
-        Per-entity obs start timestamps.
-    obs_end : pd.Series
-        Per-entity obs end timestamps.
-
-    Returns
-    -------
-    obs_duration : np.ndarray of float
-        Days from obs_start to obs_end, one value per entity.
-    time_to_first : np.ndarray of float
-        Days from obs_start to first event; NaN if no event occurred.
-    """
-    obs_duration = (obs_end - obs_start).dt.days.values.astype(float)
-    time_to_first = np.array([
-        survival_utils._time_to_first(val, s, e)
-        for val, s, e in zip(series, obs_start, obs_end)
-    ], dtype=float)
-    return obs_duration, time_to_first

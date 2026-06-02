@@ -70,6 +70,7 @@ class MergeConfig:
     ... )
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     meaningful_gap_days: int
     descriptor_cols:     dict[str, str] = field(default_factory=dict)
 

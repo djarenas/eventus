@@ -62,6 +62,7 @@ class EventConsolidateConfig:
     ... )
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     descriptor_cols: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

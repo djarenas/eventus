@@ -77,6 +77,7 @@ class EventCoOccurrenceGapTest:
     ks_p_b_to_a           : float
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     _identity_a:           str
     _identity_b:           str
     _n_entities:           int

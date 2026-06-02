@@ -15,10 +15,12 @@ have been caught earlier.
 
 ```
 CohortTimelineEpisodeAnalyzer      — episode coverage analytics
-CohortTimelineEventAnalyzer        — event analytics
+CohortTimelineEventAnalyzer        — event analytics (volume, timing, shape)
 EpisodeDurationAnalyzer            — episode duration analytics
 EventEpisodeAnalyzer               — event-episode temporal relationships
-EventCoOccurrenceAnalyzer          — co-occurrence between two event identities
+EventCoOccurrenceAnalyzer          — co-occurrence: presence, gaps, directionality
+EventCoOccurrenceGapAnalyzer       — gap test (second-level, takes GapSummary)
+EventCoOccurrenceDirectionalityAnalyzer — directionality test (second-level)
 ```
 
 Each analyzer takes one or two validated inputs, computes quantities,
@@ -220,18 +222,6 @@ Minimum event thresholds:
 | `memory` | 4 |
 | `density`, `center_of_mass` | 1, obs_duration > 0 |
 
-**`compute_survival(ci_method)`** → `SurvivalResult`
-
-Kaplan-Meier survival curve for time to first event. Entities with
-no event are right-censored at their `obs_duration_days`. Excluding
-them would silently bias the curve.
-
-```python
-survival = analyzer.compute_survival(ci_method="greenwood")
-print(f"Median survival: {survival.median_survival} days")
-print(f"Episode rate: {survival.episode_rate_pct}%")
-```
-
 ### `enrich_with_*` methods — enriched CohortTimeline
 
 **`enrich_with_volume()`** → `CohortTimeline`
@@ -285,10 +275,6 @@ EventResultShapePlotter(
     shape,
     EventResultShapeConfig.build_from_yaml("shape.yaml"),
 ).plot_fingerprint("fingerprint.png")
-
-# Survival
-survival = analyzer.compute_survival()
-print(survival)
 
 # Enrich timeline for stacked plotter
 ct = analyzer.enrich_with_volume()
@@ -463,137 +449,16 @@ ArraysViolinPlotter(arrays, config).plot("coevent_gaps.png")
 
 ---
 
-## `EventCoOccurrenceAnalyzer`
+## `EventCoOccurrenceAnalyzer` family
 
-Computes per-entity co-occurrence statistics between two event identities
-within a `CohortTimeline`. Answers questions like: how often do these two
-events happen on the same day, and when one happens how long until the other?
+The co-occurrence analyzer family implements three analytical dimensions
+— presence, gap timing, and directionality — via a first-level analyzer
+(`EventCoOccurrenceAnalyzer`) and two second-level analyzers
+(`EventCoOccurrenceGapAnalyzer`, `EventCoOccurrenceDirectionalityAnalyzer`).
 
-```python
-from eventus.analyzers import EventCoOccurrenceAnalyzer
-
-analyzer = EventCoOccurrenceAnalyzer(
-    cohort_timeline = ct,
-    identity_a      = "ed_visit",
-    identity_b      = "specialist_referral",
-)
-```
-
-**Raises at construction if:**
-- `cohort_timeline` has no observation period
-- `identity_a` or `identity_b` not in `cohort_timeline.event_identities`
-- `identity_a == identity_b`
-
-### `compute_presence(within_days=0)` → `EventCoOccurrencePresenceResult`
-
-Per-entity presence flags, same-day co-occurrence, and pair counts
-within a configurable window.
-
-```python
-# Same-day co-occurrence only (default)
-presence = analyzer.compute_presence()
-
-# Pairs within 7 days of each other (either direction)
-presence = analyzer.compute_presence(within_days=7)
-
-print(presence)
-# EventCoOccurrencePresenceResult:
-#   identity_a           : ed_visit
-#   identity_b           : specialist_referral
-#   within_days          : 7
-#   entities             : 500
-#   n_with_a             : 412 (82.4%)
-#   n_with_b             : 287 (57.4%)
-#   n_with_both          : 251 (50.2%)
-#   n_with_same_day      : 89 (17.8%)
-#   n_with_co_occ_within : 198 (39.6%)
-```
-
-`within_days` must be a non-negative integer. The window applies in
-both directions — an (A, B) pair counts if `|days(A) - days(B)| <= within_days`.
-`within_days=0` is same-day pairs only. The value is stored as a
-property on the result so downstream code always knows what window was used.
-
-**Columns produced per entity:** `n_a`, `n_b`, `has_a`, `has_b`,
-`has_both`, `n_same_day`, `pct_a_with_same_day_b`,
-`pct_b_with_same_day_a`, `n_co_occurrences_within`.
-
-### `compute_gaps()` → `EventCoOccurrenceGapResult`
-
-Per-entity nearest-neighbor gap statistics in both directions.
-No window — computed over the full observation period.
-
-```python
-gaps = analyzer.compute_gaps()
-
-print(gaps)
-# EventCoOccurrenceGapResult:
-#   identity_a             : ed_visit
-#   identity_b             : specialist_referral
-#   entities               : 500
-#   n_with_a_to_b_gap      : 198 (39.6%)
-#   median_a_to_b (cohort) : 12.0 days
-#   n_with_b_to_a_gap      : 174 (34.8%)
-#   median_b_to_a (cohort) : 18.5 days
-```
-
-**Columns produced per entity:**
-`n_a_with_following_b`, `mean/median/std_days_a_to_b`,
-`n_b_with_following_a`, `mean/median/std_days_b_to_a`.
-
-NaN values are scientifically valid — absent signal, not missing data.
-
-### Group C — planned, not yet implemented
-
-```python
-# compute_proximity(within_days=30)  → EventCoOccurrenceProximityResult
-#     TTE distribution: given A occurred, how long until B?
-#     Entities with no B after any A are right-censored.
-
-# compute_transitions()              → EventCoOccurrenceTransitionResult
-#     Markov transition probabilities P(next=B | current=A) and
-#     P(next=A | current=B) from a merged per-entity event timeline.
-
-# compute_association()              → EventCoOccurrenceAssociationResult
-#     Odds ratio / relative risk from a 2×2 contingency table of
-#     time windows. Answers: "is B actually tied to A, or does B
-#     just happen all the time anyway?"
-```
-
----
-
-## Internal utils
-
-The `_utils.py` files contain the computational workhorse code. They
-are internal and not part of the public API.
-
-| File | Contains |
-|---|---|
-| `cohort_timeline_episode_analyzer_utils.py` | Coverage computation, activity timeseries, summary tiers |
-| `cohort_timeline_event_analyzer_utils.py` | `validate_max_n()`, `base_data()`, `build_result_data()`, `build_survival_arrays()` — shared setup helpers for `CohortTimelineEventAnalyzer` |
-| `event_primitives_utils.py` | `parse_dates()`, `compute_gaps()` — shared across all event computation |
-| `event_stats_utils.py` | `compute_volume_stats()`, `compute_timing_stats()`, `compute_shape_stats()` |
-| `event_episode_analyzer_utils.py` | Per-entity event-episode gap computation, within proportion |
-| `event_co_occurrence_primitives.py` | `parse_event_dates()`, `build_co_occurrence_streams()`, `nearest_forward_gaps()`, `gap_stats()` — shared across co-occurrence utils |
-| `event_co_occurrence_presence_utils.py` | Per-entity presence and same-day co-occurrence computation |
-| `event_co_occurrence_gap_utils.py` | Per-entity nearest-neighbor gap computation |
-| `episodes_duration_utils.py` | `compute_durations()` |
-
-`event_primitives_utils.py` deserves special mention. `parse_dates()`
-parses pipe-delimited event date strings into sorted lists of
-timestamps filtered to the observation window. `compute_gaps()` computes
-consecutive inter-event gap lengths. Every event stat —
-volume, timing, shape — builds on these two primitives.
-
-`cohort_timeline_event_analyzer_utils.py` is the orchestration layer
-for `CohortTimelineEventAnalyzer` — it extracts the shared setup
-(`base_data`, `build_result_data`) and validation (`validate_max_n`)
-that every compute and enrich method needs, keeping the analyzer itself
-as pure orchestration.
-
-`event_co_occurrence_primitives.py` plays the same role for
-`EventCoOccurrenceAnalyzer` — a shared parsing and gap-computation
-layer consumed by both presence and gap utils.
+For full documentation — construction, methods, permutation null,
+effect sizes, and usage examples — see
+`src/eventus/analyzers/event_cooccurrence/README.md`.
 
 ---
 

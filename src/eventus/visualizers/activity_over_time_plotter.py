@@ -48,6 +48,10 @@ class ActivityOverTimePlotter:
     >>> plotter.plot("activity.png")
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _activity: EpisodeActivityOverTime  # validated timeseries result
+    _config:   ActivityOverTimeConfig   # plot configuration
+
     def __init__(
         self,
         activity: EpisodeActivityOverTime,

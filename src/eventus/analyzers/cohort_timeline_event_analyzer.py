@@ -8,21 +8,16 @@ Methods
 compute_volume()              → EventResultVolume
 compute_timing(max_n)         → EventResultTiming
 compute_shape()               → EventResultShape
-compute_survival(ci_method)   → SurvivalResult
-
 enrich_with_volume()          → CohortTimeline  (with evt_comp_{identity}_n)
 enrich_with_timing(max_n)     → CohortTimeline  (with evt_comp_{identity}_time_to_*, recency_days)
 enrich_with_shape()           → CohortTimeline  (with evt_comp_{identity}_mean_gap, ...)
 """
 from __future__ import annotations
-import numpy as np
 
 from eventus.intermediates.cohort_timeline import CohortTimeline
 from eventus.intermediates.event_result_volume import EventResultVolume
 from eventus.intermediates.event_result_timing import EventResultTiming
 from eventus.intermediates.event_result_shape  import EventResultShape
-from eventus.intermediates.survival_result     import SurvivalResult
-import eventus.intermediates.survival_result_utils as survival_utils
 import eventus.intermediates.cohort_timeline_utils  as ct_utils
 from . import event_stats_utils as stats_utils
 from . import cohort_timeline_event_analyzer_utils as analyzer_utils
@@ -183,51 +178,6 @@ class CohortTimelineEventAnalyzer:
         stats_df    = stats_utils.compute_shape_stats(series, obs_start, obs_end)
         enriched_df = ct_utils.attach_evt_comp_columns(data, stats_df, self._identity)
         return CohortTimeline(enriched_df, self._ct.entity_col)
-
-    # ------------------------------------------------------------------ #
-    # compute_survival — different geometry, always returns result object
-    # ------------------------------------------------------------------ #
-
-    def compute_survival(self, ci_method: str = "greenwood") -> SurvivalResult:
-        """
-        Compute a Kaplan-Meier survival curve for time to first event.
-
-        Entities with no event are treated as right-censored at their
-        obs_duration_days. Excluding them would silently bias the curve.
-
-        Parameters
-        ----------
-        ci_method : str
-            Confidence interval method. Currently only 'greenwood'.
-
-        Returns
-        -------
-        SurvivalResult
-            One row per unique episode timepoint. Carries n_total,
-            n_episodes_total, n_censored_total, and the KM table with
-            CI bounds.
-        """
-        data, series, obs_start, obs_end = analyzer_utils.base_data(self._ct, self._identity)
-        obs_duration, time_to_first = analyzer_utils.build_survival_arrays(series, obs_start, obs_end)
-
-        survival_table = survival_utils.compute_survival_table(
-            time_to_episode = time_to_first,
-            obs_duration    = obs_duration,
-            ci_method       = ci_method,
-        )
-
-        n_total    = len(time_to_first)
-        n_episodes = int(np.sum(~np.isnan(time_to_first)))
-        n_censored = n_total - n_episodes
-
-        return SurvivalResult(
-            data             = survival_table,
-            label            = self._identity,
-            n_total          = n_total,
-            n_episodes_total = n_episodes,
-            n_censored_total = n_censored,
-            ci_method        = ci_method,
-        )
 
     # ------------------------------------------------------------------ #
     # Dunder

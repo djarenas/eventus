@@ -36,9 +36,10 @@ class EventResult(ABC):
     - identity is a non-empty string (overridden by EventPairResult)
     """
 
-    _data:       pd.DataFrame
-    _entity_col: str
-    _identity:   str
+    # ── Attributes ───────────────────────────────────────────────────────
+    _data:       pd.DataFrame  # validated per-entity DataFrame, index reset
+    _entity_col: str           # entity identifier column name
+    _identity:   str           # event identity label
 
     def __init__(
         self,

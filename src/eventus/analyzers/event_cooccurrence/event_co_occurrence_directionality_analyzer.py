@@ -87,7 +87,8 @@ class EventCoOccurrenceDirectionalityAnalyzer:
     >>> print(dir_test)
     """
 
-    _summary: EventCoOccurrenceDirectionalitySummary
+    # ── Attributes ───────────────────────────────────────────────────────
+    _summary: EventCoOccurrenceDirectionalitySummary  # per-entity directionality input
 
     def __init__(
         self,

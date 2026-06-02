@@ -42,9 +42,10 @@ class EpisodeActivityOverTime:
     - mode='normalized' but cohort_start is not None
     """
 
-    _data:         pd.DataFrame
-    _mode:         str
-    _cohort_start: pd.Timestamp | None
+    # ── Attributes ───────────────────────────────────────────────────────
+    _data:         pd.DataFrame         # validated timeseries, index reset
+    _mode:         str                  # "normalized" or "calendar"
+    _cohort_start: pd.Timestamp | None  # shared start date when mode=calendar
 
     def __init__(
         self,

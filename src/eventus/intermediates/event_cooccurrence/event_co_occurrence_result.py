@@ -35,10 +35,11 @@ class EventCoOccurrenceResult(ABC):
     - identity_a != identity_b
     """
 
-    _data:       pd.DataFrame
-    _entity_col: str
-    _identity_a: str
-    _identity_b: str
+    # ── Attributes ───────────────────────────────────────────────────────
+    _data:       pd.DataFrame  # validated per-entity DataFrame, index reset
+    _entity_col: str           # entity identifier column name
+    _identity_a: str           # first event identity label
+    _identity_b: str           # second event identity label
 
     def __init__(
         self,

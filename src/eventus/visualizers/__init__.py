@@ -26,6 +26,14 @@ from eventus.visualizers.configs.histogram_plot_config import HistogramPlotConfi
 from eventus.visualizers.configs.kde_plot_config import KDEPlotConfig
 from eventus.visualizers.configs.violin_config import EpisodeDurationViolinConfig
 
+# Visualizers: Co-occurrence configs
+from eventus.visualizers.configs.event_co_occurrence_gap_plot_config import EventCoOccurrenceGapPlotConfig
+from eventus.visualizers.configs.event_co_occurrence_directionality_plot_config import EventCoOccurrenceDirectionalityPlotConfig
+
+# Visualizers: Co-occurrence plotters
+from eventus.visualizers.event_cooccurrence.event_co_occurrence_gap_plotter import EventCoOccurrenceGapPlotter
+from eventus.visualizers.event_cooccurrence.event_co_occurrence_directionality_plotter import EventCoOccurrenceDirectionalityPlotter
+
 __all__ = [
     
     "ActivityOverTimePlotter",
@@ -55,5 +63,13 @@ __all__ = [
     "EpisodeDurationViolinConfig",
     "HistogramPlotConfig",
     "KDEPlotConfig",
+
+    # Co-occurrence configs
+    "EventCoOccurrenceGapPlotConfig",
+    "EventCoOccurrenceDirectionalityPlotConfig",
+
+    # Co-occurrence plotters
+    "EventCoOccurrenceGapPlotter",
+    "EventCoOccurrenceDirectionalityPlotter",
 
 ]

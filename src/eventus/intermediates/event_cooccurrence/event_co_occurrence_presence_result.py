@@ -75,15 +75,15 @@ class EventCoOccurrencePresenceResult(EventCoOccurrenceResult):
     interpretation guidance.
     """
 
-    # All instance attributes — inherited and own
+    # ── Attributes ───────────────────────────────────────────────────────
     # Inherited from EventCoOccurrenceResult
-    _data:        pd.DataFrame
-    _entity_col:  str
-    _identity_a:  str
-    _identity_b:  str
+    _data:        pd.DataFrame                          # validated per-entity DataFrame
+    _entity_col:  str                                   # entity identifier column name
+    _identity_a:  str                                   # first event identity label
+    _identity_b:  str                                   # second event identity label
     # Own
-    _fisher_p:    float
-    _association: "EventCoOccurrenceAssociation | None"
+    _fisher_p:    float                                 # two-sided Fisher exact p-value
+    _association: "EventCoOccurrenceAssociation | None" # lazily computed, cached
 
     def __init__(
         self,

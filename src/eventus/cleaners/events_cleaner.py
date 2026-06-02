@@ -40,6 +40,14 @@ class EventsCleaner:
         Cleaning rules. Defaults to EventsCleanerConfig() if None.
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _raw:       pd.DataFrame         # original input, never mutated
+    _semantics: EventSemantics       # column mappings and identity
+    _config:    EventsCleanerConfig  # cleaning rules
+    _cleaned:   pd.DataFrame | None # set after .clean() is called
+    _rejected:  pd.DataFrame | None # rows removed, with reason column
+    _n_input:   int                 # row count of original input
+
     def __init__(
         self,
         data:      pd.DataFrame,

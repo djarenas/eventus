@@ -13,7 +13,7 @@ from __future__ import annotations
 
 # ── Re-exports from violin_utils ──────────────────────────────────────────────
 
-from eventus.visualizers.violin_utils import (
+from eventus.visualizers.violins.violin_utils import (
     apply_y_bounds,
     build_tick_labels,
     compute_widths,

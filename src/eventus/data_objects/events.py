@@ -10,7 +10,6 @@ If it exists, it is complete. The constructor raises on invalid data.
 Row-level cleaning is the responsibility of EventsCleaner.
 """
 from __future__ import annotations
-import warnings
 import pandas as pd
 
 from eventus.semantics.event_semantics import EventSemantics
@@ -47,6 +46,10 @@ class Events:
     >>> occs = Events(df, sem)
     >>> occs.print_summary()
     """
+
+    # ── Attributes ───────────────────────────────────────────────────────
+    data:      pd.DataFrame    # validated event rows, dates normalized
+    semantics: EventSemantics  # column mappings and identity label
 
     def __init__(
         self,

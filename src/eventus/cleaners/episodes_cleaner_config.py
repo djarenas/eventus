@@ -80,6 +80,7 @@ class EpisodesCleanerConfig:
           aggregation_rule: median
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     normalize_dates:      bool               = True
     coalesce_dates:       bool               = False
     causality_check:      str                = "reject"

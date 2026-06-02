@@ -61,6 +61,7 @@ class EventsCleanerConfig:
         wait_time_mins: median
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     normalize_dates:      bool                               = True
     parse_dates:          bool                               = True
     drop_duplicate_rows:  bool                               = True

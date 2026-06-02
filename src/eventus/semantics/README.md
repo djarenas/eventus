@@ -18,6 +18,11 @@ Semantics objects solve this once. Define them at the top of your
 analysis, pass them into data objects, and everything downstream just
 works — regardless of what your columns are named.
 
+Any object that receives a semantics attribute can use it during
+construction to verify that the expected column names exist in the
+DataFrame and are the right type — catching schema mismatches early
+with a clear error message.
+
 ---
 
 ## Classes
@@ -327,7 +332,7 @@ data automatically.
 ```python
 sem     = EpisodeSemantics(identity="inpatient_hospitalization", ...)
 episodes  = EpisodesCleaner(raw_df, sem, config).clean()
-result  = EpisodeDurationAnalyzer(episodes, descriptor_cols=["icd10_condition"]).calc()
+result  = EpisodeDurationAnalyzer(episodes).compute()
 ```
 
 The semantics object is preserved through filtering and copying:

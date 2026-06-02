@@ -2,7 +2,11 @@ from eventus.analyzers.cohort_timeline_episode_analyzer import CohortTimelineEpi
 from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
 from eventus.analyzers.episode_duration_analyzer import EpisodeDurationAnalyzer
 from eventus.analyzers.event_episode_analyzer import EventEpisodeAnalyzer
-from eventus.analyzers.event_cooccurrence import EventCoOccurrenceAnalyzer
+from eventus.analyzers.event_cooccurrence import (
+    EventCoOccurrenceAnalyzer,
+    EventCoOccurrenceGapAnalyzer,
+    EventCoOccurrenceDirectionalityAnalyzer,
+)
 
 __all__ = [
     "CohortTimelineEpisodeAnalyzer",
@@ -10,4 +14,6 @@ __all__ = [
     "EpisodeDurationAnalyzer",
     "EventEpisodeAnalyzer",
     "EventCoOccurrenceAnalyzer",
+    "EventCoOccurrenceGapAnalyzer",
+    "EventCoOccurrenceDirectionalityAnalyzer",
 ]

@@ -90,6 +90,7 @@ class EventSemantics:
     ... )
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     identity:        str | None                           = None
     entity_id_col:   str                                  = ""
     date_col:        str                                  = ""

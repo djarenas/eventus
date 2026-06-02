@@ -6,7 +6,6 @@ strings.
 """
 from __future__ import annotations
 import pandas as pd
-from typing import Optional
 
 from eventus.data_objects.episodes import Episodes
 from eventus.data_objects.events import Events
@@ -39,6 +38,7 @@ class CohortTimeline:
     evt_comp_{identity}_{stat}            — computed event stats
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     _data:                          pd.DataFrame
     _entity_col:                    str
     _has_obs_period:                bool
@@ -210,9 +210,9 @@ class CohortTimeline:
     @classmethod
     def build_from_components(
         cls,
-        obs_period:  Optional[ObsPeriodPerEntity] = None,
-        episodes:      Optional[Episodes | list[Episodes]] = None,
-        events: Optional[Events | list[Events]] = None,
+        obs_period: ObsPeriodPerEntity | None = None,
+        episodes:   Episodes | list[Episodes] | None = None,
+        events:     Events   | list[Events]   | None = None,
     ) -> "CohortTimeline":
         """
         Assemble a CohortTimeline from data objects.

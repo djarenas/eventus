@@ -51,6 +51,19 @@ class EventCoOccurrenceDirectionalityTest:
     wilcoxon_p              : float
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _identity_a:            str        # first event identity label
+    _identity_b:            str        # second event identity label
+    _n_entities:            int        # total cohort size
+    _n_co_occurring:        int        # entities with both A and B events
+    _n_permutations:        int        # number of permutations used
+    _observed:              np.ndarray # per-entity mean signed gaps (observed)
+    _null:                  np.ndarray # pooled permutation null signed gaps
+    _fraction_a_first:      float      # observed fraction with mean_signed_gap > 0
+    _null_fraction_a_first: float      # null fraction with mean_signed_gap > 0
+    _wilcoxon_stat:         float      # Wilcoxon signed-rank statistic
+    _wilcoxon_p:            float      # Wilcoxon p-value
+
     def __init__(
         self,
         identity_a:            str,

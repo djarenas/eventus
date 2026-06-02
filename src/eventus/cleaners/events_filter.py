@@ -51,6 +51,9 @@ class EventsFilter:
     ... )
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _events: Events  # the current filtered Events object
+
     def __init__(self, events: Events) -> None:
         if not isinstance(events, Events):
             raise TypeError(

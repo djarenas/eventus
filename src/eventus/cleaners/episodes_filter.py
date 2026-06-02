@@ -51,6 +51,9 @@ class EpisodesFilter:
     ... )
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _episodes: Episodes  # the current filtered Episodes object
+
     def __init__(self, episodes: Episodes) -> None:
         if not isinstance(episodes, Episodes):
             raise TypeError(

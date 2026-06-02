@@ -199,13 +199,13 @@ only.
 
 | File | Contains |
 |---|---|
-| `arrays_violin_plotter_utils.py` | Re-exports shared primitives from `violin_utils` — `draw_violin_body`, `draw_box`, `draw_points`, `draw_percentile_lines`, `compute_widths`, `apply_y_bounds`, `build_tick_labels` |
+| `arrays_violin_plotter_utils.py` | Re-exports shared primitives from `violin_utils.py` (in this subfolder) — `draw_violin_body`, `draw_box`, `draw_points`, `draw_percentile_lines`, `compute_widths`, `apply_y_bounds`, `build_tick_labels` |
 | `episode_coverage_violin_plotter_utils.py` | `build_total_arrays()`, `build_breakdown_arrays()`, `resolve_divisor()`, `apply_unit_conversion()`, plus re-export of `build_tick_labels_with_pct` |
 
 The shared drawing primitives all live in
-`eventus.visualizers.violin_utils`. The utils files in this sub-package
-are re-export façades that keep import paths within the sub-package
-consistent.
+`eventus.visualizers.violins.violin_utils`. The utils files in this
+sub-package are re-export façades that keep import paths within the
+sub-package consistent.
 
 ---
 

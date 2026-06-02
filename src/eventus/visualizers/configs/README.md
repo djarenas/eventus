@@ -1,4 +1,4 @@
-# eventus.visualizers
+# eventus.visualizers.configs
 
 Modular, configuration-driven plotting for eventus intermediates.
 Every visual decision lives in a versioned, validated config object —
@@ -34,7 +34,7 @@ Plotter                           — consumes one intermediate and
 plot.png / plt.show()
 ```
 
-The intermediate and the config are independent. A `SurvivalResult`
+The intermediate and the config are independent. An `EventResultShape`
 can be plotted with a default config, a custom config loaded from YAML,
 or a config built programmatically. The plotter does not care how the
 config was built — only that it is valid.

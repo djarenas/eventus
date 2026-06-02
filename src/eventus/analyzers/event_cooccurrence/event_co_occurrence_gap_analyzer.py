@@ -109,7 +109,8 @@ class EventCoOccurrenceGapAnalyzer:
     >>> print(gap_test)
     """
 
-    _summary: EventCoOccurrenceGapSummary
+    # ── Attributes ───────────────────────────────────────────────────────
+    _summary: EventCoOccurrenceGapSummary  # per-entity gap statistics input
 
     def __init__(self, gap_summary: EventCoOccurrenceGapSummary) -> None:
         if not isinstance(gap_summary, EventCoOccurrenceGapSummary):

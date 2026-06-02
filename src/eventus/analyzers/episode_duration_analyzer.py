@@ -49,6 +49,11 @@ class EpisodeDurationAnalyzer:
     >>> result   = analyzer.calc()
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _episodes:          Episodes          # validated Episodes object
+    _descriptor_cols:   list[str]         # resolved descriptor column names
+    _result:            "EpisodeDurationResult | None"  # set after .calc()
+
     def __init__(
         self,
         episodes:          Episodes,

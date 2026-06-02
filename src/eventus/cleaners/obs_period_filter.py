@@ -53,6 +53,9 @@ class ObsPeriodFilter:
     ... )
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _obs: ObsPeriodPerEntity  # the current filtered ObsPeriodPerEntity
+
     def __init__(self, obs_period: ObsPeriodPerEntity) -> None:
         if not isinstance(obs_period, ObsPeriodPerEntity):
             raise TypeError(

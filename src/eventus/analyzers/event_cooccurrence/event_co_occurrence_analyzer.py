@@ -6,13 +6,12 @@ identities within a CohortTimeline.
 Methods
 -------
 compute_presence()              → EventCoOccurrencePresenceResult
-compute_gaps()                  → EventCoOccurrenceGapResult
+compute_gaps()                  → EventCoOccurrenceGapSummary
+compute_directionality()        → EventCoOccurrenceDirectionalitySummary
 
 Planned (not yet implemented)
 ------------------------------
 compute_windowed_presence(within_days) → EventCoOccurrenceWindowedResult
-compute_directionality()               → EventCoOccurrenceDirectionalityResult
-compute_survival()                     → EventCoOccurrenceSurvivalResult
 """
 from __future__ import annotations
 
@@ -291,14 +290,6 @@ class EventCoOccurrenceAnalyzer:
     #     Per-entity windowed co-occurrence: did B happen within N days
     #     of A? Answers a temporal proximity question, not just presence.
     #     within_days=30 means any (A, B) pair within 30 days counts.
-    #
-    # compute_directionality() → EventCoOccurrenceDirectionalityResult
-    #     Per-entity ordering: among co-occurring pairs, does A tend to
-    #     precede B? Binomial sign test across the cohort.
-    #
-    # compute_survival() → EventCoOccurrenceSurvivalResult
-    #     Time-to-event from A to first B after A. Entities with no B
-    #     after any A are right-censored. Kaplan-Meier + log-rank test.
 
     # ------------------------------------------------------------------ #
     # Dunder

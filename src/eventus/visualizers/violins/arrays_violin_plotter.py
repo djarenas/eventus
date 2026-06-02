@@ -74,6 +74,10 @@ class ArraysViolinPlotter:
     >>> plotter.plot("output.png")
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _arrays: dict[str, np.ndarray]  # cleaned validated arrays, one per violin
+    _config: ArraysViolinConfig     # plot configuration
+
     def __init__(
         self,
         arrays: dict,

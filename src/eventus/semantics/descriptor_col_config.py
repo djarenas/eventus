@@ -72,6 +72,7 @@ class DescriptorColConfig:
     DescriptorColConfig(type='numeric', timeline='sequence')
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     type:     str
     timeline: str | None = None
 

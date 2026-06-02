@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 import yaml
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from eventus.semantics.descriptor_col_config import DescriptorColConfig
@@ -96,6 +96,7 @@ class EpisodeSemantics:
     ... )
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
     identity:         str | None                           = None
     entity_id_col:    str                                  = ""
     start_time_col:   str                                  = ""

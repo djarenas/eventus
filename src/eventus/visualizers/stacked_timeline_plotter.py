@@ -62,6 +62,10 @@ class StackedTimelinePlotter:
         Default True.
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _cohort_timeline: CohortTimeline       # sorted/validated timeline
+    _config:          StackedTimelineConfig # plot configuration
+
     def __init__(
         self,
         cohort_timeline: CohortTimeline,

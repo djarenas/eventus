@@ -84,6 +84,12 @@ class EpisodeCoverageViolinPlotter:
     >>> plotter.plot_inactive_breakdown("breakdown.png")
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _cohort_timeline: CohortTimeline     # enriched timeline with coverage cols
+    _identity:        str                # episode identity label
+    _config:          ArraysViolinConfig # plot configuration
+    _n_total:         int                # total entity count for % labels
+
     def __init__(
         self,
         cohort_timeline: CohortTimeline,

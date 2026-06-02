@@ -45,17 +45,18 @@ class EpisodeDurationResult:
         Nulls in these columns are allowed.
     """
 
-    _data:            pd.DataFrame
-    _entity_col:      str
-    _identity:        str | None
-    _descriptor_cols: list[str]
+    # ── Attributes ───────────────────────────────────────────────────────
+    _data:            pd.DataFrame  # one row per episode, index reset
+    _entity_col:      str           # entity identifier column name
+    _identity:        str | None    # episode identity label
+    _descriptor_cols: list[str]     # descriptor column names present in data
 
     def __init__(
         self,
         data:            pd.DataFrame,
         entity_col:      str,
         identity:        str | None  = None,
-        descriptor_cols: list[str]   = None,
+        descriptor_cols: list[str] | None = None,
     ) -> None:
         if descriptor_cols is None:
             descriptor_cols = []

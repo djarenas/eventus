@@ -33,8 +33,9 @@ class EventResultShapePlotter:
         Plot configuration. Defaults to EventResultShapeConfig() if not provided.
     """
 
-    _shape:  EventResultShape
-    _config: EventResultShapeConfig
+    # ── Attributes ───────────────────────────────────────────────────────
+    _shape:  EventResultShape       # validated shape result input
+    _config: EventResultShapeConfig # plot configuration
 
     def __init__(
         self,

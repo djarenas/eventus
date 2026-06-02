@@ -29,10 +29,11 @@ class EpisodeCoverageSummary:
     n_with_any_coverage: int   — entities with at least one episode in obs period
     """
 
-    _identity: str
-    _tier1:    dict
-    _tier2:    dict
-    _tier3:    dict
+    # ── Attributes ───────────────────────────────────────────────────────
+    _identity: str   # episode identity label
+    _tier1:    dict  # coverage prevalence (denominator: all entities)
+    _tier2:    dict  # coverage patterns (denominator: entities with coverage)
+    _tier3:    dict  # distributions (denominator: entities with coverage)
 
     def __init__(
         self,

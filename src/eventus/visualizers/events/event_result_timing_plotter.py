@@ -32,8 +32,9 @@ class EventResultTimingPlotter:
         Plot configuration. Defaults to EventResultTimingConfig() if not provided.
     """
 
-    _timing: EventResultTiming
-    _config: EventResultTimingConfig
+    # ── Attributes ───────────────────────────────────────────────────────
+    _timing: EventResultTiming       # validated timing result input
+    _config: EventResultTimingConfig # plot configuration
 
     def __init__(
         self,

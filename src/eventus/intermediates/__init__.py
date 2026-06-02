@@ -7,12 +7,14 @@ from eventus.intermediates.event_result import EventResult
 from eventus.intermediates.event_result_volume import EventResultVolume
 from eventus.intermediates.event_result_timing import EventResultTiming
 from eventus.intermediates.event_result_shape import EventResultShape
-from eventus.intermediates.survival_result import SurvivalResult
 from eventus.intermediates.event_cooccurrence import (
     EventCoOccurrenceResult,
     EventCoOccurrencePresenceResult,
     EventCoOccurrenceAssociation,
     EventCoOccurrenceGapSummary,
+    EventCoOccurrenceGapTest,
+    EventCoOccurrenceDirectionalitySummary,
+    EventCoOccurrenceDirectionalityTest,
 )
 
 __all__ = [
@@ -25,8 +27,11 @@ __all__ = [
     "EventResultVolume",
     "EventResultTiming",
     "EventResultShape",
-    "SurvivalResult",
     "EventCoOccurrenceResult",
     "EventCoOccurrencePresenceResult",
     "EventCoOccurrenceAssociation",
+    "EventCoOccurrenceGapSummary",
+    "EventCoOccurrenceGapTest",
+    "EventCoOccurrenceDirectionalitySummary",
+    "EventCoOccurrenceDirectionalityTest",
 ]

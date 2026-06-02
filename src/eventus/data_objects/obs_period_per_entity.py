@@ -20,8 +20,6 @@ Power users who need custom column names use direct construction:
 from __future__ import annotations
 import pandas as pd
 
-# Add the inner package folder directly to sys.path  
-
 from eventus.data_objects.episodes_per_entity import EpisodesPerEntity
 from eventus.semantics.episode_semantics import EpisodeSemantics
 
@@ -87,6 +85,14 @@ class ObsPeriodPerEntity(EpisodesPerEntity):
     >>> # From episodes — reuses episodes.semantics column names
     >>> obs = ObsPeriodPerEntity.construct_from_episodes(episodes, identity="hospitalization_window")
     """
+
+    # ── Attributes ───────────────────────────────────────────────────────
+    # Inherited from Episodes
+    data:      pd.DataFrame      # validated episode rows, index reset
+    semantics: EpisodeSemantics  # column mappings and identity label
+    # Own
+    _identity:          str      # name for this observation period
+    _construction_path: str      # records how this object was built
 
     _DEFAULT_IDENTITY = _DEFAULT_IDENTITY
 

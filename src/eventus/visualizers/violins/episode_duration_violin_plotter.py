@@ -72,6 +72,11 @@ class EpisodeDurationViolinPlotter:
     >>> plotter.plot("durations_by_hospital.png")
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _result:      EpisodeDurationResult  # validated duration result input
+    _config:      ArraysViolinConfig     # plot configuration
+    _stratify_by: str | None             # optional stratification column
+
     def __init__(
         self,
         result:      EpisodeDurationResult,

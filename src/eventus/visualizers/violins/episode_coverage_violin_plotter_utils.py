@@ -14,7 +14,7 @@ import pandas as pd
 
 # ── Re-export shared tick label builder with pct ──────────────────────────────
 
-from eventus.visualizers.violin_utils import build_tick_labels_with_pct as build_tick_labels
+from eventus.visualizers.violins.violin_utils import build_tick_labels_with_pct as build_tick_labels
 
 __all__ = ["build_tick_labels"]
 

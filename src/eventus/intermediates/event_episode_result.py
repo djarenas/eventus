@@ -63,10 +63,11 @@ class EventEpisodeResult:
     All are scientifically valid — absent signal, not missing data.
     """
 
-    _data:             pd.DataFrame
-    _entity_col:       str
-    _identity_occ:     str
-    _identity_episode:   str
+    # ── Attributes ───────────────────────────────────────────────────────
+    _data:              pd.DataFrame  # validated per-entity DataFrame
+    _entity_col:        str           # entity identifier column name
+    _identity_occ:      str           # event identity label
+    _identity_episode:  str           # episode identity label
 
     def __init__(
         self,

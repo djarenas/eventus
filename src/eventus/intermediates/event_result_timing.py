@@ -37,7 +37,13 @@ class EventResultTiming(EventResult):
       denominator available via EventVolume
     """
 
-    _max_n: int
+    # ── Attributes ───────────────────────────────────────────────────────
+    # Inherited from EventResult
+    _data:       pd.DataFrame  # validated per-entity DataFrame
+    _entity_col: str           # entity identifier column name
+    _identity:   str           # event identity label
+    # Own
+    _max_n: int                # maximum nth event timing computed
 
     def __init__(
         self,

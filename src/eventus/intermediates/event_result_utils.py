@@ -9,7 +9,6 @@ to_yaml_repr(class_name, fields)
     Render a YAML-style __repr__ string from a dict of fields.
 """
 from __future__ import annotations
-import pandas as pd
 
 _ERROR = "[event_result_utils] Error"
 

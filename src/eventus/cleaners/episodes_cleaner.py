@@ -55,6 +55,15 @@ class EpisodesCleaner:
     >>> episodes  = cleaner.clean()
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _raw:       pd.DataFrame          # original input, never mutated
+    _semantics: EpisodeSemantics      # column mappings and identity
+    _config:    EpisodesCleanerConfig # cleaning rules
+    _cleaned:   pd.DataFrame | None  # set after .clean() is called
+    _rejected:  pd.DataFrame | None  # rows removed, with reason column
+    _modified:  pd.DataFrame | None  # rows kept but changed, with reason
+    _n_input:   int                  # row count of original input
+
     def __init__(
         self,
         data:      pd.DataFrame,

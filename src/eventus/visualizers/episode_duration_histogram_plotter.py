@@ -57,6 +57,10 @@ class EpisodeDurationHistogramPlotter:
     >>> plotter.plot_kde("duration_kde.png")
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _duration_result: EpisodeDurationResult  # validated result input
+    _config:          EpisodeDurationPlotConfig  # plot configuration
+
     def __init__(
         self,
         duration_result: EpisodeDurationResult,

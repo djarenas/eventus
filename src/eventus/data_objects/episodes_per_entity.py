@@ -27,6 +27,12 @@ class EpisodesPerEntity(Episodes):
         If any entity appears more than once in .data.
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    # Inherited from Episodes
+    data:      pd.DataFrame      # validated episode rows, index reset
+    semantics: EpisodeSemantics  # column mappings and identity label
+    # Own — none beyond inherited
+
     def __init__(
         self,
         data:      pd.DataFrame,

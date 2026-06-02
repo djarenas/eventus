@@ -30,6 +30,10 @@ class EventCoOccurrenceDirectionalityPlotter:
     config   : EventCoOccurrenceDirectionalityPlotConfig (optional)
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    _test:   EventCoOccurrenceDirectionalityTest        # validated test result input
+    _config: "EventCoOccurrenceDirectionalityPlotConfig"  # plot configuration
+
     def __init__(self, dir_test, config=None) -> None:
         if not isinstance(dir_test, EventCoOccurrenceDirectionalityTest):
             raise TypeError(

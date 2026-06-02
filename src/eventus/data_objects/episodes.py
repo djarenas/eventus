@@ -37,6 +37,10 @@ class Episodes:
     >>> episodes = EpisodesCleaner(df, sem, config).clean()
     """
 
+    # ── Attributes ───────────────────────────────────────────────────────
+    data:      pd.DataFrame      # validated episode rows, index reset
+    semantics: EpisodeSemantics  # column mappings and identity label
+
     def __init__(
         self,
         data:      pd.DataFrame,

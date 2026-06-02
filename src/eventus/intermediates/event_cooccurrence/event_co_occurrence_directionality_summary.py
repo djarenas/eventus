@@ -78,10 +78,13 @@ class EventCoOccurrenceDirectionalitySummary(EventCoOccurrenceResult):
     This is absent signal, not missing data.
     """
 
-    _data:       pd.DataFrame
-    _entity_col: str
-    _identity_a: str
-    _identity_b: str
+    # ── Attributes ───────────────────────────────────────────────────────
+    # Inherited from EventCoOccurrenceResult
+    _data:       pd.DataFrame  # validated per-entity DataFrame
+    _entity_col: str           # entity identifier column name
+    _identity_a: str           # first event identity label
+    _identity_b: str           # second event identity label
+    # Own — none beyond inherited
 
     def __init__(
         self,

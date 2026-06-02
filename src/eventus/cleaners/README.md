@@ -78,7 +78,7 @@ cleaner.print_report()
 | 5. Date floor / ceiling | `date_floor`, `date_ceiling` | Rows outside the window → rejected |
 | 6. Causality check | `causality_check` | `"reject"`: end < start → rejected. `"swap"`: dates are swapped and row is kept, recorded as modified |
 | 7. Drop duplicates | `drop_duplicates` | Exact duplicates on entity + start + end → rejected |
-| 8. Merge overlapping | `merge_overlapping` | Adjacent or overlapping intervals merged into episodes |
+| 8. Merge overlapping | `merge` | Adjacent or overlapping intervals merged per MergeConfig rules |
 
 **The modified log** is a key feature of `EpisodesCleaner`. Unlike a
 simple reject/keep pipeline, the cleaner distinguishes between rows
@@ -125,8 +125,7 @@ to make cleaning choices explicit, versioned, and reproducible.
 
 ```python
 config = EpisodesCleanerConfig.build_from_yaml("episode_cleaner.yaml")
-config = EpisodesCleanerConfig.build_with_defaults()
-config = EpisodesCleanerConfig()   # same as build_with_defaults()
+config = EpisodesCleanerConfig()   # all defaults
 config.to_yaml("episode_cleaner.yaml")
 ```
 
@@ -138,24 +137,28 @@ config.to_yaml("episode_cleaner.yaml")
 | `coalesce_dates` | bool | `False` | Fill missing start from end (or vice versa) and record as modified |
 | `causality_check` | str | `"reject"` | `"reject"` or `"swap"` when end < start |
 | `parse_dates` | bool | `True` | Auto-parse date columns from strings |
-| `drop_duplicates` | bool | `True` | Remove rows identical on entity + start + end |
-| `merge_overlapping` | bool | `False` | Merge overlapping or adjacent intervals |
-| `meaningful_gap` | int | `0` | Gaps ≤ this many days are bridged when merging |
+| `drop_duplicate_rows` | bool | `True` | Remove rows identical on entity + start + end |
+| `merge` | MergeConfig \| None | `None` | Merge overlapping or adjacent intervals using declared rules |
 | `date_floor` | str | `"1920-01-01"` | Reject rows with start before this date |
 | `date_ceiling` | str | `"2100-01-01"` | Reject rows with end after this date |
 
 **YAML example**
 
 ```yaml
-normalize_dates:   true
-coalesce_dates:    false
-causality_check:   reject
-parse_dates:       true
-drop_duplicates:   true
-merge_overlapping: false
-meaningful_gap:    0
-date_floor:        "1920-01-01"
-date_ceiling:      "2100-01-01"
+normalize_dates:     true
+coalesce_dates:      false
+causality_check:     reject
+parse_dates:         true
+drop_duplicate_rows: true
+date_floor:          "1920-01-01"
+date_ceiling:        "2100-01-01"
+
+# Optional merge config:
+# merge:
+#   meaningful_gap_days: 1
+#   descriptor_cols:
+#     icd10_condition: unique
+#     bmi_at_admission: median
 ```
 
 ---
@@ -202,7 +205,7 @@ cleaner.rejected             # → pd.DataFrame of rejected rows
 
 ```python
 config = EventsCleanerConfig.build_from_yaml("evt_cleaner.yaml")
-config = EventsCleanerConfig.build_with_defaults()
+config = EventsCleanerConfig()   # all defaults
 config.to_yaml("evt_cleaner.yaml")
 ```
 
@@ -212,7 +215,7 @@ config.to_yaml("evt_cleaner.yaml")
 |---|---|---|---|
 | `normalize_dates` | bool | `True` | Strip time component from date column |
 | `parse_dates` | bool | `True` | Auto-parse date column from strings |
-| `drop_duplicates` | bool | `True` | Remove rows identical on entity + date |
+| `drop_duplicate_rows` | bool | `True` | Remove rows identical on entity + date |
 | `date_floor` | str | `"1920-01-01"` | Reject rows with date before this value |
 | `date_ceiling` | str | `"2100-01-01"` | Reject rows with date after this value |
 

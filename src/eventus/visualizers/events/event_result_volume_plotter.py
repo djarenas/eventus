@@ -32,8 +32,9 @@ class EventResultVolumePlotter:
         Plot configuration. Defaults to EventResultVolumeConfig() if not provided.
     """
 
-    _volume: EventResultVolume
-    _config: EventResultVolumeConfig
+    # ── Attributes ───────────────────────────────────────────────────────
+    _volume: EventResultVolume       # validated volume result input
+    _config: EventResultVolumeConfig # plot configuration
 
     def __init__(
         self,
