@@ -492,13 +492,14 @@ def attach_episode_columns(
         elif cfg.timeline == "unique":
             pipe_col = (
                 eps_sorted.groupby(entity_col)[col]
-                .apply(lambda s: " | ".join(
-                    sorted(set(
-                        str(v).strip()
-                        for v in s
-                        if pd.notna(v) and str(v).strip()
-                    ))
-                ))
+                .apply(lambda s: (
+                    lambda vals: " | ".join(vals) if vals else None
+                )(sorted(set(
+                    str(v).strip()
+                    for v in s
+                    if pd.notna(v) and str(v).strip()
+                )))
+                )
                 .rename(out)
             )
             result = result.merge(pipe_col, on=entity_col, how="left")
@@ -589,13 +590,14 @@ def attach_event_columns(
         elif cfg.timeline == "unique":
             pipe_col = (
                 evt_sorted.groupby(entity_col)[col]
-                .apply(lambda s: " | ".join(
-                    sorted(set(
-                        str(v).strip()
-                        for v in s
-                        if pd.notna(v) and str(v).strip()
-                    ))
-                ))
+                .apply(lambda s: (
+                    lambda vals: " | ".join(vals) if vals else None
+                )(sorted(set(
+                    str(v).strip()
+                    for v in s
+                    if pd.notna(v) and str(v).strip()
+                )))
+                )
                 .rename(out)
             )
             result = result.merge(pipe_col, on=entity_col, how="left")

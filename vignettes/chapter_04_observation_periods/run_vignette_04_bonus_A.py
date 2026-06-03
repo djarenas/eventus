@@ -16,7 +16,7 @@ HERE = pathlib.Path(__file__).parent
 
 # ── Step 1 — Load demographics and coverage data ──────────────────────────────
 
-demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics.csv")
+demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics_clean.csv")
 raw_df   = pd.read_csv(HERE.parent / "data" / "ch04_05_medicaid_coverage_agewindow.csv")
 
 print(f"Members with demographics : {len(demog_df):,}")
@@ -38,6 +38,8 @@ cleaner.print_report()
 # Each member's obs period = their 18th birthday to their 25th birthday.
 # Members who turned 25 before 2018 or turn 18 after 2025 will have
 # zero-length or out-of-range windows.
+# Note: using ch04_07_member_demographics_clean.csv — all DOBs 1995-2003,
+# no future observation periods, no warnings expected.
 
 obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
     entity_df  = demog_df,

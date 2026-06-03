@@ -81,6 +81,18 @@ def run_analysis(data_file: str, label: str) -> None:
         violin_config   = stratified_config,
     )
 
+    # ── Stratified medians for README ─────────────────────────────────────────
+    import numpy as np
+    shape_data = shape_result.data[[ct.entity_col, "mean_gap"]].copy()
+    shape_data["condition"] = ct.get_event_descriptor(
+        "ed_visit", "icd10_condition"
+    ).values
+    print(f"\nStratified mean gap by condition ({label}):")
+    for cond, grp in shape_data.groupby("condition"):
+        vals = grp["mean_gap"].dropna()
+        if len(vals) > 0:
+            print(f"  {cond}: n={len(vals)}, median={np.median(vals):.0f}d, mean={vals.mean():.0f}d")
+
 run_analysis("ch07_ed_visits_agewindow_null.csv",   "null")
 run_analysis("ch07_ed_visits_agewindow_signal.csv", "signal")
 

@@ -497,7 +497,8 @@ def make_medicaid_coverage_data(seed: int = SEED) -> pd.DataFrame:
 
     Each member has 1-3 coverage periods across 2021-2022.
     Coverage patterns:
-      ~70% continuously covered for most of 2022
+      ~15% fully covered — exactly Jan 1 to Dec 31
+      ~55% continuously covered for most of 2022 (late start or early exit)
       ~20% have one gap — enrolled, lapse, re-enroll
       ~10% partially covered — only part of 2022
 
@@ -516,17 +517,25 @@ def make_medicaid_coverage_data(seed: int = SEED) -> pd.DataFrame:
 
     for pid in patient_ids:
         pattern = rng.choice(
-            ["continuous", "one_gap", "partial"],
-            p=[0.70, 0.20, 0.10],
+            ["full", "continuous", "one_gap", "partial"],
+            p=[0.15, 0.55, 0.20, 0.10],
         )
 
-        if pattern == "continuous":
+        if pattern == "full":
+            # Exactly Jan 1 to Dec 31 — full year coverage
+            rows.append({
+                "patient_id":     pid,
+                "coverage_start": pd.Timestamp("2022-01-01"),
+                "coverage_end":   pd.Timestamp("2022-12-31"),
+            })
+
+        elif pattern == "continuous":
             # One long coverage period covering most of 2022
             start = pd.Timestamp("2022-01-01") + pd.Timedelta(
-                days=int(rng.integers(0, 30))
+                days=int(rng.integers(1, 30))
             )
             end = pd.Timestamp("2022-12-31") - pd.Timedelta(
-                days=int(rng.integers(0, 30))
+                days=int(rng.integers(1, 30))
             )
             rows.append({
                 "patient_id":     pid,
@@ -599,10 +608,12 @@ def make_medicaid_coverage_data(seed: int = SEED) -> pd.DataFrame:
 
 def make_member_demographics(seed: int = SEED) -> pd.DataFrame:
     """
-    Generate synthetic member demographics for the age window vignette.
+    Generate synthetic member demographics with a mixed DOB distribution.
+    Used in Chapter 7 scenario 1 to deliberately demonstrate the
+    ObsPeriodPerEntity future-period warning.
 
     DOB distribution across 800 members:
-      ~320 members — DOB 1997-2000 — full or partial 18-25 window in data
+      ~320 members — DOB 1997-2000 — full or partial 18-21 window in data
       ~240 members — DOB 2001-2004 — window starts mid-data
       ~128 members — DOB 1990-1996 — too old, window ended before 2018
       ~112 members — DOB 2005-2008 — too young, window hasn't started by 2025
@@ -641,6 +652,50 @@ def make_member_demographics(seed: int = SEED) -> pd.DataFrame:
         else:
             dob_year = int(rng.integers(2005, 2009))
 
+        dob_month = int(rng.integers(1, 13))
+        dob_day   = int(rng.integers(1, 29))
+
+        rows.append({
+            "patient_id":        pid,
+            "date_of_birth":     pd.Timestamp(f"{dob_year}-{dob_month:02d}-{dob_day:02d}"),
+            "primary_condition": condition,
+        })
+
+    df = pd.DataFrame(rows)
+    df["date_of_birth"] = df["date_of_birth"].dt.strftime("%Y-%m-%d")
+    return df
+
+
+def make_member_demographics_age18_21(seed: int = SEED) -> pd.DataFrame:
+    """
+    Generate synthetic member demographics where ALL members have a
+    date of birth that places their 18-21 observation window entirely
+    in the past relative to the simulation date.
+
+    All 800 members born 1995-2003 — their 18th birthday falls between
+    2013 and 2021, and their 21st between 2016 and 2024. No future
+    observation periods. No warnings.
+
+    Used in Chapters 4-7 for all age-window analyses.
+    Chapter 7 also uses ch04_07_member_demographics_mixed_dob.csv
+    to deliberately demonstrate the ObsPeriodPerEntity future-period warning.
+
+    Columns: patient_id, date_of_birth, primary_condition
+    """
+    rng = np.random.default_rng(seed + 10)
+
+    patient_ids = [f"P{str(i).zfill(4)}" for i in range(1, N_PATIENTS + 1)]
+
+    primary_conditions = rng.choice(
+        ["conditionA", "conditionB", "conditionC"],
+        size = N_PATIENTS,
+        p    = [1/3, 1/3, 1/3],
+    )
+
+    rows = []
+    for pid, condition in zip(patient_ids, primary_conditions):
+        # All DOBs 1995-2003 — 18-21 window entirely in 2013-2024
+        dob_year  = int(rng.integers(1995, 2004))
         dob_month = int(rng.integers(1, 13))
         dob_day   = int(rng.integers(1, 29))
 
@@ -880,14 +935,15 @@ def make_ed_visits_agewindow_signal(
 # ── Summary printer ───────────────────────────────────────────────────────────
 
 def print_data_summary(
-    hosp_df:      pd.DataFrame,
-    ed_df:        pd.DataFrame,
-    nf_df:        pd.DataFrame,
-    cov_df:       pd.DataFrame,
-    demog_df:     pd.DataFrame,
-    age_cov_df:   pd.DataFrame,
-    ed_null_df:   pd.DataFrame,
-    ed_signal_df: pd.DataFrame,
+    hosp_df:           pd.DataFrame,
+    ed_df:             pd.DataFrame,
+    nf_df:             pd.DataFrame,
+    cov_df:            pd.DataFrame,
+    demog_df:          pd.DataFrame,
+    demog_correct_df:  pd.DataFrame,
+    age_cov_df:        pd.DataFrame,
+    ed_null_df:        pd.DataFrame,
+    ed_signal_df:      pd.DataFrame,
 ) -> None:
     """Print a summary of the generated datasets."""
     print("=" * 56)
@@ -927,6 +983,13 @@ def print_data_summary(
     print(f"  conditionC          : {(demog_df['primary_condition']=='conditionC').sum():,}")
     print(f"  (saved as ch04_07_member_demographics.csv)")
 
+    print("\nMember demographics — correct DOB (ch04_07_member_demographics_clean.csv):")
+    print(f"  Total members       : {len(demog_correct_df):,}")
+    dob2 = pd.to_datetime(demog_correct_df['date_of_birth'], errors='coerce')
+    print(f"  Earliest DOB        : {dob2.min().date()}")
+    print(f"  Latest DOB          : {dob2.max().date()}")
+    print(f"  All windows in past : True — no future-period warnings expected")
+
     print("\nMedicaid coverage age window (2018-2025):")
     print(f"  Total rows          : {len(age_cov_df):,}")
     print(f"  Unique patient IDs  : {age_cov_df['patient_id'].nunique():,}")
@@ -964,6 +1027,9 @@ if __name__ == "__main__":
     print("Generating member demographics...")
     demog_df = make_member_demographics()
 
+    print("Generating member demographics — correct DOB...")
+    demog_correct_df = make_member_demographics_age18_21()
+
     print("Generating Medicaid coverage age window (2018-2025)...")
     age_cov_df = make_medicaid_coverage_age_window()
 
@@ -974,7 +1040,7 @@ if __name__ == "__main__":
     ed_signal_df = make_ed_visits_agewindow_signal(demog_df)
 
     print_data_summary(
-        hosp_df, ed_df, nf_df, cov_df, demog_df,
+        hosp_df, ed_df, nf_df, cov_df, demog_df, demog_correct_df,
         age_cov_df, ed_null_df, ed_signal_df,
     )
 
@@ -982,7 +1048,8 @@ if __name__ == "__main__":
     ed_df.to_csv(        output_dir / "ch01_06_ed_visits.csv",                     index=False)
     nf_df.to_csv(        output_dir / "ch02_03_nursing_facility_assessments.csv",            index=False)
     cov_df.to_csv(       output_dir / "ch04_06_medicaid_coverage.csv",             index=False)
-    demog_df.to_csv(     output_dir / "ch04_07_member_demographics.csv",           index=False)
+    demog_df.to_csv(         output_dir / "ch04_07_member_demographics_mixed_dob.csv",               index=False)
+    demog_correct_df.to_csv( output_dir / "ch04_07_member_demographics_age18_21.csv", index=False)
     age_cov_df.to_csv(   output_dir / "ch04_05_medicaid_coverage_agewindow.csv",   index=False)
     ed_df.to_csv(        output_dir / "ch06_ed_visits_agewindow.csv",              index=False)
     ed_null_df.to_csv(   output_dir / "ch07_ed_visits_agewindow_null.csv",      index=False)
@@ -992,9 +1059,10 @@ if __name__ == "__main__":
         "ch01_06_ed_visits.csv",
         "ch02_03_nursing_facility_assessments.csv",
         "ch04_06_medicaid_coverage.csv",
-        "ch04_07_member_demographics.csv",
+        "ch04_07_member_demographics_mixed_dob.csv",
         "ch04_05_medicaid_coverage_agewindow.csv",
         "ch07_ed_visits_agewindow_null.csv",
         "ch07_ed_visits_agewindow_signal.csv",
+        "ch04_07_member_demographics_age18_21.csv",
     ]:
         print(f"Saved: {output_dir / name}")
