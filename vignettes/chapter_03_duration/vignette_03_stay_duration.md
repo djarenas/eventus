@@ -146,7 +146,7 @@ word. Running both as a sensitivity analysis requires two config files
 and zero code changes.
 
 *Figure 1. KDE of nursing facility stay duration (n=227 episodes).
-Bimodal distribution with peaks near 80 and 115 days.
+Broad distribution peaking near 115 days with a secondary mode around 80 days.
 Dashed lines: P25, P50, P75, P90.*
 
 ### Step 3 — Stratified violin by facility
@@ -220,9 +220,9 @@ are auto-colored with a warning.
 
 ## What this demonstrated
 
-- **Visual decisions are scientific decisions** — bin width, KDE
-  bandwidth, percentile lines all belong in a versioned config file,
-  not in plotting code. The YAML file is the complete, reproducible
+- **Visual decisions belong in config files, not in code** — bin width,
+  KDE bandwidth, percentile lines, and colors are all declared in a
+  versioned YAML file. The config file is the complete, reproducible
   record of what was plotted and how.
 
 - **Adding stratification requires one argument** — `stratify_by`

@@ -12,7 +12,7 @@ Before you can ask any scientific question, you need to answer a more
 mundane one: *"Do I know how many times each patient was hospitalized?"*
 This sounds simple. It is not.
 
-Your file has 11,500 rows and 499 unique patients.
+Your file has 11,500 rows and 800 unique patients.
 
 ---
 
@@ -104,7 +104,7 @@ hospital are the same episode recorded twice."*
 import eventus
 import pandas as pd
 
-raw_hosp_df = pd.read_csv("vignettes/data/hospitalization_claims.csv")
+raw_hosp_df = pd.read_csv("vignettes/data/ch01_hospitalization_claims.csv")
 
 sem = eventus.EpisodeSemantics.build_from_yaml("configs/hospitalization_semantics.yaml")
 ```
@@ -125,15 +125,14 @@ date_floor:          "1920-01-01"
 date_ceiling:        "2030-01-01"
 
 merge:
-  meaningful_gap_days: 1         # discharged Monday, readmitted Tuesday = one episode
+  meaningful_gap_days: 1
   descriptor_cols:
-    icd10_condition: unique      # collect unique conditions across merged rows
+    icd10_condition: unique
 ```
 
 `meaningful_gap_days: 1` is the answer to Problem 5. `also_defined_by`
 in semantics is the answer to Problem 6. Both are explicit, versioned,
-and documented. A collaborator reading these files in six months knows
-exactly what was decided and why.
+and documented.
 
 ### Step 3 — Clean
 
@@ -147,18 +146,18 @@ cleaner.print_report()
 ```
 Cleaning report
 ────────────────────────────────────────────────────────
-Total input rows:                               11,500
+Total input rows:                            11,500
 ────────────────────────────────────────────────────────
   Rejected:
-    duplicate_row:                               9,434   (82.0%)
-    null_start_date:                               341   (3.0%)
-    null_entity_id:                                115   (1.0%)
-    end_before_start_rejected:                      57   (0.5%)
-    before_date_floor:                               1   (0.0%)
-    after_date_ceiling:                              1   (0.0%)
+    duplicate_row:                            8,624   (75.0%)
+    null_start_date:                            341   (3.0%)
+    null_entity_id:                             115   (1.0%)
+    end_before_start_rejected:                   54   (0.5%)
+    before_date_floor:                            1   (0.0%)
+    after_date_ceiling:                           1   (0.0%)
 ────────────────────────────────────────────────────────
-Total rejected:                                9,949   (86.5%)
-Clean rows:                                    1,486   (12.9%)
+Total rejected:                               9,136   (79.4%)
+Clean rows:                                   2,297   (20.0%)
 ```
 
 Every rejected row is accounted for with an explicit reason.
@@ -176,8 +175,8 @@ print(episodes)
 
 ```
 Episodes(
-  rows             : 1,486
-  unique entities  : 498
+  rows             : 2,297
+  unique entities  : 793
   entity_col       : 'patient_id'
   start_col        : 'admit_date'
   end_col          : 'discharge_date'
@@ -189,6 +188,10 @@ are preserved — overlapping stays at different hospitals were never
 merged. Same-hospital overlaps within a 1-day gap were merged into
 single episodes. `icd10_condition` values were aggregated as unique
 pipe-delimited strings across merged rows.
+
+7 of the 800 patients had all their records rejected — null patient IDs
+account for the difference between 800 input patients and 793 in the
+clean result.
 
 ---
 
@@ -209,8 +212,8 @@ pipe-delimited strings across merged rows.
   duplicate. This distinction is declared once in semantics and
   respected by the cleaner automatically.
 
-- **14 lines of analysis code vs 117 lines without eventus** (8× more)
-  — and the 117 lines produce correct output but cannot provide a versioned
+- **14 lines of analysis code vs 117 lines without eventus** (8×) —
+  and the 117 lines produce correct output but cannot provide a versioned
   record of cleaning decisions, a structured per-row audit trail, or
   extensibility without rewriting the merge loop. The gap is not
   correctness — it is transparency, auditability, and reproducibility
@@ -247,51 +250,46 @@ descriptor_cols:
     type: numeric
 ```
 
-`also_defined_by: [hospital_id]` means two records on the same date
-for the same patient are only duplicates if they are at the same
-hospital. Two visits to different hospitals on the same day are kept
-as separate events. `descriptor_cols` declares the clinical
-columns — available for downstream aggregation.
-
 ### The code
 
 ```python
-raw_ed_df = pd.read_csv("vignettes/data/simulated_ed_visits.csv")
+raw_ed_df = pd.read_csv("vignettes/data/ch01_06_ed_visits.csv")
 
 sem       = eventus.EventSemantics.build_from_yaml("configs/ed_semantics.yaml")
 config    = eventus.EventsCleanerConfig.build_from_yaml("configs/ed_cleaner.yaml")
 cleaner   = eventus.EventsCleaner(raw_ed_df, sem, config)
 ed_visits = cleaner.clean()
 cleaner.print_report()
+print(ed_visits)
 ```
 
 ```
 Cleaning report — events
 ────────────────────────────────────────────────────────
-Total input rows:                                5,442
+Total input rows:                             5,459
 ────────────────────────────────────────────────────────
   Rejected:
-    null_entity_id:                                 54   (1.0%)
-    null_date:                                     107   (2.0%)
-    duplicate_row:                               3,195   (58.7%)
+    duplicate_row:                            1,907   (34.9%)
+    null_date:                                  108   (2.0%)
+    null_entity_id:                              54   (1.0%)
 ────────────────────────────────────────────────────────
-Total rejected:                                3,356   (61.7%)
-Clean rows:                                    2,086   (38.3%)
-```
-
-```python
-print(ed_visits)
+Total rejected:                               2,069   (37.9%)
+Clean rows:                                   3,390   (62.1%)
 ```
 
 ```
 Events(
   identity        : 'ed_visit'
-  rows            : 2,086
-  unique entities : 448
+  rows            : 3,390
+  unique entities : 723
   entity_col      : 'patient_id'
   date_col        : 'ed_visit_date'
 )
 ```
+
+77 of the 800 patients had all their ED visit records rejected —
+primarily null patient IDs and null dates — accounting for the
+difference between 800 input patients and 723 in the clean result.
 
 The without-eventus equivalent is at
 `vignettes/without_eventus/without_eventus_clean_ed_visits.py`.

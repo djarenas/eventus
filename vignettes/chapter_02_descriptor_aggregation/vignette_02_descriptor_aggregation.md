@@ -130,7 +130,7 @@ construction, before any data is touched.
 ### Step 3 — Clean
 
 ```python
-raw_df  = pd.read_csv("vignettes/data/nursing_facility_assessments.csv")
+raw_df  = pd.read_csv("vignettes/data/ch02_03_nursing_facility_assessments.csv")
 
 sem     = eventus.EpisodeSemantics.build_from_yaml("configs/nursing_facility_semantics.yaml")
 config  = eventus.EpisodesCleanerConfig.build_from_yaml("configs/nursing_facility_cleaner.yaml")
