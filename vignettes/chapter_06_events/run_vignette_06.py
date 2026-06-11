@@ -89,6 +89,17 @@ for n_visits, count in dist.items():
     pct   = round(100 * count / n_total, 1)
     print(f"  {label:<12} : {count:>4,}  ({pct}%)")
 
+# ── Step 8 — Episode-event interaction ──────────────────────────────────────
+# The CohortTimeline holds both coverage episodes and ED visits.
+# EpisodeEventInteractionAnalyzer classifies each member's ED visits
+# by where they fall relative to the coverage structure.
+
+interaction_analyzer = eventus.EpisodeEventInteractionAnalyzer(
+    ct, "medicaid_coverage", "ed_visit"
+)
+interaction_result = interaction_analyzer.compute_interaction()
+print(interaction_result)
+
 # ── Bonus A — Plot volume distribution ───────────────────────────────────────
 
 vol_config = eventus.EventResultVolumeConfig.build_from_yaml(
@@ -103,8 +114,8 @@ print(f"\nBonus A outputs saved to: {OUTPUT_DIR}")
 
 # ── Bonus B — ED visits ages 18-21 ───────────────────────────────────────────
 
-demog_df  = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics.csv")
-ed_age_df = pd.read_csv(HERE.parent / "data" / "ch06_ed_visits_agewindow.csv")
+demog_df  = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics_age18_21.csv")
+ed_age_df = pd.read_csv(HERE.parent / "data" / "ch07_ed_visits_agewindow_null.csv")
 
 # Clean ED visits — same semantics, same cleaner
 ed_age_visits = eventus.EventsCleaner(

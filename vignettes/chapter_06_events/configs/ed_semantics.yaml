@@ -9,7 +9,7 @@ also_defined_by:
 descriptor_cols:
   icd10_condition:
     type:     category
-    timeline: unique     # "what conditions did this member have?" — for stratification
+    timeline: unique
   systolic_bp:
     type:     numeric
-    timeline: average    # mean BP across visits — single summary value per member
+    timeline: average

@@ -1,5 +1,5 @@
 # ed_visit_volume_config.yaml
-# EventResultVolumeConfig for Chapter 6 Bonus A — ED visit volume plots.
+# EventResultVolumeConfig for Chapter 6 -- ED visit volume plots.
 
 canvas:
   figsize:   [10, 6]
@@ -13,7 +13,7 @@ bar:
   show_pct_labels: true
   show_ci:         true
   labels:
-    title: "ED Visit Prevalence — 2022 Cohort"
+    title: "ED Visit Prevalence"
 
 count_bar:
   color:             "#028090"
@@ -22,7 +22,7 @@ count_bar:
   show_count_labels: true
   show_ci:           true
   labels:
-    title: "ED Visit Count Distribution — 2022 Cohort"
+    title: "ED Visit Count Distribution"
   percentile_lines:
     show:        true
     values:      [50, 75, 90]

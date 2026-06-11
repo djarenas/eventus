@@ -1,48 +1,46 @@
 # Chapter 6 — Event Analysis
 
-## Vignette: ED Visit Volume in a Medicaid Cohort
+## Vignette: ED Visit Volume and Coverage Interaction
 
 You have cleaned Medicaid coverage records and a file of emergency
-department visits. You want to know: *"How many ED visits did members
-have during their coverage period — and how does that change when you
-restrict to the ages 18-21 transition window?"*
+department visits. Two questions:
 
-This is the first chapter where two data types appear in the same
-pipeline — episodes (coverage periods) and events (ED visits).
-The `CohortTimeline` holds both. The analyzer asks one of them a
-question.
+1. *"How many ED visits did members have during calendar year 2022?"*
+2. *"Where in their coverage structure did those visits fall?"*
+
+The first question asks about events. The second asks about the
+relationship between events and episodes. Both questions live in the
+same `CohortTimeline` — but they require different analyzers.
 
 ---
 
-### The five problems
+### The problems
 
-**Problem 1 — Events need the same cleaning guarantees as
-episodes.** Null IDs, unparseable dates, exact duplicates. The pipeline
-is simpler but the guarantees must be the same.
+**Problem 1 — Events need the same cleaning guarantees as episodes.**
+Null IDs, unparseable dates, exact duplicates. The pipeline is simpler
+but the guarantees must be the same. An unvalidated event file is as
+dangerous as an unvalidated episode file.
 
 **Problem 2 — Same-date same-hospital records are not duplicates.**
 Two records for the same patient, same date, same hospital but
 different diagnoses or blood pressure readings are the same visit
-recorded twice — not two visits. The cleaner needs to consolidate
-them. The aggregation rules belong in a config file, not a groupby
-lambda.
+recorded twice. The cleaner needs to consolidate them. The aggregation
+rule belongs in a config file, not a groupby lambda.
 
-**Problem 3 — The observation period determines what counts.**
-An ED visit on March 15 may or may not fall within a member's 18-21
-window. The observation period is a first-class object that defines
-what counts for each member individually — not a date filter applied
-after the fact.
+**Problem 3 — Coverage episodes define the cohort, not the filter.**
+The observation period is built from the coverage cohort. ED visits are
+filtered to that window — not to coverage periods specifically. A member
+with a gap in coverage who visits the ED during that gap is still in
+the analysis. The coverage episodes tell you the window. The events
+tell you what happened inside it.
 
-**Problem 4 — Volume statistics need correct denominators.**
-"68.5% of members had any ED visit" uses 495 as the denominator.
-"67.4% had any ED visit during ages 18-21" uses 500. Different
-questions, different denominators. A script must track these manually.
-eventus validates them at construction.
-
-**Problem 5 — Changing the observation period should not require
-rewriting the analysis.** The calendar year and the age window
-analysis are the same pipeline. One constructor call should change
-the scientific question.
+**Problem 4 — The cross-type question requires both objects assembled.**
+"How many members visited the ED during a coverage gap?" cannot be
+answered from either data object alone. It requires both, in the same
+validated structure, with a single analyzer call. In a script, this
+requires a custom join, manual gap computation, and careful date
+arithmetic — and the result is an unvalidated DataFrame with no
+denominator guarantees.
 
 ---
 
@@ -50,9 +48,9 @@ the scientific question.
 >
 > The without-eventus script is at
 > `vignettes/without_eventus/without_eventus_events.py`.
-> It required **97 lines** for the calendar year analysis and
-> produced correct output. This script runs successfully — the structural gaps are in
-> transparency and extensibility, not correctness.
+> It required **97 lines** for the calendar year volume analysis alone
+> and produced correct output. The cross-type question was not
+> implemented — it would require significant additional join logic.
 >
 > | Feature | Without eventus | With eventus | Notes |
 > |---|:---:|:---:|---|
@@ -60,70 +58,18 @@ the scientific question.
 > | Per-row audit trail | ✓ | ✓ | Coded manually vs included at no cost |
 > | Consolidation of descriptors | ✓ | ✓ | Hardcoded groupby vs one YAML section |
 > | Aggregation rules versioned | ✗ | ✓ | Hardcoded lambdas vs `icd10_condition: unique` |
-> | Correct denominator | ✓ | ✓ | Requires loading coverage file separately |
 > | Denominator validated | ✗ | ✓ | Manual tracking vs validated at construction |
-> | Structured result object | ✗ | ✓ | Printout only vs `EventResultVolume` |
-> | Raises on bad input | ✗ | ✓ | No validation vs specific error at construction |
+> | Cross-type question | ✗ | ✓ | Not implemented vs one analyzer call |
 > | Age window analysis | ✗ | ✓ | ~75 more lines vs change one constructor call |
->
-> **97 lines for the calendar year analysis. ~185 lines estimated for
-> both analyses combined.** With eventus, Bonus B is 27 additional
-> lines — primarily the new `ObsPeriodPerEntity` constructor,
-> filter, assembly, analyzer, and plot calls. The pipeline
-> structure is identical to the calendar year analysis.
 
 ---
 
 ## The eventus solution
 
-### Step 1 — Declare what the data means
-
-```yaml
-# configs/ed_semantics.yaml
-
-identity:        ed_visit
-entity_id_col:   patient_id
-date_col:        ed_visit_date
-also_defined_by:
-  - hospital_id
-descriptor_cols:
-  icd10_condition:
-    type: category
-  systolic_bp:
-    type: numeric
-```
-
-`also_defined_by: [hospital_id]` — two visits on the same date at
-different hospitals are different episodes. `descriptor_cols` declares
-the clinical columns available for consolidation.
-
-### Step 2 — Configure the cleaner
-
-```yaml
-# configs/ed_cleaner_with_consolidation.yaml
-
-normalize_dates:     true
-parse_dates:         true
-drop_duplicate_rows: true
-date_floor:          "1920-01-01"
-date_ceiling:        "2030-01-01"
-
-consolidate:
-  descriptor_cols:
-    icd10_condition: unique
-    systolic_bp:     median
-```
-
-`consolidate` declares what to do with same-date same-hospital
-records. `icd10_condition: unique` collects all unique diagnoses
-across the visit records. `systolic_bp: median` takes the median
-blood pressure measurement. These are the scientific decisions — they
-belong in a versioned config file.
-
-### Step 3 — Clean
+### Step 1 — Clean the ED visits
 
 ```python
-raw_df    = pd.read_csv("vignettes/data/simulated_ed_visits.csv")
+raw_df    = pd.read_csv("vignettes/data/ch01_06_ed_visits.csv")
 sem       = eventus.EventSemantics.build_from_yaml("configs/ed_semantics.yaml")
 config    = eventus.EventsCleanerConfig.build_from_yaml("configs/ed_cleaner_with_consolidation.yaml")
 cleaner   = eventus.EventsCleaner(raw_df, sem, config)
@@ -134,43 +80,59 @@ cleaner.print_report()
 ```
 Cleaning report — events
 ────────────────────────────────────────────────────────
-Total input rows:                                5,442
+Total input rows:                                5,459
 ────────────────────────────────────────────────────────
   Rejected:
-    duplicate_row:                               3,195   (58.7%)
-    null_date:                                     107   (2.0%)
-    null_entity_id:                                 54   (1.0%)
+    duplicate_row:                            1,907   (34.9%)
+    null_date:                                  108   (2.0%)
+    null_entity_id:                              54   (1.0%)
 ────────────────────────────────────────────────────────
-Total rejected:                                3,356   (61.7%)
-Clean rows:                                    2,060   (37.9%)
+Total rejected:                               2,069   (37.9%)
+Clean rows:                                   3,355   (61.5%)
   (after consolidation)
 ```
 
-### Step 4 — Assemble CohortTimeline with both data types
+### Step 2 — Build the observation period from the coverage cohort
+
+```python
+obs = eventus.ObsPeriodPerEntity.construct_from_calendar(
+    entity_ids = cov_episodes.data["patient_id"].unique(),
+    start      = "2022-01-01",
+    end        = "2022-12-31",
+    entity_col = "patient_id",
+    identity   = "calendar_2022",
+)
+```
+
+The observation period is defined by the coverage cohort — 793 members
+with at least one coverage record. This is the denominator for all
+downstream statistics.
+
+### Step 3 — Assemble CohortTimeline with both data types
 
 ```python
 ct = eventus.CohortTimeline.build_from_components(
-    obs_period  = obs,
-    episodes      = cov_episodes,
-    events = ed_visits,
+    obs_period = obs,
+    episodes   = cov_episodes,
+    events     = ed_visits,
 )
-print(ct)
 ```
 
 ```
 CohortTimeline(
-  entities             : 495
+  entities             : 793
   has_obs_period       : True
-  episode_identities     : ['medicaid_coverage']
-  event_identities: ['ed_visit']
+  episode_identities   : ['medicaid_coverage']
+  event_identities     : ['ed_visit']
 )
 ```
 
-This is the first time both data types appear in the same timeline.
-`episode_identities` and `event_identities` are tracked separately
-— the timeline knows what it holds.
+Both data types are in the same validated structure.
+`episode_identities` and `event_identities` are tracked separately —
+the timeline knows what it holds. This is not a join. The coverage
+episodes and ED visits were validated independently and assembled here.
 
-### Step 5 — Compute volume and enrich
+### Step 4 — Event volume
 
 ```python
 analyzer      = eventus.CohortTimelineEventAnalyzer(ct, "ed_visit")
@@ -180,40 +142,63 @@ print(volume_result)
 
 ```
 EventResultVolume:
-  identity         : ed_visit
-  entity_col       : patient_id
-  entities         : 495
-  n_with_any       : 339 (68.5%)
-  n_with_multiple  : 199 (40.2%)
+  identity        : ed_visit
+  entity_col      : patient_id
+  entities        : 793
+  n_with_any      : 554 (69.9%)
+  n_with_multiple : 325 (41.0%)
 ```
-
-```python
-ct_enriched = analyzer.enrich_with_volume()
-```
-
-The enriched `CohortTimeline` now carries `evt_comp_ed_visit_n` for
-every member — available for downstream filtering, sorting, and
-visualization without recomputing.
-
-### Step 6 — Volume distribution
 
 ```
 ED visit volume distribution — 2022 cohort:
-  0 visits     :  156  (31.5%)
-  1 visit      :  140  (28.3%)
-  2 visits     :   94  (19.0%)
-  3 visits     :   70  (14.1%)
-  4 visits     :   31  (6.3%)
-  5 visits     :    3  (0.6%)
-  6 visits     :    1  (0.2%)
+  0 visits     :  239  (30.1%)
+  1 visit      :  229  (28.9%)
+  2 visits     :  162  (20.4%)
+  3 visits     :  106  (13.4%)
+  4 visits     :   47  (5.9%)
+  5 visits     :    8  (1.0%)
+  6 visits     :    2  (0.3%)
 ```
+
+### Step 5 — Where in the coverage structure did visits fall?
+
+```python
+interaction_analyzer = eventus.EpisodeEventInteractionAnalyzer(
+    ct, "medicaid_coverage", "ed_visit"
+)
+interaction_result = interaction_analyzer.compute_interaction()
+print(interaction_result)
+```
+
+```
+EpisodeEventInteractionResult:
+  episode_identity : medicaid_coverage
+  event_identity   : ed_visit
+  entity_col       : patient_id
+  entities         : 793
+  with episodes    : 793 (100.0%)
+  without episodes : 0 (0.0%)
+  events before first episode  : 61 entities (7.7%)
+  events during active episodes: 509 entities (64.2%)
+  events during gaps           : 19 entities (2.4%)
+  events after last episode    : 60 entities (7.6%)
+```
+
+This question was not answerable from either data object alone. It
+required both, assembled in the same `CohortTimeline`, with one
+analyzer call. 2.4% of members visited the ED during a coverage gap —
+a finding that would require a custom join and manual gap computation
+in a script, and would still produce an unvalidated result with no
+denominator guarantees.
+
+Note that the percentages do not add to 100% — a single member can
+appear in multiple segments. A member who visited before enrollment,
+during coverage, and during a gap contributes to three counts. The
+segments are distinct; the members are not.
 
 ---
 
 ## Bonus A — Plot the distribution
-
-Two plot calls from the validated `EventResultVolume` object.
-Every visual decision is versioned in `ed_visit_volume_config.yaml`.
 
 ```python
 vol_config = eventus.EventResultVolumeConfig.build_from_yaml(
@@ -229,9 +214,7 @@ plotter.plot_count_distribution_bar("output/ed_visit_count_distribution.png")
 
 ## Bonus B — The same question for ages 18-21
 
-*"How many ED visits did members have between ages 18 and 21?"*
-
-One constructor call changes the scientific question. Everything else
+One constructor call changes the observation window. The pipeline
 is identical.
 
 ```python
@@ -246,86 +229,49 @@ obs_age = eventus.ObsPeriodPerEntity.construct_from_age_window(
 ```
 
 ```
-ObsPeriodPerEntity(
-  identity           : 'age_18_to_21'
-  construction_path  : 'construct_from_age_window(age 18→21 years)'
-  total_entities     : 500
-  period_length_mean : 1,095.7 days
-  period_length_min  : 1,095 days
-  period_length_max  : 1,096 days
-  earliest_start     : 2008-01-11
-  latest_end         : 2029-12-25
-)
-```
-
-Note that `latest_end: 2029-12-25` — some members' 21st birthday falls
-after today. The package warns rather than silently accepting:
-
-```
-UserWarning: [ObsPeriodPerEntity] 66 entities have span_end in the
-future. Example entity IDs: ['P0001', 'P0005', ...]. Is this
-intentional (prospective study)?
-```
-
-This is a warning, not an error — a prospective study is valid. The
-package surfaces the decision rather than hiding it.
-
-```
 EventResultVolume:
-  identity         : ed_visit
-  entity_col       : patient_id
-  entities         : 500
-  n_with_any       : 337 (67.4%)
-  n_with_multiple  : 243 (48.6%)
+  identity        : ed_visit
+  entity_col      : patient_id
+  entities        : 800
+  n_with_any      : 514 (64.2%)
+  n_with_multiple : 382 (47.8%)
 ```
-
-### The contrast
 
 | | Calendar 2022 | Ages 18-21 |
 |---|---|---|
-| Entities in window | 495 | 500 |
-| Any ED visit | 339 (68.5%) | 337 (67.4%) |
-| Multiple ED visits | 199 (40.2%) | 243 (48.6%) |
-| Total ED visits in window | 683 | 872 |
-
-**48.6% of members had multiple ED visits between ages 18-21** —
-nearly half. The transition into young adulthood is associated with
-higher repeat ED utilization than a single calendar year suggests.
-
-The pipeline that produced both of these results is the same pipeline.
-One constructor call separated the two analyses.
+| Entities in window | 793 | 800 |
+| Any ED visit | 554 (69.9%) | 514 (64.2%) |
+| Multiple ED visits | 325 (41.0%) | 382 (47.8%) |
+| Total ED visits in window | 1,111 | 1,446 |
 
 ---
 
 ## What this demonstrated
 
-- **`EventsCleaner` provides the same guarantees as `EpisodesCleaner`**
-  — validated output, per-row audit trail, auditable config. The
-  parallel design means the same guarantees apply here.
+- **Events get the same cleaning guarantees as episodes** — validated
+  output, per-row audit trail, versioned consolidation rules.
 
-- **Consolidation is a scientific decision** — `icd10_condition: unique`
-  and `systolic_bp: median` are declared in the cleaner config, not
-  hardcoded in a groupby lambda. Change one word to change the rule.
+- **The `CohortTimeline` holds both data types** — coverage episodes
+  define the cohort and observation window; ED visits are what you
+  analyze. The coverage layer is not a filter on the events. It defines
+  who is in the study and for how long.
 
-- **`CohortTimeline` holds both data types** — `episode_identities` and
-  `event_identities` are tracked separately. The timeline knows
-  what it contains.
+- **`EpisodeEventInteractionAnalyzer` closes the design space** — this
+  is the final permutation of the three core object types:
+  Events × ObsPeriod, Episodes × ObsPeriod, Events × Events, and now
+  Events × Episodes. Each permutation has a dedicated analyzer. The
+  architecture was designed for this from the start.
 
-- **`EventResultVolume` validates its denominators** — `n_with_any`
-  and `n_with_multiple` are properties of a validated object, not
-  manual groupby operations. They cannot be accidentally computed
-  against the wrong denominator.
+- **The cross-type question is one call** — "how many members visited
+  the ED during a coverage gap?" required no join, no manual gap
+  computation, no denominator tracking. The answer is in the result
+  object with validated counts per segment.
 
-- **One constructor call changes the scientific question** — replacing
-  `construct_from_calendar()` with `construct_from_age_window()` is
-  the only difference between the 2022 analysis and the 18-21 analysis.
-  The rest of the pipeline is identical.
-
-- **The package warns on future dates** — when observation windows
-  extend past today, the package warns explicitly rather than silently
-  accepting. The researcher decides whether this is intentional.
+- **One constructor call changes the scientific question** — the 2022
+  calendar analysis and the 18-21 age window analysis share the same
+  pipeline. One constructor call separated them.
 
 ---
 
 *The next chapter examines event timing and shape — when do
-ED visits happen, and are they bursty or regular?*
+ED visits happen, and does the pattern differ by condition?*

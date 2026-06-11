@@ -2,7 +2,7 @@
 
 ## Vignette: Medicaid Coverage Analysis
 
-You have coverage records for 500 Medicaid members. Before you can
+You have coverage records for 800 Medicaid members. Before you can
 ask any scientific question — who was covered, for how long, were
 there gaps — you need to answer a structural one: *"What is each
 member's observation window, and what happened inside it?"*
@@ -23,18 +23,17 @@ that intersection correctly for every member requires interval
 arithmetic that a simple date filter cannot provide.
 
 **Problem 2 — Gaps, lapses, and partial coverage require careful
-denominators.** "19.4% of members had gaps" means 19.4% of members
-*with any coverage*. "13.6% had no coverage" means 13.6% of the full
+denominators.** "19.2% of members had gaps" means 19.2% of members
+*with any coverage*. "0.0% had no coverage" means 0.0% of the full
 cohort. Mixing denominators silently produces wrong statistics. A
 script that computes these inline has no mechanism to enforce
 denominator consistency.
 
 **Problem 3 — Age-based windows are per-entity.** When the
-observation window is each member's 18th to 25th birthday, every
-member has a different start and end date. Members who turned 25
-before the data starts, or who turn 18 after the data ends, have
-zero-length windows. A script that applies a single date filter
-silently includes or excludes them incorrectly.
+observation window is each member's 18th to 21st birthday, every
+member has a different start and end date. Members whose window falls
+outside the data range have zero coverage. A script that applies a
+single date filter silently includes or excludes them incorrectly.
 
 **Problem 4 — The enriched CohortTimeline carries computed columns
 forward.** After computing coverage statistics, those columns should
@@ -88,12 +87,25 @@ must recompute them every time they are needed.
 ### Step 1 — Clean
 
 ```python
-raw_df  = pd.read_csv("vignettes/data/simulated_medicaid_coverage.csv")
+raw_df  = pd.read_csv("vignettes/data/ch04_06_medicaid_coverage.csv")
 sem     = eventus.EpisodeSemantics.build_from_yaml("configs/medicaid_coverage_semantics.yaml")
 config  = eventus.EpisodesCleanerConfig.build_from_yaml("configs/medicaid_coverage_cleaner.yaml")
 cleaner = eventus.EpisodesCleaner(raw_df, sem, config)
 episodes  = cleaner.clean()
 cleaner.print_report()
+```
+
+```
+Cleaning report
+────────────────────────────────────────────────────────
+Total input rows:                               982
+────────────────────────────────────────────────────────
+  Rejected:
+    duplicate_row:                               28   (2.9%)
+    null_start_date:                              9   (0.9%)
+────────────────────────────────────────────────────────
+Total rejected:                                  37   (3.8%)
+Clean rows:                                     945   (96.2%)
 ```
 
 ### Step 2 — Define the observation period
@@ -114,7 +126,7 @@ ObsPeriodPerEntity(
   identity           : 'calendar_2022'
   construction_path  : 'construct_from_calendar'
   entity_col         : 'patient_id'
-  total_entities     : 495
+  total_entities     : 793
   period_length_mean : 364.0 days
   earliest_start     : 2022-01-01
   latest_end         : 2022-12-31
@@ -131,7 +143,7 @@ episodes = eventus.EpisodesFilter(episodes).to_obs_period(obs, clip=True).result
 
 ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
-    episodes     = episodes,
+    episodes   = episodes,
 )
 ```
 
@@ -156,10 +168,6 @@ eps_comp_medicaid_coverage_first_start
 eps_comp_medicaid_coverage_last_end
 ```
 
-The naming convention `eps_comp_` marks these as computed episode
-columns. The identity `medicaid_coverage` is carried from the
-semantics object through the entire pipeline.
-
 ### Step 5 — Coverage summary
 
 ```python
@@ -170,107 +178,119 @@ print(summary)
 ```
 EpisodeCoverageSummary:
   identity : medicaid_coverage
-  entities : 495
+  entities : 793
   coverage prevalence  (denominator: all entities)
-    t1_no_coverage              : 0 (0.0%)
-    t1_any_coverage             : 495 (100.0%)
+    t1_total_entities             : 793
+    t1_no_coverage                : 0 (0.0%)
+    t1_any_coverage               : 793 (100.0%)
   coverage patterns    (denominator: entities with any coverage)
-    t2_full_coverage            : 0 (0.0%)
-    t2_entered_during_obs       : 480 (97.0%)
-    t2_exited_during_obs        : 474 (95.8%)
-    t2_has_middle_gaps          : 96 (19.4%)
+    t2_full_coverage              : 147 (18.5%)
+    t2_entered_during_obs         : 641 (80.8%)
+    t2_exited_during_obs          : 640 (80.7%)
+    t2_has_middle_gaps            : 152 (19.2%)
+    t2_entered_late_and_exited_early : 635 (80.1%)
+    t2_entered_late_and_has_gaps  : 147 (18.5%)
+    t2_exited_early_and_has_gaps  : 146 (18.4%)
   distributions        (denominator: entities with any coverage)
-    t3_active_days              : mean=300.8  p25=309.5  p50=329.0  p75=339.0
-    t3_inactive_days            : mean=63.2   p25=25.0   p50=35.0   p75=54.5
+    t3_active_days                                 : mean=310.1  p25=313.0  p50=332.0  p75=348.0
+    t3_inactive_days                               : mean=53.9   p25=16.0   p50=32.0   p75=51.0
+    t3_inactive_days_before_first_episode (n=641)  : mean=22.8   p25=8.0    p50=16.0   p75=25.0
+    t3_inactive_days_after_last_episode (n=640)    : mean=35.3   p25=9.0    p50=17.0   p75=25.0
+    t3_inactive_days_middle (n=152)                : mean=35.9   p25=23.0   p50=36.0   p75=47.2
 ```
 
-Every tier has an explicit denominator. Tier 1 uses all 495 members.
-Tiers 2 and 3 use only members with any coverage. These denominators
-are validated at construction — they cannot be accidentally mixed.
+18.5% of members have full-year coverage (Jan 1 to Dec 31). The
+remaining 80.8% entered after Jan 1 or exited before Dec 31, with
+19.2% having gaps in the middle of their coverage period. Every tier
+has an explicit denominator — these cannot be accidentally mixed.
 
 ---
 
-## Bonus A — Age-Based Observation Periods: Ages 18-25
+## Bonus A — Age-Based Observation Periods: Ages 18-21
 
-*"I am only interested in coverage for 18-25 year olds. During those
-seven years, what was their coverage?"*
+*"I am only interested in coverage for members between ages 18 and 21.
+During those three years, what was their coverage?"*
 
 This is the harder and more realistic question. Every member has a
-different observation window. Members who turned 25 before 2018 or
-turn 18 after 2025 have zero-length windows — they are outside the
-study period entirely.
+different observation window — their 18th to 21st birthday. Members
+whose window falls outside the data range have zero coverage.
 
 ### One constructor call changes everything
 
 ```python
-demog_df = pd.read_csv("vignettes/data/simulated_member_demographics.csv")
+demog_df = pd.read_csv("vignettes/data/ch04_07_member_demographics_age18_21.csv")
 
 obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
     entity_df  = demog_df,
     dob_col    = "date_of_birth",
     age_start  = 18,
-    age_end    = 25,
+    age_end    = 21,
     entity_col = "patient_id",
-    identity   = "age_18_to_25",
+    identity   = "age_18_to_21",
 )
 print(obs)
 ```
 
 ```
 ObsPeriodPerEntity(
-  identity           : 'age_18_to_25'
-  construction_path  : 'construct_from_age_window(age 18→25 years)'
+  identity           : 'age_18_to_21'
+  construction_path  : 'construct_from_age_window(age 18→21 years)'
   entity_col         : 'patient_id'
-  total_entities     : 500
-  period_length_mean : 1,734.5 days
-  period_length_min  : 0 days
-  period_length_max  : 2,557 days
-  earliest_start     : 2018-01-01
-  latest_end         : 2025-12-31
+  total_entities     : 800
+  period_length_mean : 1095.8 days
+  period_length_min  : 1095 days
+  period_length_max  : 1096 days
+  earliest_start     : 2013-01-03
+  latest_end         : 2024-12-22
 )
 ```
 
-`period_length_min: 0 days` — the out-of-window members are present
-and accounted for. They are not silently dropped. They contribute to
-the `t1_no_coverage` count in the summary.
-
-The rest of the pipeline is identical to the main chapter — same
-filter, same assembly, same enrichment, same summary call.
+All 800 members are present and accounted for. The `construction_path`
+attribute records that this object was built from an age window —
+downstream code can inspect this without the caller having to pass
+that information separately.
 
 ### The summary
 
 ```
 EpisodeCoverageSummary:
   identity : medicaid_coverage
-  entities : 500
+  entities : 800
   coverage prevalence  (denominator: all entities)
-    t1_no_coverage              : 68 (13.6%)
-    t1_any_coverage             : 432 (86.4%)
+    t1_total_entities             : 800
+    t1_no_coverage                : 249 (31.1%)
+    t1_any_coverage               : 551 (68.9%)
   coverage patterns    (denominator: entities with any coverage)
-    t2_full_coverage            : 15 (3.5%)
-    t2_entered_during_obs       : 228 (52.8%)
-    t2_exited_during_obs        : 219 (50.7%)
-    t2_has_middle_gaps          : 138 (31.9%)
+    t2_full_coverage              : 164 (29.8%)
+    t2_entered_during_obs         : 292 (53.0%)
+    t2_exited_during_obs          : 36 (6.5%)
+    t2_has_middle_gaps            : 134 (24.3%)
+    t2_entered_late_and_exited_early : 27 (4.9%)
+    t2_entered_late_and_has_gaps  : 48 (8.7%)
+    t2_exited_early_and_has_gaps  : 0 (0.0%)
+    t2_clean_entry_exit_gaps_only : 86 (15.6%)
   distributions        (denominator: entities with any coverage)
-    t3_active_days              : mean=1,482.4  p25=986.5  p50=1,573.5  p75=2,067.2
-    t3_inactive_days            : mean=1,074.3  p25=489.5  p50=983.5    p75=1,570.5
+    t3_active_days                                : mean=760.0   p25=436.0   p50=931.0   p75=1095.0
+    t3_inactive_days                              : mean=335.7   p25=0.0     p50=165.0   p75=659.0
+    t3_inactive_days_before_first_episode (n=292) : mean=545.5   p25=273.5   p50=559.0   p75=821.2
+    t3_inactive_days_after_last_episode (n=36)    : mean=340.2   p25=75.0    p50=228.0   p75=507.0
+    t3_inactive_days_middle (n=134)               : mean=100.2   p25=61.2    p50=92.0    p75=125.8
 ```
 
 The contrast with the main chapter is the scientific story:
 
-| | Calendar 2022 | Age 18-25 window |
+| | Calendar 2022 | Age 18-21 window |
 |---|---|---|
-| No coverage | 0.0% | 13.6% |
-| Full coverage | 0.0% | 3.5% |
-| Has middle gaps | 19.4% | 31.9% |
-| Mean active days | 300.8 | 1,482.4 |
-| Mean inactive days | 63.2 | 1,074.3 |
+| No coverage | 0.0% | 31.1% |
+| Full coverage | 18.5% | 29.8% |
+| Has middle gaps | 19.2% | 24.3% |
+| Mean active days | 310.1 | 760.0 |
+| Mean inactive days | 53.9 | 335.7 |
 
-The young adult coverage story in five rows: 13.6% had no Medicaid
-coverage during ages 18-25. Only 3.5% were continuously covered for
-the full seven years. Nearly a third had gaps in the middle of their
-coverage window. The average member was covered for about 4 years and
-uncovered for about 3.
+31.1% of members had no Medicaid coverage during ages 18-21. Nearly
+a third of those who were covered had it for the full three-year
+window. The average covered member was active for about 760 days out
+of 1,096 — roughly two of the three years.
 
 ---
 
@@ -284,8 +304,7 @@ uncovered for about 3.
 - **The enriched `CohortTimeline` carries computed columns forward** —
   `enrich_with_episode_coverage()` adds seven `eps_comp_*` columns to
   the object. They are available for every downstream step without
-  recomputing. The naming convention `eps_comp_{identity}_{stat}` is
-  meaningful — computed episode columns, namespaced by identity.
+  recomputing.
 
 - **`EpisodeCoverageSummary` validates its denominators** — three tiers,
   each with an explicit denominator. Tier 1 uses the full cohort. Tiers
@@ -295,37 +314,12 @@ uncovered for about 3.
 - **One constructor call changes the analytical question** — replacing
   `construct_from_calendar()` with `construct_from_age_window()` is
   the only change between the main chapter and Bonus A. The rest of
-  the pipeline is identical. The out-of-window members are handled
-  correctly and automatically.
+  the pipeline is identical.
 
 - **253 lines without eventus vs ~35 lines with eventus** — and the
   253 lines raise an `AttributeError` at runtime on the actual vignette
   dataset, have no structured result object, and require manual
   denominator tracking throughout. The script does not complete.
-
-- **Our ~35 lines do more than the 253.** The eventus version includes
-  full input validation, a per-row audit trail with rejection reasons,
-  causality checking, date floor/ceiling enforcement, and duplicate
-  detection — all through the cleaner that runs before the first
-  analysis line. The without-eventus script rebuilds a fraction of
-  this inline, imperfectly, with no reuse across analyses.
-
-- **eventus completes. The script does not.** The without-eventus
-  script raises `AttributeError: 'numpy.timedelta64' object has no
-  attribute 'days'` at runtime — a numpy/pandas type inconsistency
-  at the boundary of date arithmetic that the script does not guard
-  against. eventus handles all date arithmetic internally with
-  consistent types. This error did not appear during script
-  development and only surfaced on the actual vignette dataset —
-  exactly the failure mode the script-based paradigm cannot prevent.
-
-- **A disclaimer on the 253-line script.** It is not meant to be
-  optimized — it is meant to be honest. A more experienced pandas
-  developer could condense some functions. The point is not the line
-  count — it is what the lines are doing and what they are missing.
-  The without-eventus script builds validated layers from scratch,
-  imperfectly, inline, with no reuse. That is the paradigm problem,
-  not a programmer problem. For production use, use eventus.
 
 ---
 

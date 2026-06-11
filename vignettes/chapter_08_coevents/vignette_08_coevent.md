@@ -83,8 +83,8 @@ audit report. Neither knows about the other.
 import eventus
 import pandas as pd
 
-cirrh_raw_df = pd.read_csv("data/simulated_cirrhosis_dx_ch08.csv")
-ed_raw_df    = pd.read_csv("data/simulated_ed_visits_ch08.csv")
+cirrh_raw_df = pd.read_csv("data/ch08_11_simul1_cirrhosis_dx.csv")
+ed_raw_df    = pd.read_csv("data/ch08_11_simul1_ed_visits.csv")
 
 # Cirrhosis diagnoses
 cirrh_sem     = eventus.EventSemantics.build_from_yaml("configs/cirrhosis_ch08_semantics.yaml")
@@ -192,8 +192,8 @@ EventCoOccurrencePresenceResult:
   identity_b        : ed_visit
   entities          : 5,000
   ────────────────────────────────────────────
-  n_with_a          : 90    (1.8%)    ← cirrhosis patients
-  n_with_b          : 1,847 (36.9%)   ← any ED visit
+  n_with_a          : 90 (1.8%)       ← cirrhosis patients
+  n_with_b          : 1,847 (36.9%)  ← any ED visit
   n_with_both       : 56    (1.1%)    ← both
   n_with_neither    : 3,119 (62.4%)   ← neither
   ────────────────────────────────────────────
@@ -226,11 +226,11 @@ EventCoOccurrenceAssociation:
 
   Contingency table:
                            has_ed_visit      no_ed_visit           total
-  has_cirrhosis_diagnosis   213  (4.3%)       113  (2.3%)    326  (6.5%)
-  no_cirrhosis_diagnosis  1,694 (33.9%)     2,980 (59.6%)  4,674 (93.5%)
-  total                   1,907 (38.1%)     3,093 (61.9%)  5,000 (100.0%)
+  has_cirrhosis_diagnosis    56 (1.1%)        34 (0.7%)     90 (1.8%)
+  no_cirrhosis_diagnosis  1,791 (35.8%)  3,119 (62.4%)  4,910 (98.2%)
+  total                   1,847 (36.9%)  3,153 (63.1%)  5,000 (100.0%)
 
-  P(ed_visit | cirrhosis_diagnosis)       : 62.2%  (95% CI: 51.9% – 71.5%)
+  P(ed_visit | cirrhosis_diagnosis)           : 62.2%  (95% CI: 51.9% – 71.5%)
   P(ed_visit | no cirrhosis_diagnosis)    : 36.5%  (95% CI: 35.1% – 37.8%)
   P(cirrhosis_diagnosis | ed_visit)       : 3.0%   (95% CI: 2.3% – 3.9%)
   P(cirrhosis_diagnosis | no ed_visit)    : 1.1%   (95% CI: 0.8% – 1.5%)
@@ -249,7 +249,7 @@ data is needed beyond what `compute_presence()` already computed.
 Among cirrhosis patients, 62.2% also had an ED visit in 2022 —
 nearly double the 36.5% rate among non-cirrhosis patients. The
 prevalence ratio of 1.71 (95% CI: 1.45–2.01) is highly significant
-(Fisher p=1.27e-06). With only 90 cirrhosis patients (2% prevalence)
+(Fisher p=1.27e-06). With only 90 cirrhosis patients (1.8% prevalence)
 the CI is wider than at higher prevalence, but the signal is clear.
 This is consistent with the simulation design: cirrhosis patients were
 assigned an ED visit rate of λ=2.0/year vs λ=0.4/year for non-cirrhosis.
@@ -264,7 +264,7 @@ clinical relationships. Those questions are for later chapters.
 ## Validation — the null case
 
 To confirm the analyzer correctly identifies absence of signal, we run
-the same pipeline on simul_4 — two completely independent event streams
+the same pipeline on simul_3 — two independent event streams with uniform rates
 with identical rates for all 5,000 patients. No relationship in
 prevalence, timing, or directionality by construction.
 
@@ -272,8 +272,8 @@ prevalence, timing, or directionality by construction.
 # Same pipeline, different data
 analyzer_null = eventus.EventCoOccurrenceAnalyzer(
     cohort_timeline = ct_null,
-    identity_a      = "simul4_event_x",
-    identity_b      = "simul4_event_y",
+    identity_a      = "simul3_event_x",
+    identity_b      = "simul3_event_y",
 )
 
 presence_null = analyzer_null.compute_presence()
@@ -305,7 +305,7 @@ p=0.74 confirm there is no signal.
 
 **The contrast:**
 
-| | simul_1 (signal) | simul_4 (null) |
+| | simul_1 (signal) | simul_3 (null) |
 |---|---|---|
 | P(B\|A) | 62.2% | 25.8% |
 | P(B\|no A) | 36.5% | 25.3% |

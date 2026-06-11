@@ -22,7 +22,7 @@ CH06       = HERE.parent / "chapter_06_events" / "configs"
 OUTPUT_DIR = HERE / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics.csv")
+demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics_age18_21.csv")
 
 sem    = eventus.EventSemantics.build_from_yaml(CH06 / "ed_semantics.yaml")
 config = eventus.EventsCleanerConfig.build_from_yaml(CH06 / "ed_cleaner_with_consolidation.yaml")

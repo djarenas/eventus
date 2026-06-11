@@ -2,10 +2,10 @@
 
 ## Vignette: When Did Members Have ED Visits Between Ages 18-21?
 
-The event volume analysis found that 67.4% of members had at least
-one ED visit between ages 18 and 21, and that nearly half had multiple.
-Now the question is: *when* did those visits happen — and does the
-gap between visits differ by diagnosis?
+The event volume analysis found that 67.6% of members in the signal
+cohort had at least one ED visit between ages 18 and 21, and that more
+than half had multiple. Now the question is: *when* did those visits
+happen — and does the gap between visits differ by diagnosis?
 
 Two analytical steps:
 
@@ -35,7 +35,7 @@ facets.
 survive the pipeline.** After consolidation, condition labels are
 pipe-delimited strings per visit record. Joining them back per member
 for stratification is non-trivial in a script. The `CohortTimeline`
-now carries `evt_ed_visit_icd10_condition` as a first-class column —
+carries `evt_ed_visit_icd10_condition` as a first-class column —
 declared in `EventSemantics.descriptor_cols` with
 `timeline: unique`. The stratified violin reads it directly.
 
@@ -44,8 +44,9 @@ declared in `EventSemantics.descriptor_cols` with
 ## The eventus solution
 
 This chapter reuses the pipeline from the previous chapter — same
-semantics, same cleaner, same age window. Two new analyzer calls answer
-new questions.
+semantics, same cleaner, same age window. Both a null cohort (uniform
+visit rates across conditions) and a signal cohort (conditionB and
+conditionC have higher rates) are run through the same code.
 
 ### Step 1 — Timing: when did visits happen?
 
@@ -55,21 +56,36 @@ timing_result = analyzer.compute_timing(max_n=3)
 print(timing_result)
 ```
 
+**Null cohort:**
 ```
 EventResultTiming:
   identity   : ed_visit
   entity_col : patient_id
-  entities   : 500
+  entities   : 800
   max_n      : 3
-  n_with_1th : 337 (67.4%)
-  n_with_2th : 243 (48.6%)
-  n_with_3th : 147 (29.4%)
+  n_with_1th : 514 (64.2%)
+  n_with_2th : 382 (47.8%)
+  n_with_3th : 254 (31.8%)
 ```
 
-The faceted histogram shows time-to-first in teal, time-to-second in
-orange, time-to-third in purple — all on the same x-axis (0–1,095
-days, the full 18-21 window). Each subplot shows the eligible
-denominator in the title automatically.
+**Signal cohort:**
+```
+EventResultTiming:
+  identity   : ed_visit
+  entity_col : patient_id
+  entities   : 800
+  max_n      : 3
+  n_with_1th : 541 (67.6%)
+  n_with_2th : 454 (56.8%)
+  n_with_3th : 354 (44.2%)
+```
+
+The signal cohort has higher penetration at every nth event — 67.6%
+vs 64.2% for first visit, 56.8% vs 47.8% for second, 44.2% vs 31.8%
+for third — consistent with elevated visit rates in conditionB and
+conditionC. The faceted histogram renders all three nths on the same
+x-axis (0–1,095 days). Each subplot title shows the eligible
+denominator automatically.
 
 ### Step 2 — Gap distribution
 
@@ -78,26 +94,29 @@ shape_result = analyzer.compute_shape()
 print(shape_result)
 ```
 
+**Null cohort:**
 ```
 EventResultShape:
   identity      : ed_visit
   entity_col    : patient_id
-  entities      : 500
-  n_with_gaps   : 243 (48.6%)
-  n_with_shape  : 147 (29.4%)
-  n_with_memory : 76  (15.2%)
+  entities      : 800
+  n_with_gaps   : 382 (47.8%)
+  n_with_shape  : 254 (31.8%)
+  n_with_memory : 154 (19.2%)
 ```
 
-```python
-plotter = eventus.EventResultShapePlotter(shape_result, shape_config)
-
-plotter.plot_mean_gap_violin(
-    path          = "output/ed_visit_gap_violin.png",
-    violin_config = gap_violin_config,
-)
+**Signal cohort:**
+```
+EventResultShape:
+  identity      : ed_visit
+  entity_col    : patient_id
+  entities      : 800
+  n_with_gaps   : 454 (56.8%)
+  n_with_shape  : 354 (44.2%)
+  n_with_memory : 259 (32.4%)
 ```
 
-### Bonus — Stratified by condition
+### Step 3 — Stratified by condition
 
 ```python
 plotter.plot_mean_gap_violin_stratified(
@@ -108,28 +127,34 @@ plotter.plot_mean_gap_violin_stratified(
 )
 ```
 
-The method reads `evt_ed_visit_icd10_condition` directly from the
-`CohortTimeline` — no manual join required. The plotter raises if
-more than `max_groups` unique condition combinations are found without
-explicit categories declared in the config.
+**Null cohort:**
 
-The signal simulation — where conditionA has λ=1.0/year, conditionB
-λ=1.5/year, and conditionC λ=2.0/year — produces a clear pattern:
+| Group | n | Median mean gap |
+|---|---|---|
+| conditionA only | 29 | 186d |
+| conditionB only | 27 | 243d |
+| conditionC only | 32 | 300d |
+| conditionA + conditionB | 70 | 230d |
+| conditionA + conditionC | 61 | 182d |
+| conditionB + conditionC | 70 | 180d |
+| conditionA + conditionB + conditionC | 91 | 188d |
 
-| Group | Median mean gap |
-|---|---|
-| conditionA only | ~220 days |
-| conditionB only | ~207 days |
-| conditionA + conditionB | ~148 days |
-| conditionA + conditionC | ~143 days |
-| conditionB + conditionC | ~141 days |
-| conditionA + conditionB + conditionC | ~140 days |
+**Signal cohort:**
 
-Members with comorbid conditions have shorter gaps between ED visits
-than single-condition members — consistent with the higher visit rates
-assigned to conditionB and conditionC. Statistical tests can be applied
-directly to `shape_result.data["mean_gap"]` grouped by condition. The
-plotting shows the pattern is there to find.
+| Group | n | Median mean gap |
+|---|---|---|
+| conditionA only | 92 | 210d |
+| conditionB only | 85 | 184d |
+| conditionC only | 103 | 159d |
+| conditionA + conditionB | 34 | 178d |
+| conditionA + conditionC | 43 | 154d |
+| conditionB + conditionC | 75 | 149d |
+| conditionA + conditionB + conditionC | 18 | 159d |
+
+In the signal cohort, conditionC alone has the shortest gaps (159d),
+consistent with λ=2.0/year. Comorbid members have shorter gaps than
+single-condition members in most combinations. The null cohort shows
+no such systematic pattern.
 
 ---
 
@@ -140,28 +165,24 @@ plotting shows the pattern is there to find.
   denominator appears in each subplot title automatically.
 
 - **Shared x-axis is declared in config** — the base bins config drives
-  the shared scale across all facets. All three are comparable without
-  any manual limit computation.
+  the shared scale across all facets. All three nths are comparable
+  without any manual limit computation.
 
 - **Descriptor columns survive into the `CohortTimeline`** — declaring
   `icd10_condition` with `timeline: unique` causes the `CohortTimeline`
   to carry `evt_ed_visit_icd10_condition` per member. The stratified
   violin reads it via `ct.get_event_descriptor()`. No join needed.
 
+- **The same code runs on null and signal** — the null and signal
+  cohorts produce structurally identical result objects. The difference
+  is in the numbers, not in the code or the pipeline.
+
 - **The analyzers did not change** — adding descriptor carriage
   required changes to `DescriptorColConfig`, `cohort_timeline_utils`,
   and `CohortTimeline`. Every component in between — cleaners,
-  analyzers, intermediates — required zero changes. The layer
-  boundaries are load-bearing walls.
-
-- **`primary_condition` is a property of the member, not the visit** —
-  stored in `simulated_member_demographics.csv`, it declares the
-  scientific ground truth. The condition labels on individual visits
-  reflect this 80% of the time, with 20% noise — realistic for
-  administrative claims data.
+  analyzers, intermediates — required zero changes.
 
 ---
 
-*The next chapter examines co-event analysis — do ED visits
-precede hospitalizations, and do members return to the ED after
-discharge?*
+*The next chapter examines co-occurrence analysis — do cirrhosis
+diagnoses and ED visits co-occur more than chance would predict?*

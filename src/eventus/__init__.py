@@ -56,7 +56,7 @@ from eventus.cleaners.obs_period_filter import ObsPeriodFilter
 from eventus.analyzers.cohort_timeline_episode_analyzer import CohortTimelineEpisodeAnalyzer
 from eventus.analyzers.cohort_timeline_event_analyzer import CohortTimelineEventAnalyzer
 from eventus.analyzers.episode_duration_analyzer import EpisodeDurationAnalyzer
-from eventus.analyzers.event_episode_analyzer import EventEpisodeAnalyzer
+from eventus.analyzers.episode_event_interaction_analyzer import EpisodeEventInteractionAnalyzer
 from eventus.analyzers.event_cooccurrence.event_co_occurrence_analyzer import EventCoOccurrenceAnalyzer
 from eventus.analyzers.event_cooccurrence.event_co_occurrence_gap_analyzer import EventCoOccurrenceGapAnalyzer
 from eventus.analyzers.event_cooccurrence.event_co_occurrence_directionality_analyzer import EventCoOccurrenceDirectionalityAnalyzer
@@ -65,8 +65,7 @@ from eventus.analyzers.event_cooccurrence.event_co_occurrence_directionality_ana
 from eventus.intermediates.cohort_timeline import CohortTimeline
 from eventus.intermediates.episode_activity_over_time import EpisodeActivityOverTime
 from eventus.intermediates.episode_coverage_summary import EpisodeCoverageSummary
-from eventus.intermediates.episode_duration_result import EpisodeDurationResult
-from eventus.intermediates.event_episode_result import EventEpisodeResult
+from eventus.intermediates.episode_event_interaction_result import EpisodeEventInteractionResult
 from eventus.intermediates.event_result_volume import EventResultVolume
 from eventus.intermediates.event_result_timing import EventResultTiming
 from eventus.intermediates.event_result_shape import EventResultShape
@@ -138,7 +137,7 @@ __all__ = [
     "CohortTimelineEpisodeAnalyzer",
     "CohortTimelineEventAnalyzer",
     "EpisodeDurationAnalyzer",
-    "EventEpisodeAnalyzer",
+    "EpisodeEventInteractionAnalyzer",
     "EventCoOccurrenceAnalyzer",
     "EventCoOccurrenceGapAnalyzer",
     "EventCoOccurrenceDirectionalityAnalyzer",
@@ -148,7 +147,7 @@ __all__ = [
     "EpisodeActivityOverTime",
     "EpisodeCoverageSummary",
     "EpisodeDurationResult",
-    "EventEpisodeResult",
+    "EpisodeEventInteractionResult",
     "EventResultVolume",
     "EventResultTiming",
     "EventResultShape",

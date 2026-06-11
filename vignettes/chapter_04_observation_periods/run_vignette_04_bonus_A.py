@@ -1,6 +1,6 @@
 """
 run_vignette_04_bonus_A.py — Chapter 4, Bonus A: Age-Based Observation Periods
-"I am only interested in coverage for 18-25 year olds"
+"I am only interested in coverage for 18-21 year olds"
 
 Usage:
     python vignettes/chapter_04_observation_periods/run_vignette_04_bonus_A.py
@@ -16,7 +16,7 @@ HERE = pathlib.Path(__file__).parent
 
 # ── Step 1 — Load demographics and coverage data ──────────────────────────────
 
-demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics_clean.csv")
+demog_df = pd.read_csv(HERE.parent / "data" / "ch04_07_member_demographics_age18_21.csv")
 raw_df   = pd.read_csv(HERE.parent / "data" / "ch04_05_medicaid_coverage_agewindow.csv")
 
 print(f"Members with demographics : {len(demog_df):,}")
@@ -31,46 +31,40 @@ episodes  = cleaner.clean()
 
 cleaner.print_report()
 
-
-# ... After cleaning the data 
-
 # ── Step 3 — Define age-based observation periods ────────────────────────────
-# Each member's obs period = their 18th birthday to their 25th birthday.
-# Members who turned 25 before 2018 or turn 18 after 2025 will have
-# zero-length or out-of-range windows.
-# Note: using ch04_07_member_demographics_clean.csv — all DOBs 1995-2003,
-# no future observation periods, no warnings expected.
+# Each member's obs period = their 18th birthday to their 21st birthday.
+# All members in ch04_07_member_demographics_age18_21.csv were born 1995-2003,
+# so all 21st birthdays fall between 2016 and 2024 — no future periods,
+# no warnings expected.
 
 obs = eventus.ObsPeriodPerEntity.construct_from_age_window(
     entity_df  = demog_df,
     dob_col    = "date_of_birth",
     age_start  = 18,
-    age_end    = 25,
+    age_end    = 21,
     entity_col = "patient_id",
-    identity   = "age_18_to_25",
+    identity   = "age_18_to_21",
 )
 
 print(obs)
 
-# ── Step 4 — Filter episodes to obs period ─────────────────────────────────────
+# ── Step 4 — Filter episodes to obs period ────────────────────────────────────
 
 episodes = eventus.EpisodesFilter(episodes).to_obs_period(obs, clip=True).result
-print(f"\nCoverage periods after filtering to age 18-25 window: {len(episodes):,}")
+print(f"\nCoverage periods after filtering to age 18-21 window: {len(episodes):,}")
 
 # ── Step 5 — Assemble CohortTimeline ─────────────────────────────────────────
 
 ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
-    episodes     = episodes,
+    episodes   = episodes,
 )
 
 print(ct)
 
 # ── Step 6 — Enrich and summarize ────────────────────────────────────────────
 
-from eventus.analyzers import CohortTimelineEpisodeAnalyzer
-
-analyzer = CohortTimelineEpisodeAnalyzer(ct, "medicaid_coverage")
+analyzer    = eventus.CohortTimelineEpisodeAnalyzer(ct, "medicaid_coverage")
 ct_enriched = analyzer.enrich_with_episode_coverage()
 summary     = analyzer.get_summary()
 print(summary)

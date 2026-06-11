@@ -1,6 +1,6 @@
 # stacked_timeline_age_window_config.yaml
-# StackedTimelineConfig for Chapter 5 — Age Window Coverage Timeline
-# Observation periods differ per member (age 18-25).
+# StackedTimelineConfig for Chapter 5 -- Age Window Coverage Timeline
+# Observation periods differ per member (age 18-21).
 
 canvas:
   figsize:   [16, 8]
@@ -8,7 +8,7 @@ canvas:
   font_size: 14
 
 labels:
-  title:           "Medicaid Coverage Ages 18-25 (n=50 sample)"
+  title:           "Medicaid Coverage Ages 18-21 (n=50 sample)"
   title_font_size: 20
 
 layout:
@@ -19,20 +19,24 @@ layout:
   max_entities:       100
 
 x_axis:
-  mode:     auto
+  mode:     normalized
   unit:     months
   interval: 3
   format:   "%Y-%m"
 
 poi:
-  color_before:    "#FAFAF9"
-  color_middle:    "#F6C3A4"
-  color_after:     "#FAFAF9"
+  color_before:      "#B0BEC5"
+  color_middle:      "#F6C3A4"
+  color_after:       "#CFD8DC"
   color_no_episodes: "#FAF9F9"
-  alpha:           1.0
-  show_boundaries: true
-  boundary_color:  "#6B7C93"
-  boundary_style:  dashed
+  alpha:             1.0
+  show_boundaries:   true
+  boundary_color:    "#6B7C93"
+  boundary_style:    dashed
+  label_gap_before:  "Inactive before enrollment"
+  label_gap_middle:  "Coverage gap"
+  label_gap_after:   "Inactive after exit"
+  label_no_episodes: "Never enrolled"
 
 episodes:
   - identity: medicaid_coverage
@@ -45,4 +49,4 @@ legend:
   location:           "upper right"
   font_size:          9
   outside:            true
-  show_poi_in_legend: false
+  show_poi_in_legend: true
