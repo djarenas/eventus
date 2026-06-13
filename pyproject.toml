@@ -14,13 +14,19 @@ authors = [
 ]
 keywords = [
     "longitudinal",
+    "temporal",
     "cohort",
     "episodes",
+    "intervals",
     "events",
+    "occurrences",
+    "point in time",
     "observation periods",
     "clinical data",
     "administrative claims",
     "reproducibility",
+    "object oriented programming",
+    "oop"
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -48,10 +54,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/eventus"
-Repository = "https://github.com/your-org/eventus"
-Documentation = "https://github.com/your-org/eventus/blob/main/README.md"
-"Bug Tracker" = "https://github.com/your-org/eventus/issues"
+Homepage = "https://github.com/djarenas/eventus"
+Repository = "https://github.com/djarenas/eventus"
+Documentation = "https://github.com/djarenas/eventus/blob/main/README.md"
+"Bug Tracker" = "https://github.com/djarenas/eventus/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

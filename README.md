@@ -44,10 +44,38 @@ to final figure is documented, validated, and reproducible.
 
 ---
 
+## Status
+
+**eventus is v0.1 (alpha) and in active development.** It installs, runs, and
+the ten vignettes reproduce their published results — but the API is still
+stabilizing and may change between 0.x releases. It is ready to use and to
+build on; it is not yet frozen.
+
+The design — validated typed objects, the layered pipeline, and the composable
+algebra over episodes and events — is stable. Currently staged for upcoming
+releases:
+
+- Bootstrap confidence intervals for co-occurrence measures (analytical CIs available now)
+- Episode–episode interaction analyzers, completing the pairwise algebra
+- Sequential-dependency analysis (Markov-chain characterization of event ordering)
+- Descriptor-based filtering and interactive visualization
+
+Issues, use cases, and contributions are warmly welcomed.
+
+---
+
 ## Installation
+
+Once published to PyPI:
 
 ```bash
 pip install eventus
+```
+
+Until then, install the latest from source:
+
+```bash
+pip install git+https://github.com/djarenas/eventus.git
 ```
 
 ---
@@ -67,7 +95,7 @@ CohortTimeline                        — per-entity table, one row per entity
     ↓
 CohortTimelineEpisodeAnalyzer         — episode coverage, activity over time
 CohortTimelineEventAnalyzer           — volume, timing, shape
-EventEpisodeAnalyzer                  — event–episode temporal relationships
+EpisodeEventInteractionAnalyzer       — event–episode temporal relationships
 EventCoOccurrenceAnalyzer             — co-occurrence: presence, gaps, directionality
     ↓ (second-level analyzers for statistical testing)
 EventCoOccurrenceGapAnalyzer          — gap test vs permutation null (KS test)
@@ -98,16 +126,19 @@ sem = eventus.EpisodeSemantics(
     },
 )
 
-# 2. Load and validate
-episodes = eventus.Episodes(df, sem)
-
-# 3. Clean with a declared config
+# 2. Clean raw data with a declared config
+#    (the cleaner takes the raw DataFrame + semantics; it returns a
+#     validated Episodes object)
 config  = eventus.EpisodesCleanerConfig.build_from_yaml("cleaning.yaml")
-cleaner = eventus.EpisodesCleaner(episodes, config)
-cleaned = cleaner.clean()
-report  = cleaner.get_report()   # structured audit of every decision
+cleaner = eventus.EpisodesCleaner(df, sem, config)
+cleaned = cleaner.clean()         # -> validated Episodes object
 
-# 4. Build a CohortTimeline
+cleaner.print_report()            # human-readable audit of every decision
+report   = cleaner.calc_report()  # same audit as a structured dict
+rejected = cleaner.rejected       # DataFrame of every rejected row + reason
+modified = cleaner.modified       # DataFrame of every repaired row
+
+# 3. Build a CohortTimeline
 ct = eventus.CohortTimeline.build_from_components(
     obs_period = obs,
     episodes   = cleaned,

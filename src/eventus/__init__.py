@@ -35,6 +35,7 @@ from eventus.types import EpisodeCoverageMetric
 # ── Semantics ─────────────────────────────────────────────────────────────────
 from eventus.semantics.episode_semantics import EpisodeSemantics
 from eventus.semantics.event_semantics import EventSemantics
+from eventus.semantics.descriptor_col_config import DescriptorColConfig
 
 # ── Data objects ──────────────────────────────────────────────────────────────
 from eventus.data_objects.episodes import Episodes
@@ -64,6 +65,7 @@ from eventus.analyzers.event_cooccurrence.event_co_occurrence_directionality_ana
 # ── Intermediates ─────────────────────────────────────────────────────────────
 from eventus.intermediates.cohort_timeline import CohortTimeline
 from eventus.intermediates.episode_activity_over_time import EpisodeActivityOverTime
+from eventus.intermediates.episode_duration_result import EpisodeDurationResult
 from eventus.intermediates.episode_coverage_summary import EpisodeCoverageSummary
 from eventus.intermediates.episode_event_interaction_result import EpisodeEventInteractionResult
 from eventus.intermediates.event_result_volume import EventResultVolume
@@ -116,6 +118,7 @@ __all__ = [
     # Semantics
     "EpisodeSemantics",
     "EventSemantics",
+    "DescriptorColConfig",
 
     # Data objects
     "Episodes",
