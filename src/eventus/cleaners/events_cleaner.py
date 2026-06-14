@@ -188,6 +188,10 @@ class EventsCleaner:
 
         self._cleaned = df.reset_index(drop=True)
 
+        # Rows that survived rejection, before consolidation folds same-date
+        # records together.
+        self._n_surviving_before_consolidate = len(self._cleaned)
+
         # ── 7. Consolidate same-date records ──────────────────────────────
         if cfg.consolidate is not None and len(self._cleaned) > 0:
             self._cleaned = self._consolidate(self._cleaned)
@@ -215,6 +219,10 @@ class EventsCleaner:
         n_clean    = len(self._cleaned)
         n_rejected = len(self._rejected)
         n_total    = self._n_input
+        # Rows folded into surviving events by consolidation — combined, not
+        # discarded. Reconciliation: total = rejected + consolidated_away + clean
+        n_surviving = getattr(self, "_n_surviving_before_consolidate", n_clean)
+        n_consolidated_away = n_surviving - n_clean
 
         print(f"Cleaning report — events")
         print(f"{'─' * 56}")
@@ -242,12 +250,17 @@ class EventsCleaner:
             f"{'Total rejected:':<42} {n_rejected:>8,}"
             f"   ({round(100 * n_rejected / n_total, 1)}%)"
         )
+        if n_consolidated_away > 0:
+            print(
+                f"{'Consolidated into other events:':<42} {n_consolidated_away:>8,}"
+                f"   ({round(100 * n_consolidated_away / n_total, 1)}%)"
+            )
         print(
             f"{'Clean rows:':<42} {n_clean:>8,}"
             f"   ({round(100 * n_clean / n_total, 1)}%)"
         )
         if self._config.consolidate is not None:
-            print(f"  (after consolidation)")
+            print(f"  (clean rows are consolidated events)")
 
     def quality_report_df(self) -> pd.DataFrame:
         """Return quality report as a DataFrame."""
@@ -265,6 +278,16 @@ class EventsCleaner:
             counts["action"]       = "rejected"
             counts["pct_of_input"] = (counts["n"] / n_total * 100).round(1)
             rows.extend(counts.to_dict("records"))
+
+        n_surviving = getattr(self, "_n_surviving_before_consolidate", len(self._cleaned))
+        n_consolidated_away = n_surviving - len(self._cleaned)
+        if n_consolidated_away > 0:
+            rows.append({
+                "reason":       "CONSOLIDATED_INTO_OTHER_EVENTS",
+                "n":            n_consolidated_away,
+                "action":       "merged",
+                "pct_of_input": round(100 * n_consolidated_away / n_total, 1),
+            })
 
         rows.append({
             "reason":       "CLEAN",

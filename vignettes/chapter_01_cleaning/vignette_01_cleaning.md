@@ -157,6 +157,7 @@ Total input rows:                            11,500
     after_date_ceiling:                           1   (0.0%)
 ────────────────────────────────────────────────────────
 Total rejected:                               9,136   (79.4%)
+Merged into other episodes:                      67   (0.6%)
 Clean rows:                                   2,297   (20.0%)
 ```
 

@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eventus"
-version = "0.1.0"
+version = "0.1.0.dev1"
 description = "A Python framework for longitudinal cohort analysis of entities that experience episodes and events within defined observation periods."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "Daniel Arenas", email = "danielft77@gmail.com" },
+    { name = "Daniel J. Arenas"},
 ]
 keywords = [
     "longitudinal",

@@ -258,6 +258,9 @@ class EpisodesCleaner:
 
         self._cleaned = df.reset_index(drop=True)
 
+        # Rows that survived rejection, before any merge folds some together.
+        self._n_surviving_before_merge = len(self._cleaned)
+
         # ── 8. Merge overlapping ──────────────────────────────────────────
         if cfg.merge is not None and len(self._cleaned) > 0:
             self._cleaned = merge_overlapping_episodes(
@@ -274,7 +277,12 @@ class EpisodesCleaner:
         n_rejected = len(self._rejected)  
         n_modified = len(self._modified)  
         n_total    = self._n_input  
-    
+        # Rows folded into surviving episodes by interval merging. These were
+        # NOT rejected — they were combined into another row. Reconciliation:
+        #   total_input = rejected + merged_away + clean
+        n_surviving = getattr(self, "_n_surviving_before_merge", n_clean)
+        n_merged_away = n_surviving - n_clean
+
         report = {  
             "total_input_rows": n_total,  
             "rejected": [],  
@@ -288,6 +296,10 @@ class EpisodesCleaner:
                     "count": n_modified,  
                     "pct_of_input": round(100 * n_modified / n_total, 1)  
                 } if n_modified > 0 else None,  
+                "merged_away": {  
+                    "count": n_merged_away,  
+                    "pct_of_input": round(100 * n_merged_away / n_total, 1)  
+                } if n_merged_away > 0 else None,  
                 "clean_rows": {  
                     "count": n_clean,  
                     "pct_of_input": round(100 * n_clean / n_total, 1)  
@@ -371,6 +383,10 @@ class EpisodesCleaner:
         if "total_modified_kept" in totals and totals["total_modified_kept"]:  
             tm = totals["total_modified_kept"]  
             print(f"{'Total modified (kept):':<42} {tm['count']:>8,}   ({tm['pct_of_input']}%)")  
+    
+        if totals.get("merged_away"):  
+            ma = totals["merged_away"]  
+            print(f"{'Merged into other episodes:':<42} {ma['count']:>8,}   ({ma['pct_of_input']}%)")  
     
         if "clean_rows" in totals:  
             cr = totals["clean_rows"]  

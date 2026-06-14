@@ -35,6 +35,37 @@ def test_ch01_hospitalization_cleaning(asset, data_dir):
     merged_away = report["total_input_rows"] - len(episodes.data) - len(cleaner.rejected)
     assert merged_away == 67
     assert len(episodes.data) + len(cleaner.rejected) + merged_away == report["total_input_rows"]
+    # The report must expose merged-away explicitly (combined, not discarded),
+    # not leave it as a silent gap the reader has to infer by subtraction.
+    assert report["totals"]["merged_away"]["count"] == 67
+
+
+def test_ch01_event_consolidation_accounting(asset, data_dir):
+    """Events consolidation is reported as a distinct category, not as
+    rejection, and the report reconciles: rejected + consolidated + clean."""
+    sem = eventus.EventSemantics.build_from_yaml(
+        asset("chapter_06_events", "configs", "ed_semantics.yaml")
+    )
+    config = eventus.EventsCleanerConfig.build_from_yaml(
+        asset("chapter_06_events", "configs", "ed_cleaner_with_consolidation.yaml")
+    )
+    raw = pd.read_csv(data_dir / "ch01_06_ed_visits.csv")
+
+    cleaner = eventus.EventsCleaner(raw, sem, config)
+    events = cleaner.clean()
+
+    n_input = 5_459
+    n_clean = len(events.data)
+    n_rejected = len(cleaner.rejected)
+    consolidated_away = n_input - n_clean - n_rejected
+
+    assert n_rejected == 2_069
+    assert consolidated_away == 35           # combined, not rejected
+    assert n_clean + n_rejected + consolidated_away == n_input
+    # The DataFrame report surfaces consolidation as its own "merged" action.
+    qr = cleaner.quality_report_df()
+    merged_rows = qr[qr["action"] == "merged"]
+    assert int(merged_rows["n"].sum()) == 35
 
 
 def test_ch02_nursing_facility_aggregation(asset, data_dir):

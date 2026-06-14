@@ -332,13 +332,13 @@ data automatically.
 ```python
 sem     = EpisodeSemantics(identity="inpatient_hospitalization", ...)
 episodes  = EpisodesCleaner(raw_df, sem, config).clean()
-result  = EpisodeDurationAnalyzer(episodes).compute()
+result  = EpisodeDurationAnalyzer(episodes).calc()
 ```
 
 The semantics object is preserved through filtering and copying:
 
 ```python
-filtered = episodes.filter_by_entities(some_ids)
+filtered = EpisodesFilter(episodes).by_entities(some_ids).result
 filtered.semantics   # same EpisodeSemantics, unchanged
 ```
 

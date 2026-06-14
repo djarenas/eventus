@@ -10,29 +10,14 @@ data to publication-ready analytical results — one that handles the full
 chain from schema declaration and data cleaning through episode coverage,
 event volume and timing, and temporal co-occurrence between event types.
 
-The framework is built around four design commitments. First, a
-**semantics layer** — `EpisodeSemantics` and `EventSemantics` — that does
-more than map column names. It declares what *defines* an episode or event
-(which columns determine identity and drive deduplication and merging
-decisions), what *describes* it (descriptor columns with explicit type
-declarations and carriage rules into downstream objects), and what
-structural role each column plays. The same analysis code runs unchanged
-across datasets with different schemas, and the semantics object is the
-only place a schema decision ever needs to be made. Second, a **validated
-configuration system** that governs both cleaning and visualization
-decisions. `EpisodesCleanerConfig` and `EventsCleanerConfig` declare
-merging strategy, overlap handling, deduplication logic, and descriptor
-aggregation rules — all validated at construction, all round-trippable to
-YAML. Every analytical and visual decision is versioned, shareable, and
-reproducible from a plain text file. Third, a **transparent cleaning
-pipeline** — cleaners produce structured audit reports documenting every
-transformation decision: how many episodes were merged, what overlaps were
-resolved, which duplicates were dropped. Nothing is silent. Fourth, a
-**typed intermediate pipeline** — every analytical result is a validated
-object with documented columns, NaN semantics, and a meaningful
-`__repr__` — eliminating the column-naming fragility of enriched
-DataFrames and making results self-describing at every stage of the
-analysis.
+`eventus` is likely a good fit if you need auditable, reproducible
+longitudinal analysis — especially across many datasets, or across many
+reasonable analytical variations of the same study (sensitivity and
+multiverse analyses), where every cleaning, analytical, and visual
+decision should be declared and versioned. For a single quick exploratory
+pass on one clean dataset, a direct `pandas` script may serve you better;
+`eventus` trades a little upfront ceremony for guarantees, audit trails,
+and reproducibility that pay off at scale.
 
 `eventus` is domain-agnostic: the same pipeline handles insurance
 enrollment gaps, inpatient hospitalization coverage, vaccination
@@ -59,6 +44,7 @@ releases:
 - Episode–episode interaction analyzers, completing the pairwise algebra
 - Sequential-dependency analysis (Markov-chain characterization of event ordering)
 - Descriptor-based filtering and interactive visualization
+- Nearest-neighbor event-to-episode gap statistics (accounting for both episode start and end); the current `EpisodeEventInteractionAnalyzer` computes position classification only
 
 Issues, use cases, and contributions are warmly welcomed.
 
@@ -226,22 +212,28 @@ print(dir_test)
 
 ## Design principles
 
-**Semantics first.** Every column has a declared role before any
-computation begins. The semantics object is the contract between your
-data schema and the framework.
+These are the architectural choices `eventus` makes. They are what the
+framework is built around — offered as a coherent way to structure this
+kind of analysis, not as a verdict on how everyone must work.
 
-**Validation at construction.** If an object exists, it is valid. Errors
-surface immediately with messages that show the correct structure, not
-just reject the wrong one.
+**Semantics first.** Every column is given a declared role before any
+computation begins. The semantics object acts as the contract between
+your data schema and the framework.
 
-**Nothing is silent.** Cleaners report what they did. NaN values in
-results mean absent signal, not missing data. Every transformation is
-auditable.
+**Validation at construction.** `eventus` objects validate themselves
+when built, so a constructed object can be trusted by everything
+downstream. Errors surface immediately, with messages that show the
+correct structure rather than just rejecting the wrong one.
+
+**Nothing happens silently.** Cleaners report what they did. NaN values in
+results carry meaning — absent signal, not missing data — and every
+transformation is recorded in an audit trail you can read.
 
 **Typed results over enriched DataFrames.** Analytical results are
-first-class objects with documented columns, properties, and `__repr__`.
-The column-naming problem (`evt_ed_visit_n_co_occurrences_within_7_specialist_referral`)
-disappears when results carry their own context.
+first-class objects with documented columns, properties, and a meaningful
+`__repr__`. The column-naming problem
+(`evt_ed_visit_n_co_occurrences_within_7_specialist_referral`) goes away
+when results carry their own context.
 
 **Two-tier co-occurrence analysis.** `EventCoOccurrenceAnalyzer` produces
 per-entity summaries. Second-level analyzers (`EventCoOccurrenceGapAnalyzer`,
@@ -249,12 +241,12 @@ per-entity summaries. Second-level analyzers (`EventCoOccurrenceGapAnalyzer`,
 statistical testing against a permutation null. The tiers are independent
 — the summary is useful on its own, and the test is a separate concern.
 
-**Config is the methods section.** Every analytical and visual decision
-lives in a validated, round-trippable YAML file. Hand someone a config
-file and they can reproduce any result exactly.
+**Config as the methods section.** Every analytical and visual decision
+can live in a validated, round-trippable YAML file. Hand someone a config
+file and they can reproduce a result exactly.
 
-**Concept honesty.** Each class represents exactly one real concept.
-No class absorbs a neighboring concern for convenience.
+**One concept per class.** Each class is designed to represent exactly one
+real concept, rather than absorbing a neighboring concern for convenience.
 
 ---
 
@@ -262,6 +254,6 @@ No class absorbs a neighboring concern for convenience.
 
 If you use `eventus` in your research, please cite:
 
-> Arenas, D. et al. (2026). *eventus: A Python framework for longitudinal
-> cohort analysis of episodes and events.* arXiv preprint.
-> [arXiv link forthcoming]
+> Arenas, D., & Fincato, R. (2026). *eventus: Object-Oriented Longitudinal
+> Cohort Analysis with Episodes, Events, and Observation Periods.*
+> arXiv preprint. [arXiv link forthcoming]

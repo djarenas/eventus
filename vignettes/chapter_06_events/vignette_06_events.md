@@ -88,8 +88,9 @@ Total input rows:                                5,459
     null_entity_id:                              54   (1.0%)
 ────────────────────────────────────────────────────────
 Total rejected:                               2,069   (37.9%)
+Consolidated into other events:                  35   (0.6%)
 Clean rows:                                   3,355   (61.5%)
-  (after consolidation)
+  (clean rows are consolidated events)
 ```
 
 ### Step 2 — Build the observation period from the coverage cohort

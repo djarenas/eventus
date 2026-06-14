@@ -28,7 +28,7 @@ EventResult (base)
     EventResultTiming              — nth-event timing
     EventResultShape               — behavioral fingerprint
 
-EventEpisodeResult                      — event-episode temporal relationships
+EpisodeEventInteractionResult           — events classified by position vs. episodes
 
 EventCoOccurrenceResult (base)          — co-occurrence between two event identities
     EventCoOccurrencePresenceResult     — binary presence, Fisher's exact
@@ -298,26 +298,27 @@ arrays = result.build_arrays(stratify_by="facility_id")
 
 ---
 
-## EventEpisodeResult
+## EpisodeEventInteractionResult
 
-Per-entity temporal relationship statistics between one event identity
-and one episode identity. Produced by `EventEpisodeAnalyzer.compute()`.
+Per-entity event counts classified by position relative to one episode
+identity. Produced by `EpisodeEventInteractionAnalyzer.compute_interaction()`.
 
-`EventEpisodeResult` has no configuration — there are no thresholds or
-windows to declare. The computation is nearest-neighbor gaps within the
-observation period. NaN values are scientifically meaningful absences
-of signal, not missing data.
+`EpisodeEventInteractionResult` has no configuration — there are no
+thresholds or windows to declare. `NaN` values are scientifically
+meaningful absences of signal, not missing data: an entity with no episodes
+has no position to classify.
 
 ```python
-result = analyzer.compute()
+result = analyzer.compute_interaction()
 
-result.n_with_both              # entities with both events and episodes
-result.n_evt_only               # entities with events but no episodes
-result.n_episode_only           # entities with episodes but no events
-result.n_neither                # entities with neither
-result.n_with_evt_to_episode_gap  # entities with at least one occ → episode pair
-result.n_with_episode_to_evt_gap  # entities with at least one episode → occ pair
+result.n_entities          # total entities in the cohort
+result.n_with_episodes     # entities that have at least one episode
+result.n_without_episodes  # entities with no episodes at all
 ```
+
+**Per-entity columns** are in `result.data` (one row per entity):
+`n_before`, `n_during`, `n_gaps`, `n_after`, `n_no_episodes`, alongside the
+entity column and `obs_start` / `obs_end`.
 
 **Properties**
 
@@ -325,22 +326,11 @@ result.n_with_episode_to_evt_gap  # entities with at least one episode → occ p
 |---|---|---|
 | `data` | `pd.DataFrame` | One row per entity |
 | `entity_col` | `str` | Entity identifier column |
-| `identity_occ` | `str` | Event identity |
-| `identity_episode` | `str` | Episode identity |
+| `episode_identity` | `str` | Episode identity |
+| `event_identity` | `str` | Event identity |
 | `n_entities` | `int` | Total entities |
-| `n_with_both` | `int` | Entities with ≥1 event and ≥1 episode |
-| `n_evt_only` | `int` | Entities with events but no episodes |
-| `n_episode_only` | `int` | Entities with episodes but no events |
-| `n_neither` | `int` | Entities with neither |
-| `n_with_evt_to_episode_gap` | `int` | Entities with ≥1 qualifying occ→episode pair |
-| `n_with_episode_to_evt_gap` | `int` | Entities with ≥1 qualifying episode→occ pair |
-
-**NaN semantics**
-
-NaN in gap statistics may mean any of: entity had no events, entity had
-no episodes, entity had both but no qualifying temporal pairs within the
-observation period, or entity had only one qualifying pair (std only).
-All are scientifically valid — absent signal, not missing data.
+| `n_with_episodes` | `int` | Entities with at least one episode |
+| `n_without_episodes` | `int` | Entities with no episodes |
 
 ---
 

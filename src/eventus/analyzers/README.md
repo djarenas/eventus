@@ -17,7 +17,7 @@ have been caught earlier.
 CohortTimelineEpisodeAnalyzer      — episode coverage analytics
 CohortTimelineEventAnalyzer        — event analytics (volume, timing, shape)
 EpisodeDurationAnalyzer            — episode duration analytics
-EventEpisodeAnalyzer               — event-episode temporal relationships
+EpisodeEventInteractionAnalyzer    — events classified by position vs. episodes
 EventCoOccurrenceAnalyzer          — co-occurrence: presence, gaps, directionality
 EventCoOccurrenceGapAnalyzer       — gap test (second-level, takes GapSummary)
 EventCoOccurrenceDirectionalityAnalyzer — directionality test (second-level)
@@ -365,87 +365,77 @@ EpisodeDurationViolinPlotter(
 
 ---
 
-## `EventEpisodeAnalyzer`
+## `EpisodeEventInteractionAnalyzer`
 
-Computes per-entity temporal relationship statistics between one event
-identity and one episode identity within a `CohortTimeline`. Works on
-both streams simultaneously — no configuration required. There are no
-thresholds or windows to declare; the computation is nearest-neighbor
-gaps within the observation period.
+Classifies each entity's events by their position relative to one episode
+identity within a `CohortTimeline` — answering "where in each member's
+episode structure did their events fall?" Works on both streams
+simultaneously; no configuration required. There are no thresholds or
+windows to declare.
 
 ```python
-from eventus.analyzers import EventEpisodeAnalyzer
+from eventus.analyzers import EpisodeEventInteractionAnalyzer
 
-analyzer = EventEpisodeAnalyzer(
+analyzer = EpisodeEventInteractionAnalyzer(
     cohort_timeline  = ct,
+    episode_identity = "medicaid_coverage",
     event_identity   = "ed_visit",
-    episode_identity = "inpatient_hospitalization",
 )
 ```
 
 **Raises at construction if:**
 - `cohort_timeline` has no observation period
-- `event_identity` is not in `cohort_timeline.event_identities`
 - `episode_identity` is not in `cohort_timeline.episode_identities`
+- `event_identity` is not in `cohort_timeline.event_identities`
 
-### `compute()` → `EventEpisodeResult`
+### `compute_interaction()` → `EpisodeEventInteractionResult`
 
-Returns an `EventEpisodeResult` — one row per entity with within counts
-and nearest-neighbor gap statistics in both directions.
+Returns an `EpisodeEventInteractionResult` — one row per entity, with each
+entity's events counted by their position relative to the episode structure.
 
 ```python
-result = analyzer.compute()
+result = analyzer.compute_interaction()
 print(result)
 ```
 
-**Statistics computed per entity:**
+**Per-entity columns in `result.data`:**
 
 | Column | Description |
 |---|---|
-| `n_evt_total` | Total events within obs period |
-| `n_episodes_total` | Total episodes within obs period |
-| `n_evt_within` | Events that fell inside any episode interval |
-| `pct_evt_within` | `n_evt_within / n_evt_total`. NaN if no events |
-| `mean_days_evt_to_episode` | Mean gap: event → nearest episode start after it |
-| `median_days_evt_to_episode` | Median gap: event → nearest episode start after it |
-| `std_days_evt_to_episode` | Std gap (NaN if < 2 qualifying pairs) |
-| `mean_days_episode_to_occ` | Mean gap: episode discharge → nearest event after it |
-| `median_days_episode_to_occ` | Median gap: episode discharge → nearest event after it |
-| `std_days_episode_to_occ` | Std gap (NaN if < 2 qualifying pairs) |
+| `n_before` | Events before the entity's first episode |
+| `n_during` | Events falling inside any active episode interval |
+| `n_gaps` | Events in a gap between two episodes |
+| `n_after` | Events after the entity's last episode |
+| `n_no_episodes` | Events for an entity that has no episodes at all |
 
-**NaN semantics**
-
-NaN in gap statistics is scientifically meaningful — absent signal, not
-missing data. NaN may mean: entity had no events, entity had no episodes,
-entity had both but no qualifying temporal pairs in the observation period,
-or entity had only one qualifying pair (std only). All are valid outcomes.
+Values are `NaN` where semantically absent — an entity with no episodes has
+no before/during/gap/after position to classify, and the result carries that
+honestly rather than coercing it to zero.
 
 ### Full example
 
 ```python
-from eventus.analyzers import EventEpisodeAnalyzer
-from eventus.visualizers.violins import ArraysViolinPlotter
-from eventus.visualizers.configs import ArraysViolinConfig
+from eventus.analyzers import EpisodeEventInteractionAnalyzer
 
-analyzer = EventEpisodeAnalyzer(ct, "ed_visit", "inpatient_hospitalization")
-result   = analyzer.compute()
+analyzer = EpisodeEventInteractionAnalyzer(ct, "medicaid_coverage", "ed_visit")
+result   = analyzer.compute_interaction()
 
 print(result)
-# EventEpisodeResult:
-#   identity_occ     : ed_visit
-#   identity_episode : inpatient_hospitalization
-#   entities         : 800
-#   n_with_both      : 436 (54.5%)
-#   ...
-
-# Visualize gap distributions as violin plots
-config  = ArraysViolinConfig.build_from_yaml("coevent_violin.yaml")
-arrays  = {
-    "evt → episode": result.data["median_days_evt_to_episode"].dropna().values,
-    "episode → evt": result.data["median_days_episode_to_occ"].dropna().values,
-}
-ArraysViolinPlotter(arrays, config).plot("coevent_gaps.png")
+# EpisodeEventInteractionResult:
+#   episode_identity : medicaid_coverage
+#   event_identity   : ed_visit
+#   entities         : 793
+#   events before first episode  : 61 entities (7.7%)
+#   events during active episodes: 509 entities (64.2%)
+#   events during gaps           : 19 entities (2.4%)
+#   events after last episode    : 60 entities (7.6%)
 ```
+
+> **Not yet implemented (planned for v2):** nearest-neighbor event-to-episode
+> *gap* statistics — the distance from an event to its nearest episode. Because
+> an episode is an interval, a correct gap metric must account for both the
+> episode's start and its end, which is deferred to a future release. The
+> current analyzer computes position classification only (the counts above).
 
 ---
 
