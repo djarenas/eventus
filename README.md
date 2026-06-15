@@ -71,9 +71,8 @@ pass on one clean dataset, a direct `pandas` script may serve you better;
 `eventus` trades a little upfront ceremony for guarantees, audit trails,
 and reproducibility that pay off at scale.
 
-It is not meant as a preachy way to say everyone should do things this way,
-but hopefully it is a package that helps show the OOP style can be useful to
-some data scientists as well.
+It doesn't claim everyone should work this way — but it shows that an
+object-oriented approach can earn its keep for some data scientists.
 
 ### Not limited to claims or hospitalization data
 
@@ -256,7 +255,7 @@ print(presence)
 gaps     = analyzer.compute_gaps()
 gap_test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_permutations=500)
 print(gap_test)
-# gap_ratio=0.45  ks_p=5.8e-72  (gaps 55% shorter than independence predicts)
+# gap_ratio: 0.37 (A→B), 0.47 (B→A)  ks_p≈1.8e-05  (gaps shorter than independence predicts)
 
 # Chapter 10 — directionality
 directionality = analyzer.compute_directionality()
@@ -307,7 +306,7 @@ print(dir_test)
 ## Design principles
 
 These are the architectural choices `eventus` makes. They are what the
-framework is built around. 
+framework is built around.
 
 **Semantics first.** Every column is given a declared role before any
 computation begins. The semantics object acts as the contract between
