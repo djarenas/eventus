@@ -12,6 +12,49 @@ and observation-period objects — design rules in the intermediate objects
 govern how they compose. And because results are themselves typed objects,
 downstream work like plotting draws on validated data without re-checking it.
 
+## Core concepts
+
+Three kinds of object sit at the center of `eventus`. The distinction
+between them is what the whole framework is built on:
+
+- **Event** — something that happens at a *point in time*: an emergency
+  department visit, a diagnosis, a vaccination. One date.
+- **Episode** — something that occupies an *interval of time*, with a start
+  and an end: a hospital stay, a span of insurance coverage, a nursing-facility
+  stay.
+- **Observation period** — the *window during which an entity is observed*.
+  It is the denominator: it defines when a person was eligible to have events
+  or episodes recorded at all (e.g. the 2022 calendar year, or the window
+  between someone's 18th and 21st birthdays).
+
+An **entity** is whoever (or whatever) these belong to — a patient, a member,
+a device.
+
+### What makes up an event (or episode)
+
+`eventus` asks you to declare, up front, what each column *means*. Every
+event has four kinds of column, and the distinction between "defines" and
+"describes" matters:
+
+| Role | Question it answers | ED visit example |
+|---|---|---|
+| **Entity** | Who is this about? | `patient_id` |
+| **Date** | When did it happen? | `ed_visit_date` |
+| **Identity** | What kind of thing is it? | `ed_visit` |
+| **Also defined by** | What else distinguishes one occurrence from another? | `hospital_id` — two visits on the same day at *different* hospitals are two distinct events, not a duplicate |
+| **Descriptors** | What attributes describe it, without defining it? | `icd10_condition`, `systolic_bp` — extra information carried along and aggregated, but not used to tell events apart |
+
+An **episode** is declared the same way, except it carries a *start* and an
+*end* column (e.g. `admit_date` and `discharge_date`) instead of a single
+date — because it spans an interval rather than marking a point.
+
+Declaring "defines" versus "describes" explicitly is what lets `eventus`
+clean and combine these objects safely: it knows that two records differing
+only in a descriptor are the same occurrence, while two records differing in
+a defining column are genuinely distinct.
+
+### Is this package a good fit for you?
+
 `eventus` is likely a good fit if you need auditable, reproducible
 longitudinal analysis — especially across many datasets, or across many
 reasonable analytical variations of the same study (sensitivity and
@@ -20,6 +63,12 @@ decision should be declared and versioned. For a single quick exploratory
 pass on one clean dataset, a direct `pandas` script may serve you better;
 `eventus` trades a little upfront ceremony for guarantees, audit trails,
 and reproducibility that pay off at scale.
+
+It is not meant as a preachy way to say everyone should do things this way,
+but hopefully it is a package that helps show the OOP style can be useful to
+some data scientists as well.
+
+### Not limited to claims or hospitalization data
 
 `eventus` is domain-agnostic: the same pipeline handles insurance
 enrollment gaps, inpatient hospitalization coverage, vaccination
@@ -243,16 +292,15 @@ print(dir_test)
 - **Directionality** — does one event tend to precede the other? Per-entity mean signed gaps, permutation null, Wilcoxon signed-rank test, direction ratio
 
 ### Event–episode relationships
-- Events within episodes: counts, proportions
-- Nearest-neighbor gaps in both directions: event → next episode, episode discharge → next event
+- Position classification: each event labeled by where it falls relative to an entity's episodes — before the first, during an active episode, in a gap between episodes, or after the last
+- Per-position counts and proportions per entity
 
 ---
 
 ## Design principles
 
 These are the architectural choices `eventus` makes. They are what the
-framework is built around — offered as a coherent way to structure this
-kind of analysis, not as a verdict on how everyone must work.
+framework is built around. 
 
 **Semantics first.** Every column is given a declared role before any
 computation begins. The semantics object acts as the contract between
@@ -273,18 +321,14 @@ first-class objects with documented columns, properties, and a meaningful
 (`evt_ed_visit_n_co_occurrences_within_7_specialist_referral`) goes away
 when results carry their own context.
 
-**Two-tier co-occurrence analysis.** `EventCoOccurrenceAnalyzer` produces
-per-entity summaries. Second-level analyzers (`EventCoOccurrenceGapAnalyzer`,
-`EventCoOccurrenceDirectionalityAnalyzer`) take those summaries and add
-statistical testing against a permutation null. The tiers are independent
-— the summary is useful on its own, and the test is a separate concern.
-
-**Config as the methods section.** Every analytical and visual decision
+**Declarative construction through configs.** Every analytical and visual decision
 can live in a validated, round-trippable YAML file. Hand someone a config
 file and they can reproduce a result exactly.
 
 **One concept per class.** Each class is designed to represent exactly one
 real concept, rather than absorbing a neighboring concern for convenience.
+This keeps each class aligned with the single-responsibility principle, which
+makes changes easier to reason about.
 
 ---
 
