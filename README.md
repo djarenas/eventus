@@ -32,19 +32,26 @@ a device.
 
 ### What makes up an event (or episode)
 
-`eventus` asks you to declare, up front, what each column *means*. Every
-event has four kinds of column, and the distinction between "defines" and
-"describes" matters:
+`eventus` asks you to declare, up front, what your data *means*. You give
+the stream a single **identity** — a label naming what kind of thing it is,
+such as `ed_visit`. This is not a column in your data; it is a name you
+assign to the stream as a whole.
 
-| Role | Question it answers | ED visit example |
-|---|---|---|
-| **Entity** | Who is this about? | `patient_id` |
-| **Date** | When did it happen? | `ed_visit_date` |
-| **Identity** | What kind of thing is it? | `ed_visit` |
-| **Also defined by** | What else distinguishes one occurrence from another? | `hospital_id` — two visits on the same day at *different* hospitals are two distinct events, not a duplicate |
-| **Descriptors** | What attributes describe it, without defining it? | `icd10_condition`, `systolic_bp` — extra information carried along and aggregated, but not used to tell events apart |
+You then map the columns that already exist in your data to the roles they
+play. Take an ED visit table with columns `patient_id`, `ed_visit_date`,
+`hospital_id`, `icd10_condition`, and `systolic_bp`:
 
-An **episode** is declared the same way, except it carries a *start* and an
+- The **entity** column says who each record is about — here, `patient_id`.
+- The **date** column says when it happened — here, `ed_visit_date`.
+- **Defining** columns say what else distinguishes one occurrence from
+  another. Declaring `hospital_id` as defining means two visits on the same
+  day at *different* hospitals are two distinct events, not a duplicate.
+- **Descriptor** columns carry extra information that describes an event
+  without defining it — here, `icd10_condition` and `systolic_bp`. They are
+  carried along and can be aggregated, but they are never used to tell one
+  event from another.
+
+An **episode** is declared the same way, except it maps a *start* and an
 *end* column (e.g. `admit_date` and `discharge_date`) instead of a single
 date — because it spans an interval rather than marking a point.
 
