@@ -59,8 +59,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ── Load data ─────────────────────────────────────────────────────────────────
 
 DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
-demog_df = pd.read_csv(DATA_DIR / "simulated_member_demographics.csv")
-raw_df   = pd.read_csv(DATA_DIR / "simulated_medicaid_coverage_agewindow.csv")
+demog_df = pd.read_csv(DATA_DIR / "ch04_07_member_demographics_mixed_dob.csv")
+raw_df   = pd.read_csv(DATA_DIR / "ch04_05_medicaid_coverage_agewindow.csv")
 
 # ── Clean coverage data ───────────────────────────────────────────────────────
 

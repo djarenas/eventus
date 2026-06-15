@@ -35,7 +35,7 @@ DATE_CEILING = pd.Timestamp("2030-01-01")
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 
-DATA_PATH = pathlib.Path(__file__).parent.parent / "data" / "ed_visits.csv"
+DATA_PATH = pathlib.Path(__file__).parent.parent / "data" / "ch01_06_ed_visits.csv"
 df        = pd.read_csv(DATA_PATH)
 n_input   = len(df)
 print(f"Input rows: {n_input:,}")

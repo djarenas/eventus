@@ -1,14 +1,16 @@
 # eventus
 
-**`eventus`** is a Python framework for longitudinal cohort analysis of
-entities that experience episodes and events within defined observation
-periods. It addresses a gap in the scientific Python ecosystem: existing
-tools handle survival analysis (`lifelines`, `pysurvival`) or general
-tabular computation (`pandas`, `polars`) but neither provides a
-principled, reproducible pipeline from raw clinical or administrative
-data to publication-ready analytical results — one that handles the full
-chain from schema declaration and data cleaning through episode coverage,
-event volume and timing, and temporal co-occurrence between event types.
+**`eventus`** is an object-oriented Python framework for longitudinal
+cohort analysis of entities that experience episodes and events within
+defined observation periods. It turns messy temporal data — hospitalization
+records, administrative claims, and the like — into validated, typed objects
+that can be carried through analysis pipelines. Cleaners and analyzers are
+fully reproducible and auditable: every cleaning and analytical decision is
+declared in a versioned configuration file rather than buried in a script.
+Beyond cleaning, `eventus` defines an algebra for combining event, episode,
+and observation-period objects — design rules in the intermediate objects
+govern how they compose. And because results are themselves typed objects,
+downstream work like plotting draws on validated data without re-checking it.
 
 `eventus` is likely a good fit if you need auditable, reproducible
 longitudinal analysis — especially across many datasets, or across many
@@ -44,7 +46,6 @@ releases:
 - Episode–episode interaction analyzers, completing the pairwise algebra
 - Sequential-dependency analysis (Markov-chain characterization of event ordering)
 - Descriptor-based filtering and interactive visualization
-- Nearest-neighbor event-to-episode gap statistics (accounting for both episode start and end); the current `EpisodeEventInteractionAnalyzer` computes position classification only
 
 Issues, use cases, and contributions are warmly welcomed.
 
@@ -66,31 +67,68 @@ pip install git+https://github.com/djarenas/eventus.git
 
 ---
 
-## The pipeline
+## Example pipeline
+
+`eventus` is not a fixed pipeline. Its components are typed objects that compose as your analysis needs; the flow below is *one* common arrangement, not a required sequence. Most analyses use only the pieces they need.
+
+**Example 1 — episode duration, stratified by a descriptor.**
+A single-object analysis: clean one stream, then analyze it directly. No
+`CohortTimeline` needed.
 
 ```
-EpisodeSemantics / EventSemantics     — declare what columns mean and
-                                        what defines vs describes an event
-    ↓
-Episodes / Events / ObsPeriodPerEntity — validated data objects
-    ↓
-EpisodesCleanerConfig                 — declare cleaning decisions in YAML
-EpisodesCleaner / EventsCleaner       — transform, audit, report
-    ↓
-CohortTimeline                        — per-entity table, one row per entity
-    ↓
-CohortTimelineEpisodeAnalyzer         — episode coverage, activity over time
-CohortTimelineEventAnalyzer           — volume, timing, shape
-EpisodeEventInteractionAnalyzer       — event–episode temporal relationships
-EventCoOccurrenceAnalyzer             — co-occurrence: presence, gaps, directionality
-    ↓ (second-level analyzers for statistical testing)
-EventCoOccurrenceGapAnalyzer          — gap test vs permutation null (KS test)
-EventCoOccurrenceDirectionalityAnalyzer — directionality test vs permutation null
-    ↓
-Intermediates                         — self-describing typed result objects
-    ↓
-Configs + Plotters                    — reproducible, YAML-driven figures
+EpisodeSemantics.build_from_yaml(...)          declare columns + identity
+        ↓
+EpisodesCleaner(df, semantics, config).clean()  →  Episodes   (validated, audited)
+        ↓
+EpisodeDurationAnalyzer(episodes,
+        descriptor_cols=["facility_id"]).calc()  →  EpisodeDurationResult
+        ↓
+Config + Plotter                                 →  duration distribution by facility
 ```
+
+**Example 2 — temporal gap timing between two event types.**
+A multi-object analysis: clean two event streams independently, align them
+to an observation period inside a `CohortTimeline`, then test their gap
+timing against a permutation null.
+
+```
+EventSemantics + EventsCleaner(...).clean()      →  Events A   (e.g. diagnoses)
+EventSemantics + EventsCleaner(...).clean()      →  Events B   (e.g. ED visits)
+        ↓  EventsFilter(...).to_obs_period(obs).result   (clip both to the period)
+        ↓
+CohortTimeline.build_from_components(
+        obs_period=obs, events=[A, B])           →  aligned, validated streams
+        ↓
+EventCoOccurrenceAnalyzer(ct, "A", "B")
+        .compute_gaps()                          →  EventCoOccurrenceGapSummary
+        ↓
+EventCoOccurrenceGapAnalyzer(summary)
+        .compute_test(n_permutations=500)        →  gap timing vs permutation null
+        ↓
+Config + Plotter                                 →  observed vs null gap distributions
+```
+
+The two flows share their early steps — declare, clean, validate — then
+diverge. You assemble only the pieces an analysis needs.
+
+### Combining objects
+
+Once episodes, events, and an observation period are assembled into a
+`CohortTimeline`, they can be analyzed *together*. The `CohortTimeline`
+holds the validated, time-aligned objects and enforces the rules that let
+them compose — so these pairwise analyses run without re-validating their
+inputs:
+
+| Combination | Analyzer | Produces |
+|---|---|---|
+| Episode × Observation period | `CohortTimelineEpisodeAnalyzer` | Coverage: active/inactive days, gaps, activity over time |
+| Event × Observation period | `CohortTimelineEventAnalyzer` | Volume, timing, and shape relative to the period |
+| Event × Episode | `EpisodeEventInteractionAnalyzer` | Events classified by position: before / during / in gaps / after episodes |
+| Event × Event | `EventCoOccurrenceAnalyzer` | Presence, gap timing, and directionality between two event types |
+| Episode × Episode | *(planned for a future release)* | — |
+
+This small algebra of validated combinations — rather than any single
+analyzer — is what the `CohortTimeline` is for.
 
 ---
 

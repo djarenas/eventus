@@ -39,7 +39,7 @@ OBS_END      = pd.Timestamp("2022-12-31")
 # ── Load data ─────────────────────────────────────────────────────────────────
 
 DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
-df       = pd.read_csv(DATA_DIR / "simulated_ed_visits.csv")
+df       = pd.read_csv(DATA_DIR / "ch01_06_ed_visits.csv")
 n_input  = len(df)
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ in_2022 = consolidated[
 # Need the denominator — only members with a defined 2022 obs period.
 # This requires loading and cleaning the coverage file just to get member IDs.
 
-cov_df       = pd.read_csv(DATA_DIR / "simulated_medicaid_coverage.csv")
+cov_df       = pd.read_csv(DATA_DIR / "ch04_06_medicaid_coverage.csv")
 cov_df       = cov_df.dropna(subset=[ENTITY_COL]).drop_duplicates(subset=[ENTITY_COL])
 members_2022 = set(cov_df[ENTITY_COL].unique())
 n_total      = len(members_2022)

@@ -39,7 +39,7 @@ MEANINGFUL_GAP = 1   # days
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 
-DATA_PATH   = pathlib.Path(__file__).parent.parent / "data" / "hospitalization_claims.csv"
+DATA_PATH   = pathlib.Path(__file__).parent.parent / "data" / "ch01_hospitalization_claims.csv"
 df          = pd.read_csv(DATA_PATH)
 n_input     = len(df)
 print(f"Input rows: {n_input:,}")
