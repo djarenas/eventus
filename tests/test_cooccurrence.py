@@ -100,17 +100,17 @@ def test_ch10_directionality(simul1_analyzer):
 
 
 # --------------------------------------------------------------------------- #
-# Null-model options (monte_carlo, rotation, label_permutation)
+# Null-model options (uniform_monte_carlo, rotation, label_permutation)
 # --------------------------------------------------------------------------- #
 
-NULL_METHODS = ["monte_carlo", "rotation", "label_permutation"]
+NULL_METHODS = ["uniform_monte_carlo", "rotation", "label_permutation"]
 
 
-def test_gap_default_null_method_is_monte_carlo(simul1_analyzer):
-    """Default null_method is monte_carlo and is reported honestly."""
+def test_gap_default_null_method_is_uniform_monte_carlo(simul1_analyzer):
+    """Default null_method is uniform_monte_carlo and is reported honestly."""
     gaps = simul1_analyzer.compute_gaps()
     test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_permutations=200)
-    assert test.null_method == "monte_carlo"
+    assert test.null_method == "uniform_monte_carlo"
 
 
 @pytest.mark.parametrize("null_method", NULL_METHODS)
@@ -152,7 +152,7 @@ def test_invalid_null_method_raises(simul1_analyzer):
         eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(null_method="bogus")
 
 
-def test_rotation_preserves_burstiness_vs_monte_carlo():
+def test_rotation_preserves_burstiness_vs_uniform_monte_carlo():
     """
     Discrimination test: on data where each type is bursty but A and B are
     temporally independent, the uniform Monte Carlo null can register a
@@ -209,12 +209,12 @@ def test_rotation_preserves_burstiness_vs_monte_carlo():
     )
     analyzer = eventus.EventCoOccurrenceGapAnalyzer(summary)
 
-    mc  = analyzer.compute_test(n_permutations=300, null_method="monte_carlo", seed=1)
+    mc  = analyzer.compute_test(n_permutations=300, null_method="uniform_monte_carlo", seed=1)
     rot = analyzer.compute_test(n_permutations=300, null_method="rotation",    seed=1)
 
     # A and B are temporally independent, so a well-specified null should give
     # gap_ratio ~ 1 (no signal). The rotation null preserves each type's own
     # clustering and lands near 1; the uniform Monte Carlo null misspecifies
     # the marginal timing and produces a spurious ratio far from 1. We assert
-    # rotation is markedly closer to 1 than monte_carlo.
+    # rotation is markedly closer to 1 than uniform_monte_carlo.
     assert abs(rot.gap_ratio_a_to_b - 1.0) < abs(mc.gap_ratio_a_to_b - 1.0)

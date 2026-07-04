@@ -7,7 +7,7 @@ Single-panel figure centered at zero.
 Positive x = A tends to precede B.
 Negative x = B tends to precede A.
 
-The null model used (monte_carlo, rotation, or label_permutation) is
+The null model used (uniform_monte_carlo, rotation, or label_permutation) is
 read from the test object and shown in the legend.
 """
 from __future__ import annotations
@@ -23,9 +23,9 @@ from eventus.intermediates.event_cooccurrence.event_co_occurrence_directionality
 _ERROR = "[EventCoOccurrenceDirectionalityPlotter] Error"
 
 _NULL_LABELS = {
-    "monte_carlo":       "Monte Carlo null",
-    "rotation":          "Rotation null",
-    "label_permutation": "Label-permutation null",
+    "uniform_monte_carlo": "Uniform (MC)",
+    "rotation":            "Rotation",
+    "label_permutation":   "Label permutation",
 }
 
 

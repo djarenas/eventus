@@ -16,7 +16,7 @@ Three null models are available via the ``null_method`` argument of
 event counts and observation-window length fixed; they differ in what
 temporal structure they preserve:
 
-- "monte_carlo" (default): for each iteration, draw n_a new A dates and
+- "uniform_monte_carlo" (default): for each iteration, draw n_a new A dates and
   n_b new B dates uniformly over the observation period, then recompute
   the gap. Fast, but assumes each event type is uniformly (Poisson-like)
   placed — it does NOT preserve within-type clustering (burstiness), and
@@ -35,7 +35,7 @@ temporal structure they preserve:
 
 The "rotation" and "label_permutation" nulls require the per-entity
 event offsets carried in the summary (columns a_offsets / b_offsets);
-"monte_carlo" needs only the counts. All inner loops are vectorized
+"uniform_monte_carlo" needs only the counts. All inner loops are vectorized
 with numpy.
 
 References
@@ -156,7 +156,7 @@ def _labelperm_gaps_for_entity(
     return np.median(nearest, axis=1)
 
 
-_VALID_NULL_METHODS = ("monte_carlo", "rotation", "label_permutation")
+_VALID_NULL_METHODS = ("uniform_monte_carlo", "rotation", "label_permutation")
 
 
 def _gap_null_for_direction(
@@ -169,7 +169,7 @@ def _gap_null_for_direction(
     rng:            np.random.Generator,
 ) -> np.ndarray:
     """Dispatch to the requested null for one source→target direction."""
-    if null_method == "monte_carlo":
+    if null_method == "uniform_monte_carlo":
         return _montecarlo_gaps_for_entity(n_source, n_target, obs_length, n_iter, rng)
     if null_method == "rotation":
         return _rotation_gaps_for_entity(source_offsets, target_offsets, obs_length, n_iter, rng)
@@ -186,7 +186,7 @@ class EventCoOccurrenceGapAnalyzer:
     EventCoOccurrenceGapSummary to a resampling-based null.
 
     Three null models are available (see module docstring and the
-    ``null_method`` argument of ``compute_test``): "monte_carlo" (uniform
+    ``null_method`` argument of ``compute_test``): "uniform_monte_carlo" (uniform
     placement; the default), "rotation" (preserves each type's own
     burstiness), and "label_permutation". All hold each entity's event
     counts and observation window fixed.
@@ -236,7 +236,7 @@ class EventCoOccurrenceGapAnalyzer:
         self,
         n_permutations: int  = 500,
         seed:           int  = 42,
-        null_method:    str  = "monte_carlo",
+        null_method:    str  = "uniform_monte_carlo",
         n_iterations:   int | None = None,
     ) -> "EventCoOccurrenceGapTest":
         """
@@ -254,8 +254,8 @@ class EventCoOccurrenceGapAnalyzer:
             takes precedence if both are given.)
         seed : int
             Random seed for reproducibility.
-        null_method : {"monte_carlo", "rotation", "label_permutation"}
-            Null model to use. Default "monte_carlo" (uniform placement).
+        null_method : {"uniform_monte_carlo", "rotation", "label_permutation"}
+            Null model to use. Default "uniform_monte_carlo" (uniform placement).
             "rotation" and "label_permutation" require the per-entity
             a_offsets / b_offsets columns produced by compute_gaps().
         n_iterations : int, optional
@@ -307,7 +307,7 @@ class EventCoOccurrenceGapAnalyzer:
                 f"{_ERROR}: null_method={null_method!r} requires per-entity "
                 f"a_offsets / b_offsets, which are produced by compute_gaps(). "
                 f"This summary predates offset capture; rebuild it, or use "
-                f"null_method='monte_carlo'."
+                f"null_method='uniform_monte_carlo'."
             )
         a_off = co_occ["a_offsets"].values if needs_offsets else [None] * len(co_occ)
         b_off = co_occ["b_offsets"].values if needs_offsets else [None] * len(co_occ)

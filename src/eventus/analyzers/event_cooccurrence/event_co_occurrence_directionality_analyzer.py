@@ -15,7 +15,7 @@ Three null models are available via the ``null_method`` argument of
 ``compute_test``, all holding each entity's event counts and window
 fixed (see EventCoOccurrenceGapAnalyzer for the full description):
 
-- "monte_carlo" (default): draw n_a and n_b dates uniformly; recompute
+- "uniform_monte_carlo" (default): draw n_a and n_b dates uniformly; recompute
   the mean signed gap. Assumes uniform placement (no burstiness).
 - "rotation": keep observed dates, shift B by a random within-window
   offset (wrapping); preserves each type's own burstiness.
@@ -137,7 +137,7 @@ def _labelperm_signed_gaps_for_entity(
     return _signed_from_positions(a, b)
 
 
-_VALID_NULL_METHODS = ("monte_carlo", "rotation", "label_permutation")
+_VALID_NULL_METHODS = ("uniform_monte_carlo", "rotation", "label_permutation")
 
 
 def _dir_null_for_entity(
@@ -150,7 +150,7 @@ def _dir_null_for_entity(
     rng:         np.random.Generator,
 ) -> np.ndarray:
     """Dispatch to the requested directionality null for one entity."""
-    if null_method == "monte_carlo":
+    if null_method == "uniform_monte_carlo":
         return _montecarlo_signed_gaps_for_entity(n_a, n_b, obs_length, n_iter, rng)
     if null_method == "rotation":
         return _rotation_signed_gaps_for_entity(a_offsets, b_offsets, obs_length, n_iter, rng)
@@ -205,7 +205,7 @@ class EventCoOccurrenceDirectionalityAnalyzer:
         self,
         n_permutations: int  = 500,
         seed:           int  = 42,
-        null_method:    str  = "monte_carlo",
+        null_method:    str  = "uniform_monte_carlo",
         n_iterations:   int | None = None,
     ) -> "EventCoOccurrenceDirectionalityTest":
         """
@@ -218,8 +218,8 @@ class EventCoOccurrenceDirectionalityAnalyzer:
             iterations. Kept for backward compatibility; ``n_iterations``
             is preferred and takes precedence if both are given.
         seed           : int — random seed for reproducibility
-        null_method    : {"monte_carlo", "rotation", "label_permutation"}
-            Default "monte_carlo". "rotation" and "label_permutation"
+        null_method    : {"uniform_monte_carlo", "rotation", "label_permutation"}
+            Default "uniform_monte_carlo". "rotation" and "label_permutation"
             require the a_offsets / b_offsets columns from
             compute_directionality().
         n_iterations   : int, optional — preferred alias for n_permutations.
@@ -268,7 +268,7 @@ class EventCoOccurrenceDirectionalityAnalyzer:
                 f"{_ERROR}: null_method={null_method!r} requires per-entity "
                 f"a_offsets / b_offsets from compute_directionality(). This "
                 f"summary predates offset capture; rebuild it, or use "
-                f"null_method='monte_carlo'."
+                f"null_method='uniform_monte_carlo'."
             )
         a_off = co_occ["a_offsets"].values if needs_offsets else [None] * len(co_occ)
         b_off = co_occ["b_offsets"].values if needs_offsets else [None] * len(co_occ)

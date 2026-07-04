@@ -10,7 +10,7 @@ Two-panel figure:
 Each panel shows:
   - KDE of observed per-entity median gaps (solid)
   - KDE of the null gaps (filled, semi-transparent) — the null model
-    used (monte_carlo, rotation, or label_permutation) is read from the
+    used (uniform_monte_carlo, rotation, or label_permutation) is read from the
     test object and shown in the legend and title
   - Vertical lines at observed and null medians (if show_medians=True)
   - KS statistic and p-value annotation (if show_ks=True)
@@ -30,9 +30,9 @@ from eventus.intermediates.event_cooccurrence.event_co_occurrence_gap_test impor
 _ERROR = "[EventCoOccurrenceGapPlotter] Error"
 
 _NULL_LABELS = {
-    "monte_carlo":       "Monte Carlo null",
-    "rotation":          "Rotation null",
-    "label_permutation": "Label-permutation null",
+    "uniform_monte_carlo": "Uniform (MC)",
+    "rotation":            "Rotation",
+    "label_permutation":   "Label permutation",
 }
 
 
