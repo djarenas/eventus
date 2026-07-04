@@ -87,10 +87,17 @@ def run_directionality_analysis(
     directionality = analyzer.compute_directionality()
     print(directionality)
 
-    # Compute directionality test
+    # Compute directionality test under each of the three null models.
     dir_analyzer = eventus.EventCoOccurrenceDirectionalityAnalyzer(directionality)
-    dir_test     = dir_analyzer.compute_test(n_permutations=500)
-    print(dir_test)
+    for null_method in ("monte_carlo", "rotation", "label_permutation"):
+        dir_test = dir_analyzer.compute_test(
+            null_method=null_method, n_permutations=500
+        )
+        print(f"\n--- null_method = {null_method} ---")
+        print(dir_test)
+
+    # Use the rotation null (burstiness-preserving) for the plotted figure.
+    dir_test = dir_analyzer.compute_test(null_method="rotation", n_permutations=500)
 
     # Plot
     from eventus.visualizers.event_cooccurrence.event_co_occurrence_directionality_plotter import (

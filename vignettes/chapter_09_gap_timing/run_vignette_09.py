@@ -96,10 +96,20 @@ def run_gap_analysis(
         print(f"  p75    : {vals.quantile(0.75):.1f} days")
         print(f"  max    : {vals.max():.1f} days")
 
-    # Compute gap test
+    # Compute gap test under each of the three null models.
+    # monte_carlo : uniform placement (assumes no burstiness)
+    # rotation    : preserves each type's own burstiness (recommended)
+    # label_perm  : reassigns A/B labels over pooled observed dates
     gap_analyzer = eventus.EventCoOccurrenceGapAnalyzer(gaps)
-    gap_test     = gap_analyzer.compute_test(n_permutations=500)
-    print(gap_test)
+    for null_method in ("monte_carlo", "rotation", "label_permutation"):
+        gap_test = gap_analyzer.compute_test(
+            null_method=null_method, n_permutations=500
+        )
+        print(f"\n--- null_method = {null_method} ---")
+        print(gap_test)
+
+    # Use the rotation null (burstiness-preserving) for the plotted figure.
+    gap_test = gap_analyzer.compute_test(null_method="rotation", n_permutations=500)
 
     # Plot
     from eventus.visualizers.event_cooccurrence.event_co_occurrence_gap_plotter import (

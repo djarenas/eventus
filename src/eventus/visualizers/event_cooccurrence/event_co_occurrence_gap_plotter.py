@@ -1,7 +1,7 @@
 """
 event_co_occurrence_gap_plotter.py
-EventCoOccurrenceGapPlotter — KDE plot of observed vs permutation null
-gap distributions from an EventCoOccurrenceGapTest.
+EventCoOccurrenceGapPlotter — KDE plot of observed vs null gap
+distributions from an EventCoOccurrenceGapTest.
 
 Two-panel figure:
   Top panel    : A → nearest B
@@ -9,7 +9,9 @@ Two-panel figure:
 
 Each panel shows:
   - KDE of observed per-entity median gaps (solid)
-  - KDE of permutation null gaps (filled, semi-transparent)
+  - KDE of the null gaps (filled, semi-transparent) — the null model
+    used (monte_carlo, rotation, or label_permutation) is read from the
+    test object and shown in the legend and title
   - Vertical lines at observed and null medians (if show_medians=True)
   - KS statistic and p-value annotation (if show_ks=True)
 """
@@ -26,6 +28,17 @@ from eventus.intermediates.event_cooccurrence.event_co_occurrence_gap_test impor
 )
 
 _ERROR = "[EventCoOccurrenceGapPlotter] Error"
+
+_NULL_LABELS = {
+    "monte_carlo":       "Monte Carlo null",
+    "rotation":          "Rotation null",
+    "label_permutation": "Label-permutation null",
+}
+
+
+def _null_label(null_method: str) -> str:
+    """Human-readable legend label for a null_method string."""
+    return _NULL_LABELS.get(null_method, f"{null_method} null")
 
 
 class EventCoOccurrenceGapPlotter:
@@ -110,8 +123,9 @@ class EventCoOccurrenceGapPlotter:
             ),
         ]
 
+        null_label = _null_label(t.null_method)
         for ax, obs, null, title in panels:
-            self._draw_panel(ax, obs, null, title, cfg)
+            self._draw_panel(ax, obs, null, title, cfg, null_label)
 
         plt.tight_layout()
         plt.savefig(path, bbox_inches="tight")
@@ -120,10 +134,11 @@ class EventCoOccurrenceGapPlotter:
     def _draw_panel(
         self,
         ax,
-        obs:   np.ndarray,
-        null:  np.ndarray,
-        title: str,
+        obs:        np.ndarray,
+        null:       np.ndarray,
+        title:      str,
         cfg,
+        null_label: str = "Null",
     ) -> None:
         obs_clean  = obs[~np.isnan(obs)]
         null_clean = null[~np.isnan(null)]
@@ -144,7 +159,7 @@ class EventCoOccurrenceGapPlotter:
         kde_null = gaussian_kde(null_clean, bw_method=bw)
         y_null   = kde_null(x)
         ax.fill_between(x, y_null, alpha=cfg.alpha_null,
-                        color=cfg.color_null, label="Permutation null")
+                        color=cfg.color_null, label=null_label)
         ax.plot(x, y_null, color=cfg.color_null, linewidth=1.5)
 
         # KDE — observed (draw on top)

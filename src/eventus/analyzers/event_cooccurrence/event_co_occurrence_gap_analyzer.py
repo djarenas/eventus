@@ -1,7 +1,7 @@
 """
 event_co_occurrence_gap_analyzer.py
-EventCoOccurrenceGapAnalyzer — statistical test comparing observed
-gap distribution to a permutation-based null.
+EventCoOccurrenceGapAnalyzer — statistical test comparing the observed
+gap distribution to a resampling-based null.
 
 Takes an EventCoOccurrenceGapSummary (per-entity gaps) and produces
 an EventCoOccurrenceGapTest (cohort-level KS test result).
@@ -9,22 +9,40 @@ an EventCoOccurrenceGapTest (cohort-level KS test result).
 This is a second-level analyzer — it takes an intermediate result
 as input rather than a CohortTimeline.
 
-Permutation null
-----------------
-For each permutation, for each co-occurring entity:
-  - Draw n_a new A dates uniformly from [obs_start, obs_end]
-  - Draw n_b new B dates uniformly from [obs_start, obs_end]
-  - Recompute nearest gap A→B and B→A
-  - Take median across A events (and B events for reverse direction)
+Null models
+-----------
+Three null models are available via the ``null_method`` argument of
+``compute_test``. All three operate per entity and hold each entity's
+event counts and observation-window length fixed; they differ in what
+temporal structure they preserve:
 
-This preserves each entity's event counts and observation window
-while destroying any temporal relationship between A and B.
-The inner loop is fully vectorized with numpy.
+- "monte_carlo" (default): for each iteration, draw n_a new A dates and
+  n_b new B dates uniformly over the observation period, then recompute
+  the gap. Fast, but assumes each event type is uniformly (Poisson-like)
+  placed — it does NOT preserve within-type clustering (burstiness), and
+  can therefore read self-clustering of a single type as co-occurrence.
 
-Design notes (future expansion)
----------------------------------
-- No config accepted for now. Future version will accept a config
-  controlling n_permutations and summary statistic (median vs mean).
+- "rotation": keep each type's observed dates, and for each iteration
+  shift the target type's whole date sequence by a random offset within
+  the window (wrapping around, mod window length). Preserves each type's
+  own inter-event structure (including burstiness) exactly and breaks
+  only the A–B phase relationship. This is the "random offset" model
+  from the temporal-networks null-model literature.
+
+- "label_permutation": pool each entity's observed A and B dates, then
+  randomly reassign which are A and which are B (keeping the counts).
+  Preserves the combined set of event times but blends the two types.
+
+The "rotation" and "label_permutation" nulls require the per-entity
+event offsets carried in the summary (columns a_offsets / b_offsets);
+"monte_carlo" needs only the counts. All inner loops are vectorized
+with numpy.
+
+References
+----------
+Haiminen, Mannila & Terzi (2008), BMC Bioinformatics 9:336;
+Gauvin et al. (2018), arXiv:1806.04032; Holme & Saramäki (2012),
+Physics Reports 519:97-125.
 """
 from __future__ import annotations
 
@@ -37,56 +55,141 @@ from eventus.intermediates.event_cooccurrence.event_co_occurrence_gap_summary im
 _ERROR = "[EventCoOccurrenceGapAnalyzer] Error"
 
 
-def _permutation_gaps_for_entity(
-    n_a:            int,
-    n_b:            int,
-    obs_length:     float,
-    n_permutations: int,
-    rng:            np.random.Generator,
+def _montecarlo_gaps_for_entity(
+    n_source:   int,
+    n_target:   int,
+    obs_length: float,
+    n_iter:     int,
+    rng:        np.random.Generator,
 ) -> np.ndarray:
     """
-    Vectorized permutation gaps for one entity.
+    Uniform Monte Carlo median gaps for one entity, source→target.
 
-    For each of n_permutations permutations, draws n_a and n_b dates
-    uniformly from [0, obs_length], computes nearest gap from each A
-    to nearest B, takes median across A events.
+    For each of n_iter iterations, draws n_source and n_target dates
+    uniformly from [0, obs_length], computes the nearest gap from each
+    source event to the nearest target event, and takes the median.
 
     Returns
     -------
-    np.ndarray of shape (n_permutations,)
-        One median gap per permutation. NaN if n_a=0, n_b=0, or
-        obs_length=0.
+    np.ndarray of shape (n_iter,)
+        One median gap per iteration. NaN if n_source=0, n_target=0, or
+        obs_length<=0.
     """
-    if n_a == 0 or n_b == 0 or obs_length <= 0:
-        return np.full(n_permutations, np.nan)
+    if n_source == 0 or n_target == 0 or obs_length <= 0:
+        return np.full(n_iter, np.nan)
 
-    # Draw random dates
-    # a_dates: (n_permutations, n_a)
-    # b_dates: (n_permutations, n_b)
-    a_dates = rng.uniform(0, obs_length, size=(n_permutations, n_a))
-    b_dates = rng.uniform(0, obs_length, size=(n_permutations, n_b))
+    # Draw random dates uniformly (does NOT preserve burstiness)
+    s_dates = rng.uniform(0, obs_length, size=(n_iter, n_source))
+    t_dates = rng.uniform(0, obs_length, size=(n_iter, n_target))
 
-    # Absolute differences: (n_permutations, n_a, n_b)
-    diff = np.abs(
-        a_dates[:, :, np.newaxis] - b_dates[:, np.newaxis, :]
-    )
-
-    # Nearest B for each A: min over B axis → (n_permutations, n_a)
-    nearest = diff.min(axis=2)
-
-    # Median over A axis → (n_permutations,)
+    diff = np.abs(s_dates[:, :, np.newaxis] - t_dates[:, np.newaxis, :])
+    nearest = diff.min(axis=2)                      # (n_iter, n_source)
     return np.median(nearest, axis=1)
+
+
+def _rotation_gaps_for_entity(
+    source_offsets: np.ndarray,
+    target_offsets: np.ndarray,
+    obs_length:     float,
+    n_iter:         int,
+    rng:            np.random.Generator,
+) -> np.ndarray:
+    """
+    Rotation ("random offset") median gaps for one entity, source→target.
+
+    The source dates are held fixed at their observed offsets; the target
+    sequence is shifted by a random offset within [0, obs_length),
+    wrapping around (mod obs_length), for each iteration. This preserves
+    each type's own inter-event structure (burstiness) and randomizes only
+    the A–B phase. Median nearest gap across source events is returned.
+    """
+    n_s = len(source_offsets)
+    n_t = len(target_offsets)
+    if n_s == 0 or n_t == 0 or obs_length <= 0:
+        return np.full(n_iter, np.nan)
+
+    src = np.asarray(source_offsets, dtype=float)               # (n_s,)
+    tgt = np.asarray(target_offsets, dtype=float)               # (n_t,)
+
+    shifts  = rng.uniform(0, obs_length, size=(n_iter, 1))
+    tgt_rot = np.mod(tgt[np.newaxis, :] + shifts, obs_length)   # (n_iter, n_t)
+
+    diff = np.abs(src[np.newaxis, :, np.newaxis] - tgt_rot[:, np.newaxis, :])
+    nearest = diff.min(axis=2)                                  # (n_iter, n_s)
+    return np.median(nearest, axis=1)
+
+
+def _labelperm_gaps_for_entity(
+    source_offsets: np.ndarray,
+    target_offsets: np.ndarray,
+    obs_length:     float,
+    n_iter:         int,
+    rng:            np.random.Generator,
+) -> np.ndarray:
+    """
+    Label-permutation median gaps for one entity, source→target.
+
+    Pools the observed source and target offsets, then for each iteration
+    randomly reassigns which are "source" and which are "target" (keeping
+    the counts). Preserves the combined event times and counts; blends the
+    two types' individual timing. Median nearest gap across the permuted
+    source events is returned.
+    """
+    n_s = len(source_offsets)
+    n_t = len(target_offsets)
+    if n_s == 0 or n_t == 0 or obs_length <= 0:
+        return np.full(n_iter, np.nan)
+
+    pool    = np.concatenate([
+        np.asarray(source_offsets, dtype=float),
+        np.asarray(target_offsets, dtype=float),
+    ])
+    n_total = n_s + n_t
+
+    perm    = rng.random((n_iter, n_total)).argsort(axis=1)     # (n_iter, n_total)
+    pooled  = pool[perm]
+    src     = pooled[:, :n_s]                                   # (n_iter, n_s)
+    tgt     = pooled[:, n_s:]                                   # (n_iter, n_t)
+
+    diff = np.abs(src[:, :, np.newaxis] - tgt[:, np.newaxis, :])
+    nearest = diff.min(axis=2)                                  # (n_iter, n_s)
+    return np.median(nearest, axis=1)
+
+
+_VALID_NULL_METHODS = ("monte_carlo", "rotation", "label_permutation")
+
+
+def _gap_null_for_direction(
+    null_method:    str,
+    n_source:       int,
+    n_target:       int,
+    source_offsets, target_offsets,
+    obs_length:     float,
+    n_iter:         int,
+    rng:            np.random.Generator,
+) -> np.ndarray:
+    """Dispatch to the requested null for one source→target direction."""
+    if null_method == "monte_carlo":
+        return _montecarlo_gaps_for_entity(n_source, n_target, obs_length, n_iter, rng)
+    if null_method == "rotation":
+        return _rotation_gaps_for_entity(source_offsets, target_offsets, obs_length, n_iter, rng)
+    if null_method == "label_permutation":
+        return _labelperm_gaps_for_entity(source_offsets, target_offsets, obs_length, n_iter, rng)
+    raise ValueError(
+        f"{_ERROR}: null_method must be one of {_VALID_NULL_METHODS}, got {null_method!r}"
+    )
 
 
 class EventCoOccurrenceGapAnalyzer:
     """
     Statistical test comparing the observed gap distribution in an
-    EventCoOccurrenceGapSummary to a permutation-based null.
+    EventCoOccurrenceGapSummary to a resampling-based null.
 
-    For each permutation both A and B event dates are shuffled
-    uniformly within each entity's observation period. This preserves
-    event counts and observation windows while destroying any temporal
-    relationship between A and B.
+    Three null models are available (see module docstring and the
+    ``null_method`` argument of ``compute_test``): "monte_carlo" (uniform
+    placement; the default), "rotation" (preserves each type's own
+    burstiness), and "label_permutation". All hold each entity's event
+    counts and observation window fixed.
 
     Parameters
     ----------
@@ -104,7 +207,7 @@ class EventCoOccurrenceGapAnalyzer:
     --------
     >>> gaps     = analyzer.compute_gaps()
     >>> gap_test = EventCoOccurrenceGapAnalyzer(gaps).compute_test(
-    ...     n_permutations=500
+    ...     null_method="rotation", n_permutations=500
     ... )
     >>> print(gap_test)
     """
@@ -131,24 +234,32 @@ class EventCoOccurrenceGapAnalyzer:
 
     def compute_test(
         self,
-        n_permutations: int = 500,
-        seed:           int = 42,
+        n_permutations: int  = 500,
+        seed:           int  = 42,
+        null_method:    str  = "monte_carlo",
+        n_iterations:   int | None = None,
     ) -> "EventCoOccurrenceGapTest":
         """
-        Compare the observed gap distribution to a permutation null.
+        Compare the observed gap distribution to a resampling null.
 
-        For each permutation, A and B dates are shuffled uniformly
-        within each entity's observation period. The KS test compares
-        the observed per-entity median gaps to the pooled permutation
-        null distribution.
+        The KS test compares the observed per-entity median gaps to the
+        pooled null distribution generated by ``null_method``.
 
         Parameters
         ----------
         n_permutations : int
-            Number of permutations. Default 500. Increase to 1000 for
-            more stable null estimates.
+            Number of resampling iterations. Default 500. Increase to
+            1000 for more stable null estimates. (Kept for backward
+            compatibility; ``n_iterations`` is the preferred name and
+            takes precedence if both are given.)
         seed : int
             Random seed for reproducibility.
+        null_method : {"monte_carlo", "rotation", "label_permutation"}
+            Null model to use. Default "monte_carlo" (uniform placement).
+            "rotation" and "label_permutation" require the per-entity
+            a_offsets / b_offsets columns produced by compute_gaps().
+        n_iterations : int, optional
+            Preferred alias for n_permutations. If given, overrides it.
 
         Returns
         -------
@@ -161,10 +272,16 @@ class EventCoOccurrenceGapAnalyzer:
             EventCoOccurrenceGapTest,
         )
 
-        if not isinstance(n_permutations, int) or n_permutations < 1:
+        n_iter = n_iterations if n_iterations is not None else n_permutations
+        if not isinstance(n_iter, int) or n_iter < 1:
             raise ValueError(
-                f"{_ERROR}: n_permutations must be a positive integer, "
-                f"got {n_permutations!r}"
+                f"{_ERROR}: number of iterations must be a positive integer, "
+                f"got {n_iter!r}"
+            )
+        if null_method not in _VALID_NULL_METHODS:
+            raise ValueError(
+                f"{_ERROR}: null_method must be one of {_VALID_NULL_METHODS}, "
+                f"got {null_method!r}"
             )
 
         rng  = np.random.default_rng(seed)
@@ -183,31 +300,47 @@ class EventCoOccurrenceGapAnalyzer:
         n_a_vals = co_occ["n_a"].values.astype(int)
         n_b_vals = co_occ["n_b"].values.astype(int)
 
+        # Per-entity offsets are required for rotation / label_permutation.
+        needs_offsets = null_method in ("rotation", "label_permutation")
+        if needs_offsets and not {"a_offsets", "b_offsets"}.issubset(co_occ.columns):
+            raise ValueError(
+                f"{_ERROR}: null_method={null_method!r} requires per-entity "
+                f"a_offsets / b_offsets, which are produced by compute_gaps(). "
+                f"This summary predates offset capture; rebuild it, or use "
+                f"null_method='monte_carlo'."
+            )
+        a_off = co_occ["a_offsets"].values if needs_offsets else [None] * len(co_occ)
+        b_off = co_occ["b_offsets"].values if needs_offsets else [None] * len(co_occ)
+
         # ── Observed gaps ─────────────────────────────────────────────────
         obs_a_to_b = co_occ["median_gap_a_to_nearest_b"].values
         obs_b_to_a = co_occ["median_gap_b_to_nearest_a"].values
 
-        # ── Permutation null ──────────────────────────────────────────────
-        # For each entity, generate n_permutations shuffled median gaps
-        # A→B direction uses n_a, n_b
-        # B→A direction uses n_b, n_a (source and target swapped)
+        # ── Null distribution ─────────────────────────────────────────────
+        # A→B direction: source = A, target = B
+        # B→A direction: source = B, target = A (source and target swapped)
         null_a_to_b_list = []
         null_b_to_a_list = []
 
         for i in range(len(co_occ)):
-            # A→B: shuffle n_a A dates and n_b B dates
-            perm_ab = _permutation_gaps_for_entity(
-                n_a_vals[i], n_b_vals[i], obs_lengths[i], n_permutations, rng
+            null_a_to_b_list.append(
+                _gap_null_for_direction(
+                    null_method,
+                    n_a_vals[i], n_b_vals[i],
+                    a_off[i], b_off[i],
+                    obs_lengths[i], n_iter, rng,
+                )
             )
-            null_a_to_b_list.append(perm_ab)
-
-            # B→A: shuffle n_b B dates and n_a A dates (source = B)
-            perm_ba = _permutation_gaps_for_entity(
-                n_b_vals[i], n_a_vals[i], obs_lengths[i], n_permutations, rng
+            null_b_to_a_list.append(
+                _gap_null_for_direction(
+                    null_method,
+                    n_b_vals[i], n_a_vals[i],
+                    b_off[i], a_off[i],
+                    obs_lengths[i], n_iter, rng,
+                )
             )
-            null_b_to_a_list.append(perm_ba)
 
-        # Pool across all entities and permutations
+        # Pool across all entities and iterations
         null_a_to_b = np.concatenate(null_a_to_b_list)
         null_b_to_a = np.concatenate(null_b_to_a_list)
 
@@ -230,8 +363,8 @@ class EventCoOccurrenceGapAnalyzer:
             identity_b           = self._summary.identity_b,
             n_entities           = self._summary.n_entities,
             n_co_occurring       = self._summary.n_co_occurring,
-            n_permutations       = n_permutations,
-            null_method          = "permutation",
+            n_permutations       = n_iter,
+            null_method          = null_method,
             observed_gaps_a_to_b = obs_a_to_b[mask_ab],
             null_gaps_a_to_b     = null_ab_clean,
             ks_statistic_a_to_b  = ks_stat_ab,

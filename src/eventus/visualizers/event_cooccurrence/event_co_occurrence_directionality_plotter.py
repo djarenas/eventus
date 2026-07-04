@@ -1,11 +1,14 @@
 """
 event_co_occurrence_directionality_plotter.py
-EventCoOccurrenceDirectionalityPlotter — KDE plot of observed vs
-permutation null signed gap distributions.
+EventCoOccurrenceDirectionalityPlotter — KDE plot of observed vs null
+signed gap distributions.
 
 Single-panel figure centered at zero.
 Positive x = A tends to precede B.
 Negative x = B tends to precede A.
+
+The null model used (monte_carlo, rotation, or label_permutation) is
+read from the test object and shown in the legend.
 """
 from __future__ import annotations
 
@@ -18,6 +21,17 @@ from eventus.intermediates.event_cooccurrence.event_co_occurrence_directionality
 )
 
 _ERROR = "[EventCoOccurrenceDirectionalityPlotter] Error"
+
+_NULL_LABELS = {
+    "monte_carlo":       "Monte Carlo null",
+    "rotation":          "Rotation null",
+    "label_permutation": "Label-permutation null",
+}
+
+
+def _null_label(null_method: str) -> str:
+    """Human-readable legend label for a null_method string."""
+    return _NULL_LABELS.get(null_method, f"{null_method} null")
 
 
 class EventCoOccurrenceDirectionalityPlotter:
@@ -74,7 +88,7 @@ class EventCoOccurrenceDirectionalityPlotter:
             kde_null = gaussian_kde(null_clean, bw_method=cfg.bandwidth)
             y_null   = kde_null(x)
             ax.fill_between(x, y_null, alpha=cfg.alpha_null,
-                            color=cfg.color_null, label="Permutation null")
+                            color=cfg.color_null, label=_null_label(t.null_method))
             ax.plot(x, y_null, color=cfg.color_null, linewidth=1.5)
 
             # Observed KDE

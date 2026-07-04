@@ -1,7 +1,7 @@
 """
 event_co_occurrence_directionality_analyzer.py
 EventCoOccurrenceDirectionalityAnalyzer — statistical test comparing
-the observed distribution of mean signed gaps to a permutation null.
+the observed distribution of mean signed gaps to a resampling null.
 
 Takes an EventCoOccurrenceDirectionalitySummary and produces an
 EventCoOccurrenceDirectionalityTest.
@@ -9,17 +9,28 @@ EventCoOccurrenceDirectionalityTest.
 This is a second-level analyzer — takes an intermediate result as
 input rather than a CohortTimeline.
 
-Permutation null
-----------------
-For each permutation, for each co-occurring entity:
-  - Draw n_a new A dates uniformly from [obs_start, obs_end]
-  - Draw n_b new B dates uniformly from [obs_start, obs_end]
-  - Recompute mean signed gap
-  - Record whether mean signed gap > 0 (A first)
+Null models
+-----------
+Three null models are available via the ``null_method`` argument of
+``compute_test``, all holding each entity's event counts and window
+fixed (see EventCoOccurrenceGapAnalyzer for the full description):
 
-The null fraction_a_first is computed empirically — not assumed to
-be 0.50. For patients with many events, the null fraction may deviate
-from 0.50 depending on event count and observation window.
+- "monte_carlo" (default): draw n_a and n_b dates uniformly; recompute
+  the mean signed gap. Assumes uniform placement (no burstiness).
+- "rotation": keep observed dates, shift B by a random within-window
+  offset (wrapping); preserves each type's own burstiness.
+- "label_permutation": pool the observed A and B dates and reassign
+  labels, keeping counts.
+
+The null fraction_a_first is computed empirically — not assumed to be
+0.50. "rotation" and "label_permutation" require the per-entity offsets
+carried in the summary (a_offsets / b_offsets).
+
+References
+----------
+Haiminen, Mannila & Terzi (2008), BMC Bioinformatics 9:336;
+Gauvin et al. (2018), arXiv:1806.04032; Holme & Saramäki (2012),
+Physics Reports 519:97-125.
 """
 from __future__ import annotations
 
@@ -33,41 +44,121 @@ from eventus.intermediates.event_cooccurrence.event_co_occurrence_directionality
 _ERROR = "[EventCoOccurrenceDirectionalityAnalyzer] Error"
 
 
-def _permutation_signed_gaps_for_entity(
-    n_a:            int,
-    n_b:            int,
-    obs_length:     float,
-    n_permutations: int,
-    rng:            np.random.Generator,
+def _signed_from_positions(
+    a: np.ndarray,   # (n_iter, n_a)
+    b: np.ndarray,   # (n_iter, n_b)
 ) -> np.ndarray:
     """
-    Vectorized permutation mean signed gaps for one entity.
+    Mean signed gap per iteration from A/B position arrays.
 
-    Returns array of shape (n_permutations,) — one mean signed gap
-    per permutation. NaN if n_a=0, n_b=0, or obs_length=0.
+    For each A event, the nearest B (by absolute distance) is found and
+    its signed offset (positive = B after A) recorded; the mean across A
+    events is returned. Shapes: a=(n_iter, n_a), b=(n_iter, n_b) →
+    returns (n_iter,).
     """
-    if n_a == 0 or n_b == 0 or obs_length <= 0:
-        return np.full(n_permutations, np.nan)
+    n_iter, n_a = a.shape
+    diff        = b[:, np.newaxis, :] - a[:, :, np.newaxis]   # (n_iter, n_a, n_b)
+    abs_diff    = np.abs(diff)
+    nearest_idx = abs_diff.argmin(axis=2)                     # (n_iter, n_a)
 
-    # Draw random dates
-    a_dates = rng.uniform(0, obs_length, size=(n_permutations, n_a))
-    b_dates = rng.uniform(0, obs_length, size=(n_permutations, n_b))
-
-    # Signed differences: (n_permutations, n_a, n_b)
-    # Positive = B after A
-    diff = b_dates[:, np.newaxis, :] - a_dates[:, :, np.newaxis]
-
-    # For each A, find nearest B by absolute distance
-    abs_diff  = np.abs(diff)
-    nearest_idx = abs_diff.argmin(axis=2)   # (n_permutations, n_a)
-
-    # Gather signed gap for nearest B
-    perm_idx   = np.arange(n_permutations)[:, np.newaxis]
-    a_idx      = np.arange(n_a)[np.newaxis, :]
-    signed     = diff[perm_idx, a_idx, nearest_idx]   # (n_permutations, n_a)
-
-    # Mean across A events → (n_permutations,)
+    it_idx = np.arange(n_iter)[:, np.newaxis]
+    a_idx  = np.arange(n_a)[np.newaxis, :]
+    signed = diff[it_idx, a_idx, nearest_idx]                 # (n_iter, n_a)
     return signed.mean(axis=1)
+
+
+def _montecarlo_signed_gaps_for_entity(
+    n_a:        int,
+    n_b:        int,
+    obs_length: float,
+    n_iter:     int,
+    rng:        np.random.Generator,
+) -> np.ndarray:
+    """Uniform Monte Carlo mean signed gaps for one entity."""
+    if n_a == 0 or n_b == 0 or obs_length <= 0:
+        return np.full(n_iter, np.nan)
+    a_dates = rng.uniform(0, obs_length, size=(n_iter, n_a))
+    b_dates = rng.uniform(0, obs_length, size=(n_iter, n_b))
+    return _signed_from_positions(a_dates, b_dates)
+
+
+def _rotation_signed_gaps_for_entity(
+    a_offsets:  np.ndarray,
+    b_offsets:  np.ndarray,
+    obs_length: float,
+    n_iter:     int,
+    rng:        np.random.Generator,
+) -> np.ndarray:
+    """
+    Rotation ("random offset") mean signed gaps for one entity.
+
+    A held fixed at observed offsets; B shifted by a random within-window
+    offset (wrapping) each iteration. Preserves each type's burstiness.
+    """
+    n_a = len(a_offsets)
+    n_b = len(b_offsets)
+    if n_a == 0 or n_b == 0 or obs_length <= 0:
+        return np.full(n_iter, np.nan)
+
+    a       = np.tile(np.asarray(a_offsets, dtype=float), (n_iter, 1))   # (n_iter, n_a)
+    b_obs   = np.asarray(b_offsets, dtype=float)
+    shifts  = rng.uniform(0, obs_length, size=(n_iter, 1))
+    b       = np.mod(b_obs[np.newaxis, :] + shifts, obs_length)          # (n_iter, n_b)
+    return _signed_from_positions(a, b)
+
+
+def _labelperm_signed_gaps_for_entity(
+    a_offsets:  np.ndarray,
+    b_offsets:  np.ndarray,
+    obs_length: float,
+    n_iter:     int,
+    rng:        np.random.Generator,
+) -> np.ndarray:
+    """
+    Label-permutation mean signed gaps for one entity.
+
+    Pool observed A and B offsets, reassign labels each iteration keeping
+    the counts, recompute mean signed gap.
+    """
+    n_a = len(a_offsets)
+    n_b = len(b_offsets)
+    if n_a == 0 or n_b == 0 or obs_length <= 0:
+        return np.full(n_iter, np.nan)
+
+    pool    = np.concatenate([
+        np.asarray(a_offsets, dtype=float),
+        np.asarray(b_offsets, dtype=float),
+    ])
+    n_total = n_a + n_b
+    perm    = rng.random((n_iter, n_total)).argsort(axis=1)
+    pooled  = pool[perm]
+    a       = pooled[:, :n_a]      # (n_iter, n_a)
+    b       = pooled[:, n_a:]      # (n_iter, n_b)
+    return _signed_from_positions(a, b)
+
+
+_VALID_NULL_METHODS = ("monte_carlo", "rotation", "label_permutation")
+
+
+def _dir_null_for_entity(
+    null_method: str,
+    n_a:         int,
+    n_b:         int,
+    a_offsets, b_offsets,
+    obs_length:  float,
+    n_iter:      int,
+    rng:         np.random.Generator,
+) -> np.ndarray:
+    """Dispatch to the requested directionality null for one entity."""
+    if null_method == "monte_carlo":
+        return _montecarlo_signed_gaps_for_entity(n_a, n_b, obs_length, n_iter, rng)
+    if null_method == "rotation":
+        return _rotation_signed_gaps_for_entity(a_offsets, b_offsets, obs_length, n_iter, rng)
+    if null_method == "label_permutation":
+        return _labelperm_signed_gaps_for_entity(a_offsets, b_offsets, obs_length, n_iter, rng)
+    raise ValueError(
+        f"{_ERROR}: null_method must be one of {_VALID_NULL_METHODS}, got {null_method!r}"
+    )
 
 
 class EventCoOccurrenceDirectionalityAnalyzer:
@@ -112,17 +203,26 @@ class EventCoOccurrenceDirectionalityAnalyzer:
 
     def compute_test(
         self,
-        n_permutations: int = 500,
-        seed:           int = 42,
+        n_permutations: int  = 500,
+        seed:           int  = 42,
+        null_method:    str  = "monte_carlo",
+        n_iterations:   int | None = None,
     ) -> "EventCoOccurrenceDirectionalityTest":
         """
         Compare the observed mean signed gap distribution to a
-        permutation null using the Wilcoxon signed-rank test.
+        resampling null using the Wilcoxon signed-rank test.
 
         Parameters
         ----------
-        n_permutations : int — default 500
+        n_permutations : int — default 500. Number of resampling
+            iterations. Kept for backward compatibility; ``n_iterations``
+            is preferred and takes precedence if both are given.
         seed           : int — random seed for reproducibility
+        null_method    : {"monte_carlo", "rotation", "label_permutation"}
+            Default "monte_carlo". "rotation" and "label_permutation"
+            require the a_offsets / b_offsets columns from
+            compute_directionality().
+        n_iterations   : int, optional — preferred alias for n_permutations.
 
         Returns
         -------
@@ -134,10 +234,16 @@ class EventCoOccurrenceDirectionalityAnalyzer:
             EventCoOccurrenceDirectionalityTest,
         )
 
-        if not isinstance(n_permutations, int) or n_permutations < 1:
+        n_iter = n_iterations if n_iterations is not None else n_permutations
+        if not isinstance(n_iter, int) or n_iter < 1:
             raise ValueError(
-                f"{_ERROR}: n_permutations must be a positive integer, "
-                f"got {n_permutations!r}"
+                f"{_ERROR}: number of iterations must be a positive integer, "
+                f"got {n_iter!r}"
+            )
+        if null_method not in _VALID_NULL_METHODS:
+            raise ValueError(
+                f"{_ERROR}: null_method must be one of {_VALID_NULL_METHODS}, "
+                f"got {null_method!r}"
             )
 
         rng  = np.random.default_rng(seed)
@@ -156,17 +262,32 @@ class EventCoOccurrenceDirectionalityAnalyzer:
         n_a_vals = co_occ["n_a"].values.astype(int)
         n_b_vals = co_occ["n_b"].values.astype(int)
 
+        needs_offsets = null_method in ("rotation", "label_permutation")
+        if needs_offsets and not {"a_offsets", "b_offsets"}.issubset(co_occ.columns):
+            raise ValueError(
+                f"{_ERROR}: null_method={null_method!r} requires per-entity "
+                f"a_offsets / b_offsets from compute_directionality(). This "
+                f"summary predates offset capture; rebuild it, or use "
+                f"null_method='monte_carlo'."
+            )
+        a_off = co_occ["a_offsets"].values if needs_offsets else [None] * len(co_occ)
+        b_off = co_occ["b_offsets"].values if needs_offsets else [None] * len(co_occ)
+
         # ── Observed signed gaps ──────────────────────────────────────────
         obs = co_occ["mean_signed_gap"].values
         obs_clean = obs[~np.isnan(obs)]
 
-        # ── Permutation null ──────────────────────────────────────────────
+        # ── Null distribution ─────────────────────────────────────────────
         null_list = []
         for i in range(len(co_occ)):
-            perm = _permutation_signed_gaps_for_entity(
-                n_a_vals[i], n_b_vals[i], obs_lengths[i], n_permutations, rng
+            null_list.append(
+                _dir_null_for_entity(
+                    null_method,
+                    n_a_vals[i], n_b_vals[i],
+                    a_off[i], b_off[i],
+                    obs_lengths[i], n_iter, rng,
+                )
             )
-            null_list.append(perm)
 
         null_all   = np.concatenate(null_list)
         null_clean = null_all[~np.isnan(null_all)]
@@ -192,7 +313,8 @@ class EventCoOccurrenceDirectionalityAnalyzer:
             identity_b            = self._summary.identity_b,
             n_entities            = self._summary.n_entities,
             n_co_occurring        = self._summary.n_co_occurring,
-            n_permutations        = n_permutations,
+            n_permutations        = n_iter,
+            null_method           = null_method,
             observed_signed_gaps  = obs_clean,
             null_signed_gaps      = null_clean,
             fraction_a_first      = frac_a_first,

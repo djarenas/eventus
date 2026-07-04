@@ -39,9 +39,13 @@ across all analyses.
 patient with five strokes will have a shorter expected nearest gap to
 any MI date purely by chance — the more events, the smaller the
 expected nearest gap. A single uniform null ignores this.
-`EventCoOccurrenceGapAnalyzer` uses a permutation null: both A and B
-dates are shuffled independently for each patient, preserving their
-individual event counts and observation windows. The null is honest
+`EventCoOccurrenceGapAnalyzer` offers three null models via
+`null_method`, all preserving each patient's event counts and
+observation window: `monte_carlo` (default) draws A and B dates
+uniformly (assumes no burstiness); `rotation` shifts the observed B
+sequence by a random within-window offset, preserving each type's own
+clustering; `label_permutation` reassigns A/B labels over the pooled
+observed dates. The null is honest
 about what each patient contributes.
 
 **Problem 3 — Per-patient summary vs all-pairs.** Pooling all

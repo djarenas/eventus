@@ -126,6 +126,10 @@ def compute_directionality_stats(
         stats[entity_col]    = row[entity_col]
         stats[obs_start_col] = obs_start
         stats[obs_end_col]   = obs_end
+        # Per-entity event day-offsets from obs_start, retained for the
+        # rotation and label-permutation nulls (see gap utils note).
+        stats["a_offsets"]   = [float((d - obs_start).days) for d in dates_a]
+        stats["b_offsets"]   = [float((d - obs_start).days) for d in dates_b]
         rows.append(stats)
 
     return pd.DataFrame(rows)

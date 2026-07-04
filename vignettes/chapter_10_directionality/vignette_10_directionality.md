@@ -55,9 +55,10 @@ one A and one B event placed randomly in a 365-day year, P(A before
 B) = 0.50 exactly. But for patients with multiple events, the null
 distribution of mean signed gaps depends on event counts and
 observation window — it is not centered at zero in general. The
-permutation null handles this correctly by shuffling both A and B
-dates for each patient independently, preserving their individual
-event counts and observation windows. The fraction A-first under
+null models handle this correctly: `monte_carlo` draws A and B dates
+uniformly, while `rotation` and `label_permutation` resample the
+observed dates — all preserving each patient's individual event
+counts and observation windows. The fraction A-first under
 the null is computed empirically, not assumed.
 
 **Problem 4 — Signed gaps and absolute gaps answer different

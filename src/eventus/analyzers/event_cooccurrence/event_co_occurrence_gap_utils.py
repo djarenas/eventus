@@ -118,7 +118,10 @@ def compute_gap_stats(
         entity_col, obs_start, obs_end,
         n_a, n_b,
         median_gap_a_to_nearest_b,
-        median_gap_b_to_nearest_a
+        median_gap_b_to_nearest_a,
+        a_offsets, b_offsets
+        (a_offsets / b_offsets are lists of event day-offsets from
+        obs_start, used by the rotation and label-permutation nulls.)
     """
     rows = []
     obs_start_col = "obs_start"
@@ -136,6 +139,12 @@ def compute_gap_stats(
         stats[entity_col]    = row[entity_col]
         stats[obs_start_col] = obs_start
         stats[obs_end_col]   = obs_end
+        # Per-entity event day-offsets from obs_start. Retained so that
+        # permutation-family null models (rotation, label permutation) can
+        # resample the observed timings; the uniform Monte Carlo null does
+        # not need them. Stored as plain lists (object dtype column).
+        stats["a_offsets"]   = [float((d - obs_start).days) for d in dates_a]
+        stats["b_offsets"]   = [float((d - obs_start).days) for d in dates_b]
         rows.append(stats)
 
     return pd.DataFrame(rows)

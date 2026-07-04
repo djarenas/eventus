@@ -113,27 +113,48 @@ print(directionality)
 ## `EventCoOccurrenceGapAnalyzer`
 
 Second-level analyzer. Takes an `EventCoOccurrenceGapSummary` and
-produces an `EventCoOccurrenceGapTest` via permutation null.
+produces an `EventCoOccurrenceGapTest`, comparing observed gaps to a
+resampling-based null.
 
 ```python
 from eventus.analyzers import EventCoOccurrenceGapAnalyzer
 
 gaps     = analyzer.compute_gaps()
-gap_test = EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_permutations=500)
+gap_test = EventCoOccurrenceGapAnalyzer(gaps).compute_test(
+    null_method="rotation", n_permutations=500
+)
 print(gap_test)
 # → observed median, null median, KS statistic, KS p, gap_ratio
 ```
 
-### The permutation null
+### Null models
 
-For each permutation, for each co-occurring entity:
-- Draw `n_a` new A dates uniformly from `[obs_start, obs_end]`
-- Draw `n_b` new B dates uniformly from `[obs_start, obs_end]`
-- Recompute nearest gap A→B and B→A
-- Take median across events
+Three null models are available via `null_method`. All three hold each
+entity's event counts and observation-window length fixed; they differ
+in what temporal structure they preserve:
 
-This preserves each entity's event counts and observation window while
-destroying any temporal relationship between A and B.
+- **`"monte_carlo"`** (default) — for each iteration, draw `n_a` new A
+  dates and `n_b` new B dates uniformly over `[obs_start, obs_end]`, then
+  recompute the gaps. Fast, but assumes uniform (Poisson-like) placement:
+  it does **not** preserve within-type clustering (burstiness), so a
+  single self-clustered type can register as spurious co-occurrence.
+- **`"rotation"`** — keep each type's observed dates and shift the target
+  type's whole sequence by a random within-window offset (wrapping, mod
+  window length). Preserves each type's own inter-event structure
+  (including burstiness) and randomizes only the A–B phase. This is the
+  "random offset" model from the temporal-networks null-model literature.
+- **`"label_permutation"`** — pool each entity's observed A and B dates
+  and randomly reassign which are A and which are B (keeping the counts).
+  Preserves the combined event times; blends the two types.
+
+`"rotation"` and `"label_permutation"` use the per-entity event offsets
+carried in the summary (`a_offsets` / `b_offsets`); `"monte_carlo"` needs
+only the counts. The `null_method` actually used is recorded on the test
+object and shown in plots.
+
+References: Haiminen, Mannila & Terzi (2008) *BMC Bioinformatics* 9:336;
+Gauvin et al. (2018) arXiv:1806.04032; Holme & Saramäki (2012) *Physics
+Reports* 519:97–125.
 
 ### `gap_ratio`
 
@@ -151,26 +172,27 @@ gap_ratio = 1.02  → no temporal signal
 ## `EventCoOccurrenceDirectionalityAnalyzer`
 
 Second-level analyzer. Takes an `EventCoOccurrenceDirectionalitySummary`
-and produces an `EventCoOccurrenceDirectionalityTest` via permutation null
-and Wilcoxon signed-rank test.
+and produces an `EventCoOccurrenceDirectionalityTest` via a resampling
+null and the Wilcoxon signed-rank test.
 
 ```python
 from eventus.analyzers import EventCoOccurrenceDirectionalityAnalyzer
 
 dir_summary = analyzer.compute_directionality()
 dir_test    = EventCoOccurrenceDirectionalityAnalyzer(dir_summary).compute_test(
-    n_permutations=500
+    null_method="rotation", n_permutations=500
 )
 print(dir_test)
 # → fraction_a_first, null_fraction_a_first, direction_ratio,
 #   wilcoxon_statistic, wilcoxon_p
 ```
 
-### The permutation null
+### Null models
 
-Same logic as `EventCoOccurrenceGapAnalyzer` — shuffle both A and B
-dates uniformly within each entity's observation window. The null
-`fraction_a_first` is computed empirically, not assumed to be 0.50.
+Same three `null_method` options as `EventCoOccurrenceGapAnalyzer`
+(`"monte_carlo"` default, `"rotation"`, `"label_permutation"`), applied
+to the mean signed gap. The null `fraction_a_first` is computed
+empirically, not assumed to be 0.50.
 
 ### `direction_ratio`
 
@@ -187,16 +209,19 @@ direction_ratio = 1.06  → no meaningful directional signal
 
 ## Statistical disclaimer
 
-The permutation null, KS test, and Wilcoxon signed-rank test implemented
-here are illustrative of the eventus analytical architecture. They have
-not been formally evaluated for Type I error control or statistical power
-under real administrative claims data conditions. See
-`ch8-12_simulation_design.md` for the full statistical disclaimer.
+The null models (Monte Carlo, rotation, label permutation), KS test, and
+Wilcoxon signed-rank test implemented here are illustrative of the
+eventus analytical architecture. They have not been formally evaluated
+for Type I error control or statistical power under real administrative
+claims data conditions. See `ch8-12_simulation_design.md` for the full
+statistical disclaimer.
 
 The architecture is designed to make formal validation and substitution
-straightforward — the permutation mechanism, test statistic, and
-aggregation strategy can each be replaced independently without changing
-any other component.
+straightforward — the null mechanism, test statistic, and aggregation
+strategy can each be replaced independently without changing any other
+component. The choice of null is itself consequential: the uniform Monte
+Carlo null does not preserve each type's own clustering (burstiness),
+whereas the rotation null does, so they can disagree on bursty data.
 
 ---
 

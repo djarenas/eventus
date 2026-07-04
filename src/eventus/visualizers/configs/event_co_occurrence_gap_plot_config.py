@@ -14,7 +14,7 @@ _DEFAULTS = {
     "figsize":          (10, 8),
     "dpi":              120,
     "color_observed":   "#028090",   # teal — observed gaps
-    "color_null":       "#E05C40",   # coral — permutation null
+    "color_null":       "#E05C40",   # coral — null distribution
     "alpha_observed":   0.7,
     "alpha_null":       0.4,
     "bandwidth":        "scott",
