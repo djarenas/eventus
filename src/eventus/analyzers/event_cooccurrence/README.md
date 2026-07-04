@@ -121,7 +121,7 @@ from eventus.analyzers import EventCoOccurrenceGapAnalyzer
 
 gaps     = analyzer.compute_gaps()
 gap_test = EventCoOccurrenceGapAnalyzer(gaps).compute_test(
-    null_method="rotation", n_permutations=500
+    null_method="rotation", n_iterations=500
 )
 print(gap_test)
 # → observed median, null median, KS statistic, KS p, gap_ratio
@@ -133,7 +133,7 @@ Three null models are available via `null_method`. All three hold each
 entity's event counts and observation-window length fixed; they differ
 in what temporal structure they preserve:
 
-- **`"monte_carlo"`** (default) — for each iteration, draw `n_a` new A
+- **`"uniform_monte_carlo"`** (default) — for each iteration, draw `n_a` new A
   dates and `n_b` new B dates uniformly over `[obs_start, obs_end]`, then
   recompute the gaps. Fast, but assumes uniform (Poisson-like) placement:
   it does **not** preserve within-type clustering (burstiness), so a
@@ -148,7 +148,7 @@ in what temporal structure they preserve:
   Preserves the combined event times; blends the two types.
 
 `"rotation"` and `"label_permutation"` use the per-entity event offsets
-carried in the summary (`a_offsets` / `b_offsets`); `"monte_carlo"` needs
+carried in the summary (`a_offsets` / `b_offsets`); `"uniform_monte_carlo"` needs
 only the counts. The `null_method` actually used is recorded on the test
 object and shown in plots.
 
@@ -180,7 +180,7 @@ from eventus.analyzers import EventCoOccurrenceDirectionalityAnalyzer
 
 dir_summary = analyzer.compute_directionality()
 dir_test    = EventCoOccurrenceDirectionalityAnalyzer(dir_summary).compute_test(
-    null_method="rotation", n_permutations=500
+    null_method="rotation", n_iterations=500
 )
 print(dir_test)
 # → fraction_a_first, null_fraction_a_first, direction_ratio,
@@ -190,7 +190,7 @@ print(dir_test)
 ### Null models
 
 Same three `null_method` options as `EventCoOccurrenceGapAnalyzer`
-(`"monte_carlo"` default, `"rotation"`, `"label_permutation"`), applied
+(`"uniform_monte_carlo"` default, `"rotation"`, `"label_permutation"`), applied
 to the mean signed gap. The null `fraction_a_first` is computed
 empirically, not assumed to be 0.50.
 
@@ -209,7 +209,7 @@ direction_ratio = 1.06  → no meaningful directional signal
 
 ## Statistical disclaimer
 
-The null models (Monte Carlo, rotation, label permutation), KS test, and
+The null models (uniform Monte Carlo, rotation, label permutation), KS test, and
 Wilcoxon signed-rank test implemented here are illustrative of the
 eventus analytical architecture. They have not been formally evaluated
 for Type I error control or statistical power under real administrative

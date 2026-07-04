@@ -174,7 +174,7 @@ class EventCoOccurrenceDirectionalityAnalyzer:
     --------
     >>> directionality  = analyzer.compute_directionality()
     >>> dir_analyzer    = EventCoOccurrenceDirectionalityAnalyzer(directionality)
-    >>> dir_test        = dir_analyzer.compute_test(n_permutations=500)
+    >>> dir_test        = dir_analyzer.compute_test(n_iterations=500)
     >>> print(dir_test)
     """
 
@@ -203,10 +203,9 @@ class EventCoOccurrenceDirectionalityAnalyzer:
 
     def compute_test(
         self,
-        n_permutations: int  = 500,
+        n_iterations:   int  = 500,
         seed:           int  = 42,
         null_method:    str  = "uniform_monte_carlo",
-        n_iterations:   int | None = None,
     ) -> "EventCoOccurrenceDirectionalityTest":
         """
         Compare the observed mean signed gap distribution to a
@@ -214,15 +213,12 @@ class EventCoOccurrenceDirectionalityAnalyzer:
 
         Parameters
         ----------
-        n_permutations : int — default 500. Number of resampling
-            iterations. Kept for backward compatibility; ``n_iterations``
-            is preferred and takes precedence if both are given.
+        n_iterations : int — default 500. Number of resampling iterations.
         seed           : int — random seed for reproducibility
         null_method    : {"uniform_monte_carlo", "rotation", "label_permutation"}
             Default "uniform_monte_carlo". "rotation" and "label_permutation"
             require the a_offsets / b_offsets columns from
             compute_directionality().
-        n_iterations   : int, optional — preferred alias for n_permutations.
 
         Returns
         -------
@@ -234,7 +230,7 @@ class EventCoOccurrenceDirectionalityAnalyzer:
             EventCoOccurrenceDirectionalityTest,
         )
 
-        n_iter = n_iterations if n_iterations is not None else n_permutations
+        n_iter = n_iterations
         if not isinstance(n_iter, int) or n_iter < 1:
             raise ValueError(
                 f"{_ERROR}: number of iterations must be a positive integer, "
@@ -313,7 +309,7 @@ class EventCoOccurrenceDirectionalityAnalyzer:
             identity_b            = self._summary.identity_b,
             n_entities            = self._summary.n_entities,
             n_co_occurring        = self._summary.n_co_occurring,
-            n_permutations        = n_iter,
+            n_iterations        = n_iter,
             null_method           = null_method,
             observed_signed_gaps  = obs_clean,
             null_signed_gaps      = null_clean,

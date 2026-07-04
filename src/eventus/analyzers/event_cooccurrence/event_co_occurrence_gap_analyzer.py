@@ -207,7 +207,7 @@ class EventCoOccurrenceGapAnalyzer:
     --------
     >>> gaps     = analyzer.compute_gaps()
     >>> gap_test = EventCoOccurrenceGapAnalyzer(gaps).compute_test(
-    ...     null_method="rotation", n_permutations=500
+    ...     null_method="rotation", n_iterations=500
     ... )
     >>> print(gap_test)
     """
@@ -234,10 +234,9 @@ class EventCoOccurrenceGapAnalyzer:
 
     def compute_test(
         self,
-        n_permutations: int  = 500,
+        n_iterations:   int  = 500,
         seed:           int  = 42,
         null_method:    str  = "uniform_monte_carlo",
-        n_iterations:   int | None = None,
     ) -> "EventCoOccurrenceGapTest":
         """
         Compare the observed gap distribution to a resampling null.
@@ -247,19 +246,15 @@ class EventCoOccurrenceGapAnalyzer:
 
         Parameters
         ----------
-        n_permutations : int
+        n_iterations : int
             Number of resampling iterations. Default 500. Increase to
-            1000 for more stable null estimates. (Kept for backward
-            compatibility; ``n_iterations`` is the preferred name and
-            takes precedence if both are given.)
+            1000 for more stable null estimates.
         seed : int
             Random seed for reproducibility.
         null_method : {"uniform_monte_carlo", "rotation", "label_permutation"}
             Null model to use. Default "uniform_monte_carlo" (uniform placement).
             "rotation" and "label_permutation" require the per-entity
             a_offsets / b_offsets columns produced by compute_gaps().
-        n_iterations : int, optional
-            Preferred alias for n_permutations. If given, overrides it.
 
         Returns
         -------
@@ -272,7 +267,7 @@ class EventCoOccurrenceGapAnalyzer:
             EventCoOccurrenceGapTest,
         )
 
-        n_iter = n_iterations if n_iterations is not None else n_permutations
+        n_iter = n_iterations
         if not isinstance(n_iter, int) or n_iter < 1:
             raise ValueError(
                 f"{_ERROR}: number of iterations must be a positive integer, "
@@ -363,7 +358,7 @@ class EventCoOccurrenceGapAnalyzer:
             identity_b           = self._summary.identity_b,
             n_entities           = self._summary.n_entities,
             n_co_occurring       = self._summary.n_co_occurring,
-            n_permutations       = n_iter,
+            n_iterations       = n_iter,
             null_method          = null_method,
             observed_gaps_a_to_b = obs_a_to_b[mask_ab],
             null_gaps_a_to_b     = null_ab_clean,

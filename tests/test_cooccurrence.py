@@ -79,7 +79,7 @@ def test_ch08_presence(simul1_analyzer):
 
 def test_ch09_gap_timing(simul1_analyzer):
     gaps = simul1_analyzer.compute_gaps()
-    test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_permutations=500)
+    test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_iterations=500)
     assert test.n_co_occurring == 56
     # Seeded (seed=42): ratios are reproducible. Both directions show
     # observed gaps well under the independence null (ratio < 1).
@@ -90,7 +90,7 @@ def test_ch09_gap_timing(simul1_analyzer):
 def test_ch10_directionality(simul1_analyzer):
     directionality = simul1_analyzer.compute_directionality()
     test = eventus.EventCoOccurrenceDirectionalityAnalyzer(directionality).compute_test(
-        n_permutations=500
+        n_iterations=500
     )
     assert test.n_co_occurring == 56
     # Seeded (seed=42): cirrhosis precedes ED in ~74.5% of co-occurring patients.
@@ -109,7 +109,7 @@ NULL_METHODS = ["uniform_monte_carlo", "rotation", "label_permutation"]
 def test_gap_default_null_method_is_uniform_monte_carlo(simul1_analyzer):
     """Default null_method is uniform_monte_carlo and is reported honestly."""
     gaps = simul1_analyzer.compute_gaps()
-    test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_permutations=200)
+    test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_iterations=200)
     assert test.null_method == "uniform_monte_carlo"
 
 
@@ -118,7 +118,7 @@ def test_gap_all_null_methods_run(simul1_analyzer, null_method):
     """All three gap nulls run, report their own method, and give finite p-values."""
     gaps = simul1_analyzer.compute_gaps()
     test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(
-        n_permutations=200, null_method=null_method
+        n_iterations=200, null_method=null_method
     )
     assert test.null_method == null_method
     assert test.n_co_occurring == 56
@@ -131,19 +131,17 @@ def test_directionality_all_null_methods_run(simul1_analyzer, null_method):
     """All three directionality nulls run and report their own method."""
     directionality = simul1_analyzer.compute_directionality()
     test = eventus.EventCoOccurrenceDirectionalityAnalyzer(directionality).compute_test(
-        n_permutations=200, null_method=null_method
+        n_iterations=200, null_method=null_method
     )
     assert test.null_method == null_method
     assert test.n_co_occurring == 56
 
 
-def test_n_iterations_alias(simul1_analyzer):
-    """n_iterations overrides n_permutations when both are given."""
+def test_n_iterations_reported(simul1_analyzer):
+    """The test object reports the n_iterations it was run with."""
     gaps = simul1_analyzer.compute_gaps()
-    test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(
-        n_permutations=999, n_iterations=150
-    )
-    assert test.n_permutations == 150
+    test = eventus.EventCoOccurrenceGapAnalyzer(gaps).compute_test(n_iterations=150)
+    assert test.n_iterations == 150
 
 
 def test_invalid_null_method_raises(simul1_analyzer):
@@ -209,8 +207,8 @@ def test_rotation_preserves_burstiness_vs_uniform_monte_carlo():
     )
     analyzer = eventus.EventCoOccurrenceGapAnalyzer(summary)
 
-    mc  = analyzer.compute_test(n_permutations=300, null_method="uniform_monte_carlo", seed=1)
-    rot = analyzer.compute_test(n_permutations=300, null_method="rotation",    seed=1)
+    mc  = analyzer.compute_test(n_iterations=300, null_method="uniform_monte_carlo", seed=1)
+    rot = analyzer.compute_test(n_iterations=300, null_method="rotation",    seed=1)
 
     # A and B are temporally independent, so a well-specified null should give
     # gap_ratio ~ 1 (no signal). The rotation null preserves each type's own

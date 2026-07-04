@@ -103,7 +103,7 @@ class EventCoOccurrenceGapPlotter:
         fig.suptitle(
             f"Gap distributions: {t.identity_a} ↔ {t.identity_b}\n"
             f"n_co_occurring={t.n_co_occurring:,}  "
-            f"null: {t.null_method} (n_permutations={t.n_permutations:,})",
+            f"null: {t.null_method} (n_iterations={t.n_iterations:,})",
             fontsize = cfg.font_size + 1,
             y        = 1.01,
         )

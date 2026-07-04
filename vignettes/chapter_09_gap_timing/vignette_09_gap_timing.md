@@ -41,7 +41,7 @@ any MI date purely by chance — the more events, the smaller the
 expected nearest gap. A single uniform null ignores this.
 `EventCoOccurrenceGapAnalyzer` offers three null models via
 `null_method`, all preserving each patient's event counts and
-observation window: `monte_carlo` (default) draws A and B dates
+observation window: `uniform_monte_carlo` (default) draws A and B dates
 uniformly (assumes no burstiness); `rotation` shifts the observed B
 sequence by a random within-window offset, preserving each type's own
 clustering; `label_permutation` reassigns A/B labels over the pooled
@@ -127,7 +127,7 @@ computed, both reported.
 
 ```python
 gap_analyzer = eventus.EventCoOccurrenceGapAnalyzer(gaps)
-gap_test     = gap_analyzer.compute_test(n_permutations=500)
+gap_test     = gap_analyzer.compute_test(n_iterations=500)
 print(gap_test)
 ```
 
@@ -137,7 +137,7 @@ EventCoOccurrenceGapTest:
   identity_b             : stroke_event
   entities               : 5,000
   n_co_occurring         : 385 (7.7%)
-  null_method            : permutation (n_permutations=500)
+  null_method            : uniform_monte_carlo (n_iterations=500)
   ──────────────────────────────────────────────────
   mi_event → nearest stroke_event
   ──────────────────────────────────────────────────

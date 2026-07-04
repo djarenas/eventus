@@ -55,7 +55,7 @@ one A and one B event placed randomly in a 365-day year, P(A before
 B) = 0.50 exactly. But for patients with multiple events, the null
 distribution of mean signed gaps depends on event counts and
 observation window — it is not centered at zero in general. The
-null models handle this correctly: `monte_carlo` draws A and B dates
+null models handle this correctly: `uniform_monte_carlo` draws A and B dates
 uniformly, while `rotation` and `label_permutation` resample the
 observed dates — all preserving each patient's individual event
 counts and observation windows. The fraction A-first under
@@ -120,7 +120,7 @@ to precede B on average across the cohort.
 
 ```python
 dir_analyzer = eventus.EventCoOccurrenceDirectionalityAnalyzer(directionality)
-dir_test     = dir_analyzer.compute_test(n_permutations=500)
+dir_test     = dir_analyzer.compute_test(n_iterations=500)
 print(dir_test)
 ```
 
@@ -130,7 +130,7 @@ EventCoOccurrenceDirectionalityTest:
   identity_b             : cardiovascular_event
   entities               : 5,000
   n_co_occurring         : 868 (17.4%)
-  null_method            : permutation (n_permutations=500)
+  null_method            : uniform_monte_carlo (n_iterations=500)
   ──────────────────────────────────────────────────
   fraction_a_first       : 62.1%
   null_fraction_a_first  : 50.0%

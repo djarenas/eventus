@@ -45,7 +45,7 @@ class EventCoOccurrenceDirectionalityTest:
     identity_b              : str
     n_entities              : int
     n_co_occurring          : int
-    n_permutations          : int
+    n_iterations            : int
     observed_signed_gaps    : np.ndarray — per-entity mean signed gaps
     null_signed_gaps        : np.ndarray — pooled permutation null gaps
     fraction_a_first        : float — observed fraction with gap > 0
@@ -59,7 +59,7 @@ class EventCoOccurrenceDirectionalityTest:
     _identity_b:            str        # second event identity label
     _n_entities:            int        # total cohort size
     _n_co_occurring:        int        # entities with both A and B events
-    _n_permutations:        int        # number of permutations used
+    _n_iterations:          int        # number of resampling iterations used
     _observed:              np.ndarray # per-entity mean signed gaps (observed)
     _null:                  np.ndarray # pooled permutation null signed gaps
     _fraction_a_first:      float      # observed fraction with mean_signed_gap > 0
@@ -73,7 +73,7 @@ class EventCoOccurrenceDirectionalityTest:
         identity_b:            str,
         n_entities:            int,
         n_co_occurring:        int,
-        n_permutations:        int,
+        n_iterations:          int,
         observed_signed_gaps:  np.ndarray,
         null_signed_gaps:      np.ndarray,
         fraction_a_first:      float,
@@ -96,7 +96,7 @@ class EventCoOccurrenceDirectionalityTest:
         self._identity_b            = identity_b
         self._n_entities            = n_entities
         self._n_co_occurring        = n_co_occurring
-        self._n_permutations        = n_permutations
+        self._n_iterations          = n_iterations
         self._observed              = np.asarray(observed_signed_gaps, dtype=float)
         self._null                  = np.asarray(null_signed_gaps,     dtype=float)
         self._fraction_a_first      = float(fraction_a_first)
@@ -126,8 +126,8 @@ class EventCoOccurrenceDirectionalityTest:
         return self._n_co_occurring
 
     @property
-    def n_permutations(self) -> int:
-        return self._n_permutations
+    def n_iterations(self) -> int:
+        return self._n_iterations
 
     @property
     def null_method(self) -> str:
@@ -199,7 +199,7 @@ class EventCoOccurrenceDirectionalityTest:
             f"  identity_b             : {self._identity_b}\n"
             f"  entities               : {n:,}\n"
             f"  n_co_occurring         : {nc:,} ({round(100*nc/n,1)}%)\n"
-            f"  null_method            : {self._null_method} (n_iterations={self._n_permutations:,})\n"
+            f"  null_method            : {self._null_method} (n_iterations={self._n_iterations:,})\n"
             f"  {'─' * 50}\n"
             f"  fraction_a_first       : {round(self._fraction_a_first*100,1)}%\n"
             f"  null_fraction_a_first  : {round(self._null_fraction_a_first*100,1)}%\n"

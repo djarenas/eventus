@@ -96,7 +96,7 @@ class EventCoOccurrenceGapTest:
     _null_b_to_a:          np.ndarray
     _ks_stat_b_to_a:       float
     _ks_p_b_to_a:          float
-    _n_permutations:       int
+    _n_iterations:         int
     _null_method:          str
 
     def __init__(
@@ -113,7 +113,7 @@ class EventCoOccurrenceGapTest:
         null_gaps_b_to_a:     np.ndarray,
         ks_statistic_b_to_a:  float,
         ks_p_b_to_a:          float,
-        n_permutations:       int = 0,
+        n_iterations:         int = 0,
         null_method:          str = "analytical",
     ) -> None:
         for name, val in [("identity_a", identity_a), ("identity_b", identity_b)]:
@@ -139,7 +139,7 @@ class EventCoOccurrenceGapTest:
         self._null_b_to_a     = np.asarray(null_gaps_b_to_a,     dtype=float)
         self._ks_stat_b_to_a  = float(ks_statistic_b_to_a)
         self._ks_p_b_to_a     = float(ks_p_b_to_a)
-        self._n_permutations  = n_permutations
+        self._n_iterations    = n_iterations
         self._null_method     = null_method
 
     # ------------------------------------------------------------------ #
@@ -211,8 +211,8 @@ class EventCoOccurrenceGapTest:
     # ------------------------------------------------------------------ #
 
     @property
-    def n_permutations(self) -> int:
-        return self._n_permutations
+    def n_iterations(self) -> int:
+        return self._n_iterations
 
     @property
     def null_method(self) -> str:
@@ -284,7 +284,7 @@ class EventCoOccurrenceGapTest:
             f"  entities               : {n:,}\n"
             f"  n_co_occurring         : {nc:,} ({round(100*nc/n,1)}%)\n"
             f"  null_method            : {self._null_method}"
-            + (f" (n_permutations={self._n_permutations})" if self._n_permutations > 0 else "") + "\n"
+            + (f" (n_iterations={self._n_iterations})" if self._n_iterations > 0 else "") + "\n"
             f"  {'─' * 50}\n"
             f"  {self._identity_a} → nearest {self._identity_b}\n"
             f"  {'─' * 50}\n"
